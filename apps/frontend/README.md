@@ -1,6 +1,10 @@
 # frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+> Рабочий процесс — через pnpm-workspaces из корня монорепо. Эта страница — шаблон
+> `create-vue`; актуальное состояние и план развития описаны в `docs/` (`/docs`, `docs/ROADMAP.md`).
+> Скелет-каркас приложения будет переписан (см. `docs/ROADMAP.md`, задача R04).
+
+Vue 3 + Vite + TypeScript frontend приложения Vistynq.
 
 ## Recommended IDE Setup
 
@@ -25,18 +29,21 @@ See [Vite Configuration Reference](https://vite.dev/config/).
 
 ## Project Setup
 
+Команды запускаются из корня монорепо:
+
 ```sh
-npm install
+pnpm install
 ```
 
 ### Compile and Hot-Reload for Development
 
 ```sh
-npm run dev
+pnpm --filter frontend dev
 ```
 
 ### Type-Check, Compile and Minify for Production
 
 ```sh
-npm run build
+pnpm --filter frontend build
+# либо полностью: pnpm build / pnpm check / pnpm lint / pnpm typecheck
 ```
