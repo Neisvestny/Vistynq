@@ -1,0 +1,525 @@
+openapi: 3.1.0
+info:
+  title: Vistynq API
+  version: 0.1.0
+  description: REST JSON API приложения Vistynq (ванильный PHP + PostgreSQL). Base path /api/v1. Access-токен — Bearer JWT; refresh — httpOnly cookie (Path=/api/v1/auth/refresh).
+servers:
+  - url: http://localhost:8000/api/v1
+tags:
+  - { name: auth }
+  - { name: profile }
+  - { name: canvases }
+  - { name: notes }
+  - { name: tags }
+  - { name: links }
+  - { name: access }
+  - { name: attachments }
+  - { name: shared }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    refreshCookie: { type: apiKey, in: cookie, name: vistynq_refresh }
+  responses:
+    Unauthorized:
+      description: Нет или истёк access
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' },
+        example: { error: { code: "TOKEN_EXPIRED", message: "Токен истёк" } } } }
+    Forbidden:
+      description: Нет прав или email не верифицирован
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' },
+        example: { error: { code: FORBIDDEN, message: "Недостаточно прав" } } } }
+    NotFound:
+      description: Не найдено или скрыто политикой приватности
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ValidationError:
+      description: Ошибка валидации
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' },
+        example: { error: { code: VALIDATION_FAILED, message: "Проверьте поля формы", details: { email: ["некорректный email"] } } } } }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: VALIDATION_FAILED }
+            message: { type: string }
+            details: { type: object, additionalProperties: { type: array, items: { type: string } } }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        avatarUrl: { type: [string, "null"], format: uri }
+        emailVerified: { type: boolean }
+    AccessTokenResponse:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        accessToken: { type: string }
+        accessTokenExpiresIn: { type: integer, example: 900 }
+    Tag:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string, example: "#7c3aed" }
+    Note:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        canvasId: { type: string, format: uuid }
+        authorId: { type: string, format: uuid }
+        title: { type: string }
+        importance: { type: integer, minimum: 1, maximum: 5, default: 3 }
+        isRelevant: { type: boolean, default: true }
+        tagIds: { type: array, items: { type: string, format: uuid } }
+        x: { type: number }
+        y: { type: number }
+        width: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        deletedAt: { type: [string, "null"], format: date-time }
+    NoteDetail:
+      allOf:
+        - $ref: '#/components/schemas/Note'
+        - type: object
+          properties:
+            bodyMd: { type: string, description: "markdown-исходник с [[wikilinks]]" }
+            myRole: { type: string, enum: [owner, author, editor, viewer, none] }
+    GraphNode:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        importance: { type: integer }
+        isRelevant: { type: boolean }
+        x: { type: number }
+        y: { type: number }
+        width: { type: integer }
+        tags: { type: array, items: { type: string } }
+        authorId: { type: string, format: uuid }
+    GraphEdge:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [direct, indirect] }
+        from: { type: string, format: uuid }
+        to: { type: [string, "null"], format: uuid }
+        state: { type: string, enum: [ok, removed], description: removed — «ссылка удалена» (tombstone) }
+        label: { type: [string, "null"], example: ссылка удалена }
+    Canvas:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        ownerId: { type: string, format: uuid }
+        access:
+          type: object
+          properties:
+            level: { type: string, enum: [private, specific, public_link] }
+            publicSlug: { type: [string, "null"] }
+            myRole: { type: string, enum: [owner, editor, viewer, none] }
+        createdAt: { type: string, format: date-time }
+    Graph:
+      type: object
+      properties:
+        canvas: { $ref: '#/components/schemas/Canvas' }
+        nodes: { type: array, items: { $ref: '#/components/schemas/GraphNode' } }
+        edges: { type: array, items: { $ref: '#/components/schemas/GraphEdge' } }
+        tags: { type: array, items: { $ref: '#/components/schemas/Tag' } }
+    DirectLink:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        fromNoteId: { type: string, format: uuid }
+        toNoteId: { type: string, format: uuid }
+    Attachment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [image, audio, text_import, avatar] }
+        filename: { type: string }
+        mime: { type: string }
+        sizeBytes: { type: integer }
+        width: { type: [integer, "null"] }
+        height: { type: [integer, "null"] }
+        url: { type: string, format: uri, description: "presigned GET, TTL 1h" }
+    AccessEntry:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string }
+        role: { type: string, enum: [viewer, editor] }
+        pending: { type: boolean, description: true — инвайт ещё не принят }
+    Invitation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        resourceType: { type: string, enum: [canvas, note] }
+        resourceTitle: { type: string }
+        role: { type: string, enum: [viewer, editor] }
+        status: { type: string, enum: [pending, accepted, declined, revoked] }
+        invitedBy: { type: string }
+
+  parameters:
+    CanvasId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    NoteId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    TagId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+
+security: [{ bearerAuth: [] }]
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, displayName]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                displayName: { type: string }
+      responses:
+        '201': { description: "Пользователь создан, письмо верификации отправлено" }
+        '409': { description: Email занят (CONFLICT) }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/verify-email:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [token], properties: { token: { type: string } } } } }
+      responses: { '204': { description: Email подтверждён }, '410': { description: Токен протух } }
+  /auth/resend-verification:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string } } } } }
+      responses: { '202': { description: "Всегда, без утечки существования email" } }
+  /auth/login:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [email, password], properties: { email: { type: string }, password: { type: string } } }
+      responses:
+        '200':
+          description: access в теле, refresh в httpOnly cookie
+          headers:
+            Set-Cookie: { description: "vistynq_refresh=...; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth/refresh" }
+          content: { application/json: { schema: { $ref: '#/components/schemas/AccessTokenResponse' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: EMAIL_NOT_VERIFIED }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      security: [{ refreshCookie: [] }]
+      responses:
+        '200':
+          description: Новый access + ротация refresh
+          content: { application/json: { schema: { type: object, properties: { accessToken: { type: string }, accessTokenExpiresIn: { type: integer } } } } }
+        '401': { description: Кука недействительна/reuse — семья отозвана }
+  /auth/logout:
+    post:
+      tags: [auth]
+      responses: { '204': { description: "Refresh отозван, кука сброшена" } }
+  /auth/forgot-password:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string } } } } }
+      responses: { '202': { description: Всегда } }
+  /auth/reset-password:
+    post:
+      tags: [auth]
+      security: []
+      requestBody:
+        content: { application/json: { schema: { type: object, required: [token, password], properties: { token: { type: string }, password: { type: string, minLength: 8 } } } } }
+      responses: { '204': { description: "Пароль сброшен, все refresh отозваны" }, '410': { description: Токен протух } }
+  /auth/me:
+    get:
+      tags: [auth]
+      responses:
+        '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /profile:
+    patch:
+      tags: [profile]
+      requestBody:
+        content: { application/json: { schema: { type: object, properties: { displayName: { type: string }, email: { type: string, format: email } } } } }
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }, '409': { description: Email занят }, '422': { $ref: '#/components/responses/ValidationError' } }
+  /profile/avatar:
+    post:
+      tags: [profile]
+      requestBody: { content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary, description: image ≤5MB } } } } } }
+      responses: { '201': { description: Аватар обновлён }, '413': { description: Слишком большой }, '415': { description: Не картинка } }
+    delete:
+      tags: [profile]
+      responses: { '204': { description: Аватар удалён } }
+
+  /canvases:
+    get:
+      tags: [canvases]
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Canvas' } } } } } } } }
+    post:
+      tags: [canvases]
+      requestBody: { content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string, maxLength: 200 } } } } } }
+      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Canvas' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /canvases/{id}:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    patch:
+      tags: [canvases]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { title: { type: string } } } } } }
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Canvas' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      tags: [canvases]
+      description: Только owner. Hard delete с каскадом.
+      responses: { '204': { description: Удалён }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /canvases/{id}/graph:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    get:
+      tags: [canvases]
+      description: Узлы/рёбра без доступа у текущего пользователя — исключены из ответа.
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Graph' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+  /canvases/{id}/nodes/{noteId}:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }, { name: noteId, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      tags: [canvases]
+      description: ≥editor. Вызывается клиентом с дебаунсом после drag/resize.
+      requestBody: { content: { application/json: { schema: { type: object, properties: { x: { type: number }, y: { type: number }, width: { type: integer, minimum: 120, maximum: 800 } } } } } }
+      responses: { '204': { description: Сохранено } }
+  /canvases/{id}/search:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }, { name: q, in: query, required: true, schema: { type: string, minLength: 1 } }]
+    get:
+      tags: [canvases]
+      description: Совпадения по заголовкам и тегам в рамках канваса.
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Note' } } } } } } } }
+  /canvases/{id}/archive:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    get:
+      tags: [canvases]
+      description: ≥editor. Панель архива канваса.
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notRelevant: { type: array, items: { $ref: '#/components/schemas/Note' } }
+                  deleted: { type: array, items: { $ref: '#/components/schemas/Note' } }
+
+  /canvases/{id}/notes:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    post:
+      tags: [notes]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { title: { type: string, default: "Без названия" }, x: { type: number }, y: { type: number } } } } } }
+      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Note' } } } } }
+  /canvases/{id}/notes/from-text:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    post:
+      tags: [notes]
+      description: Импорт .md/.txt (attachment kind=text_import) как новая заметка.
+      requestBody: { content: { application/json: { schema: { type: object, required: [attachmentId], properties: { attachmentId: { type: string, format: uuid }, title: { type: string }, x: { type: number }, y: { type: number } } } } } }
+      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Note' } } } } }
+  /canvases/{id}/notes/derive:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    post:
+      tags: [notes]
+      description: «Создать от этой заметки» — новая заметка + прямой линк родитель → дочерняя.
+      requestBody: { content: { application/json: { schema: { type: object, required: [parentNoteId], properties: { parentNoteId: { type: string, format: uuid }, x: { type: number }, y: { type: number } } } } } }
+      responses: { '201': { description: Создано, content: { application/json: { schema: { type: object, properties: { note: { $ref: '#/components/schemas/Note' }, link: { $ref: '#/components/schemas/DirectLink' } } } } } } }
+  /notes/{id}:
+    parameters: [{ $ref: '#/components/parameters/NoteId' }]
+    get:
+      tags: [notes]
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/NoteDetail' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [notes]
+      description: Манифест. isRelevant:false — помещает в архив «неактуально».
+      requestBody: { content: { application/json: { schema: { type: object, properties: { title: { type: string }, importance: { type: integer, minimum: 1, maximum: 5 }, isRelevant: { type: boolean }, tagIds: { type: array, items: { type: string, format: uuid } } } } } } }
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/NoteDetail' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+    delete:
+      tags: [notes]
+      description: Soft delete — заметка попадает в архив «Удалённые».
+      responses: { '204': { description: Удалена } }
+  /notes/{id}/body:
+    parameters: [{ $ref: '#/components/parameters/NoteId' }]
+    put:
+      tags: [notes]
+      description: Сохранение markdown-тела; сервер перепарсит [[wikilinks]] в indirect_links.
+      requestBody: { content: { application/json: { schema: { type: object, required: [bodyMd], properties: { bodyMd: { type: string } } } } } }
+      responses: { '200': { description: "Сохранено, возврат NoteDetail" } }
+  /notes/{id}/restore:
+    parameters: [{ $ref: '#/components/parameters/NoteId' }]
+    post:
+      tags: [notes]
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Note' } } } }, '410': { description: Заметка purged — восстановить нельзя } }
+  /notes/{id}/purge:
+    parameters: [{ $ref: '#/components/parameters/NoteId' }]
+    delete:
+      tags: [notes]
+      description: Hard delete + tombstone, линки → «ссылка удалена».
+      responses: { '204': { description: Стирта навсегда } }
+
+  /canvases/{id}/tags:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    get:
+      tags: [tags]
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Tag' } } } } } }
+    post:
+      tags: [tags]
+      requestBody: { content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, maxLength: 50 }, color: { type: string, example: "#7c3aed" } } } } } }
+      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Tag' } } } }, '409': { description: Дубль имени } }
+  /tags/{id}:
+    parameters: [{ $ref: '#/components/parameters/TagId' }]
+    patch:
+      tags: [tags]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, color: { type: string } } } } } }
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Tag' } } } } }
+    delete:
+      tags: [tags]
+      description: Снимает тег со всех заметок канваса.
+      responses: { '204': { description: Удалён } }
+
+  /links/direct:
+    post:
+      tags: [links]
+      requestBody: { content: { application/json: { schema: { type: object, required: [fromNoteId, toNoteId], properties: { fromNoteId: { type: string, format: uuid }, toNoteId: { type: string, format: uuid } } } } } }
+      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/DirectLink' } } } }, '409': { description: Дубль или разные канвасы или from==to } }
+  /links/direct/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    delete:
+      tags: [links]
+      responses: { '204': { description: Удалён } }
+  /links/direct/{id}/reverse:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      tags: [links]
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/DirectLink' } } } } }
+
+  /canvases/{id}/access:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    get:
+      tags: [access]
+      description: owner.
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AccessEntry' } } } } } }
+  /canvases/{id}/access-level:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    put:
+      tags: [access]
+      description: owner. private | specific | public_link (генерирует slug).
+      requestBody: { content: { application/json: { schema: { type: object, required: [level], properties: { level: { type: string, enum: [private, specific, public_link] } } } } } }
+      responses: { '200': { description: "{level, publicSlug?}" } }
+  /canvases/{id}/access/invite:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    post:
+      tags: [access]
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [viewer, editor] } } } } } }
+      responses: { '201': { description: "Приглашение создано или доступ выдан сразу" } }
+  /canvases/{id}/access/{userId}:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }, { name: userId, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      tags: [access]
+      requestBody: { content: { application/json: { schema: { type: object, required: [role], properties: { role: { type: string, enum: [viewer, editor] } } } } } }
+      responses: { '204': { description: Роль обновлена } }
+    delete:
+      tags: [access]
+      responses: { '204': { description: Доступ отозван } }
+  /canvases/{id}/public-link:
+    parameters: [{ $ref: '#/components/parameters/CanvasId' }]
+    delete:
+      tags: [access]
+      description: Выключить публичную ссылку (slug → null).
+      responses: { '204': { description: Выключена } }
+  /notes/{id}/access:
+    parameters: [{ $ref: '#/components/parameters/NoteId' }]
+    get:
+      tags: [access]
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AccessEntry' } } } } } }
+  /notes/{id}/access-level:
+    parameters: [{ $ref: '#/components/parameters/NoteId' }]
+    put:
+      tags: [access]
+      requestBody: { content: { application/json: { schema: { type: object, required: [level], properties: { level: { type: string, enum: [private, specific, public_link] } } } } } }
+      responses: { '200': { description: "{level, publicSlug?}" } }
+  /notes/{id}/access/invite:
+    parameters: [{ $ref: '#/components/parameters/NoteId' }]
+    post:
+      tags: [access]
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string }, role: { type: string, enum: [viewer, editor] } } } } } }
+      responses: { '201': { description: ok } }
+  /notes/{id}/access/{userId}:
+    parameters: [{ $ref: '#/components/parameters/NoteId' }, { name: userId, in: path, required: true, schema: { type: string, format: uuid } }]
+    patch:
+      tags: [access]
+      requestBody: { content: { application/json: { schema: { type: object, required: [role], properties: { role: { type: string, enum: [viewer, editor] } } } } } }
+      responses: { '204': { description: ok } }
+    delete:
+      tags: [access]
+      responses: { '204': { description: ok } }
+  /invitations:
+    get:
+      tags: [access]
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Invitation' } } } } } }
+  /invitations/{id}/accept:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      tags: [access]
+      responses: { '204': { description: "Инвайт принят, доступ выдан" } }
+  /invitations/{id}/decline:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    post:
+      tags: [access]
+      responses: { '204': { description: Отклонён } }
+
+  /notes/{id}/attachments:
+    parameters: [{ $ref: '#/components/parameters/NoteId' }]
+    post:
+      tags: [attachments]
+      description: Multipart upload через бэкенд → MinIO/S3.
+      requestBody: { content: { multipart/form-data: { schema: { type: object, required: [file], properties: { file: { type: string, format: binary } } } } } }
+      responses:
+        '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Attachment' } } } }
+        '413': { description: "image>5MB, audio>25MB, text>1MB" }
+        '415': { description: "не png/jpg/gif/webp, mp3/ogg/wav, txt/md" }
+  /attachments/{id}/url:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      tags: [attachments]
+      responses: { '200': { description: "{url} presigned, TTL 1h" }, '404': { $ref: '#/components/responses/NotFound' } }
+  /attachments/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+    delete:
+      tags: [attachments]
+      responses: { '204': { description: Файл и строка удалены } }
+
+  /shared/canvases/{slug}:
+    parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [shared]
+      security: []
+      description: Анонимный read-only graph только с доступными узлами.
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Graph' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+  /shared/notes/{slug}:
+    parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [shared]
+      security: []
+      description: Read-only заметка, недоступные wikilinks — plain text.
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: object, properties: { note: { $ref: '#/components/schemas/NoteDetail' }, bodyHtml: { type: string } } } } } } }
