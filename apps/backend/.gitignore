@@ -1,0 +1,7 @@
+# Backend-specific ignores (global patterns live in the root .gitignore).
+
+# PHP-CS-Fixer cache (recreated on every run; never commit)
+.php-cs-fixer.cache
+
+# Local runtime storage
+*.local
