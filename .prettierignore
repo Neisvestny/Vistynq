@@ -1,0 +1,18 @@
+# Generated/build output
+node_modules
+dist
+dist-ssr
+coverage
+.turbo
+
+# Lock files (managed by package managers)
+pnpm-lock.yaml
+composer.lock
+
+# Environment & local files
+.env
+.env.*
+
+# Other tooling configs
+package-lock.json
+yarn.lock

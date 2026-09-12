@@ -1,0 +1,49 @@
+# Normalize line endings across all text files (LF on every OS).
+* text=auto eol=lf
+
+# Sources — keep LF and informative diffs.
+*.php       text eol=lf
+*.js        text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.ts        text eol=lf
+*.vue       text eol=lf diff=text
+*.json      text eol=lf
+*.md        text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+
+# Lock files: force LF, exclude from diffs, keep tracked for reproducibility.
+pnpm-lock.yaml -text diff=false
+composer.lock  -text diff=false
+
+# Generated/build artifacts: exclude from diffs.
+vendor/**    -diff linguist-generated
+dist/**      -diff linguist-generated
+node_modules/** -diff linguist-generated
+
+# Binary assets: images, fonts, archives, maps, caches.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.avif binary
+*.ico  binary
+*.svg  binary
+*.ttf  binary
+*.otf  binary
+*.woff binary
+*.woff2 binary
+*.eot  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.map  binary
+*.tsbuildinfo binary
+.php-cs-fixer.cache binary
+
+# Windows line endings forced for these files regardless of repo setting.
+*.bat text eol=crlf

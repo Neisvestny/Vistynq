@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "EditorConfig.EditorConfig",
+    "Vue.volar",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "DEVSENSE.phptools-vscode",
+    "DEVSENSE.php-cs-fixer-vscode"
+  ]
+}
