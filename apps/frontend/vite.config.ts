@@ -12,4 +12,17 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    host: true,
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_TARGET ?? 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+    watch: {
+      usePolling: process.env.CHOKIDAR_USEPOLLING === 'true',
+    },
+  },
 })

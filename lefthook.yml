@@ -19,7 +19,7 @@ pre-commit:
     format-php:
       tags: backend style
       glob: "apps/backend/**/*.php"
-      run: php -d memory_limit=512M vendor/bin/php-cs-fixer fix {staged_files} --config=apps/backend/.php-cs-fixer.dist.php
+      run: php -d memory_limit=512M apps/backend/vendor/bin/php-cs-fixer fix {staged_files} --config=apps/backend/.php-cs-fixer.dist.php
       skip:
         - merge
         - rebase
