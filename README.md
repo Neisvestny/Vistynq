@@ -8,7 +8,7 @@ Monorepo (Turborepo + pnpm workspaces) с Vue.js frontend и PHP backend.
 /
 ├── apps/
 │   ├── frontend/   # Vue 3 + Vite + TypeScript (create-vue)
-│   └── backend/    # минимальное PHP-приложение (php -S)
+│   └── backend/    # PHP 8.5 + nginx+php-fpm в docker compose (dev)
 ├── docs/           # документация: архитектура, модель данных, API, UI/UX, гайд
 ├── package.json
 ├── pnpm-workspace.yaml
@@ -17,10 +17,20 @@ Monorepo (Turborepo + pnpm workspaces) с Vue.js frontend и PHP backend.
 └── README.md
 ```
 
+## Команда
+
+3 курс · группа ПИ-241
+
+| Участник                    | Роль |
+| --------------------------- | ---- |
+| Жилин Константин Алексеевич | —    |
+| Каща Артём Дмитриевич       | —    |
+| Кишкунов Руслан Андреевич   | —    |
+
 ## Требования
 
-- Node.js (LTS) и pnpm
-- PHP >= 8.2
+- Docker (Compose v2+)
+- Node.js (LTS) и pnpm — только для работы фронтенда вне контейнера
 
 > Статус: ветка `main` находится на стадии каркаса — продукт спроектирован в `docs/`,
 > но ещё не реализован. План работ с приоритетами и детализацией — в [`docs/ROADMAP.md`](docs/ROADMAP.md).
@@ -28,23 +38,35 @@ Monorepo (Turborepo + pnpm workspaces) с Vue.js frontend и PHP backend.
 ## Установка
 
 ```bash
-pnpm install
+cp .env.example .env   # затем смените пароли и JWT_SECRET
+docker compose up -d   # postgres, minio, mailpit, nginx+php-fpm (API), frontend (Vite)
 ```
+
+Зависимости (composer/pnpm) при первом старте ставятся автоматически внутри контейнеров.
 
 ## Запуск
 
 ```bash
-pnpm dev            # TUI Turborepo: переключение между консолью frontend/backend — стрелки ↑/↓
-pnpm build          # сборка frontend (turbo run build)
+docker compose up -d   # всё окружение разом
 ```
 
-По отдельности:
+После старта:
+
+- Frontend: http://localhost:5173 (Vite; `/api` проксируется на бэкенд)
+- API: http://localhost:8000/api/v1 · healthcheck: http://localhost:8000/api/v1/healthz
+- Mailpit (SMTP-перехват): http://localhost:8025
+- MinIO (S3) API/console: http://localhost:9000 / http://localhost:9001
+
+Фронтенд только на хосте (без контейнера):
 
 ```bash
-pnpm --filter frontend dev    # Vue dev-сервер (http://localhost:5173)
-pnpm --filter backend dev     # PHP built-in сервер (http://127.0.0.1:8000)
+pnpm install
+pnpm --filter frontend dev   # http://localhost:5173; /api идёт на localhost:8000
 ```
 
 ## Документация
+
+- **Функциональные требования** — [`docs/requirements.md`](docs/requirements.md)
+- **Технологический стек** — [`docs/README.md#стек`](docs/README.md#стек)
 
 Полное описание продукта, архитектуры, модели данных, API и UI — в [`docs/`](docs/README.md): архитектура, ER-модель, API reference + OpenAPI, UI/UX-спецификация, гайд пользователя.

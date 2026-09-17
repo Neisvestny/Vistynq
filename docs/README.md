@@ -24,12 +24,13 @@
 
 ## Разделы документации
 
-1. [Архитектура](architecture.md) — компоненты, потоки данных, структура кода.
-2. [Модель данных](data-model.md) — таблицы, поля, связи, ER-диаграмма, жизненный цикл заметки.
-3. [API Reference](api.md) · [OpenAPI-спецификация](openapi.yaml) — эндпоинты, матрица прав, ошибки.
-4. [UI/UX-спецификация](ui-ux.md) — экраны, контекстные меню, поведение канваса.
-5. [Гайд пользователя](user-guide.md) — сценарии от регистрации до шеринга.
-6. [Roadmap](ROADMAP.md) — приоритизированный план реализации с детализацией этапов.
+1. [Функциональные требования](requirements.md) — роли, доступы, требования к продукту и NFR.
+2. [Архитектура](architecture.md) — компоненты, потоки данных, структура кода.
+3. [Модель данных](data-model.md) — таблицы, поля, связи, ER-диаграмма, жизненный цикл заметки.
+4. [API Reference](api.md) · [OpenAPI-спецификация](openapi.yaml) — эндпоинты, матрица прав, ошибки.
+5. [UI/UX-спецификация](ui-ux.md) — экраны, контекстные меню, поведение канваса.
+6. [Гайд пользователя](user-guide.md) — сценарии от регистрации до шеринга.
+7. [Roadmap](ROADMAP.md) — приоритизированный план реализации с детализацией этапов.
 
 ## Roadmap реализации
 
@@ -53,13 +54,10 @@ Realtime-коллаборация, история версий заметок, �
 
 ## Быстрый старт (dev)
 
-> Статус: репозиторий на стадии каркаса (см. [ROADMAP.md](ROADMAP.md), этап 1, R01/R05).
-> Команды ниже описывают целевое состояние dev-окружения и станут рабочими после реализации
-> docker-compose (`R01`) и миграционного раннера (`R05`).
-
 ```bash
-docker compose up -d                       # postgres, minio, mailpit, backend, frontend
-docker compose exec backend php bin/migrate
-docker compose exec backend php bin/seed   # демо-аккаунт + пример канваса
-# фронт: http://localhost:5173, API: http://localhost:8000/api/v1, Mailpit: http://localhost:8025
+cp .env.example .env                       # сменить пароли и JWT_SECRET
+docker compose up -d                       # postgres, minio (+init бакета), mailpit, nginx+php-fpm, frontend (vite)
+curl http://localhost:8000/api/v1/healthz  # {"status":"ok"}
+# фронт: http://localhost:5173 · API: http://localhost:8000/api/v1 · Mailpit: http://localhost:8025 · MinIO console: http://localhost:9001
+# миграции и seed (появятся в R05): docker compose exec backend php bin/migrate · bin/seed
 ```
