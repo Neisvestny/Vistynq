@@ -2,4 +2,6 @@
 
 declare(strict_types=1);
 
-echo 'Vistynq backend';
+header('Content-Type: application/json; charset=utf-8');
+
+echo json_encode(['status' => 'ok'], JSON_UNESCAPED_UNICODE);

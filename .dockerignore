@@ -1,0 +1,14 @@
+.git
+.docker
+.turbo
+dist
+node_modules
+**/node_modules
+vendor
+**/vendor
+docs
+*.md
+*.log
+.env
+.env.*
+coverage
