@@ -2,12 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * Заполнение незаданных переменных из apps/backend/.env (нужно только для
- * запуска на хосте: `php -S ... -t public`). Реальное окружение всегда
- * важнее файла — docker-compose передаёт переменные явно.
- * R03 заменит это на полноценный Config.
- */
 loadEnvFile(dirname(__DIR__) . '/.env');
 
 header('Content-Type: application/json; charset=utf-8');
@@ -36,11 +30,6 @@ echo json_encode(
     JSON_UNESCAPED_UNICODE
 );
 
-/**
- * Cheap dependency probe: one round-trip query against PostgreSQL.
- * Returns null when healthy, otherwise a stable machine-readable reason
- * (exception details go to the log, never to the response body).
- */
 function databaseFailureReason(): ?string
 {
     if (!in_array('pgsql', PDO::getAvailableDrivers(), true)) {
@@ -75,11 +64,6 @@ function databaseFailureReason(): ?string
     return null;
 }
 
-/**
- * Мини-парсер .env (KEY=VALUE, #, кавычки) для запуска на хосте.
- * Уже заданные переменные окружения не перезаписываются — docker-compose
- * передаёт их явно, и файл в контейнере роли не играет.
- */
 function loadEnvFile(string $file): void
 {
     if (!is_readable($file)) {

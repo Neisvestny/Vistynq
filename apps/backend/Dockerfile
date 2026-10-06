@@ -1,10 +1,5 @@
 FROM php:8.5-fpm-alpine
 
-# pdo_pgsql собирается за один слой.
-# --timeout 30 — обрыв TCP-соединений, которые «залипают» без прогресса
-# (иначе apk ждёт вечно и сборка виснет); ретраи переживают обрыв сети.
-# Сборочные пакеты (.phpize-deps + libpq-dev) удаляются сразу после компиляции,
-# поэтому toolchain не остаётся в образе. sodium уже есть в базовом образе.
 RUN set -e; \
     for i in 1 2 3 4 5; do \
         if apk add --no-cache --timeout 30 --virtual .phpize-deps $PHPIZE_DEPS libpq-dev \
@@ -27,8 +22,6 @@ WORKDIR /app
 
 EXPOSE 9000
 
-# ENTRYPOINT обнуляет CMD, наследуемый от базового образа, — задаём явно,
-# иначе `exec "$@"` в docker-entrypoint.sh завершает контейнер сразу после старта.
 CMD ["php-fpm"]
 
 ENTRYPOINT ["docker-entrypoint.sh"]

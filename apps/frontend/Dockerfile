@@ -1,7 +1,5 @@
 FROM node:22-alpine
 
-# git нужен root-скрипту `prepare` (lefthook install) при pnpm install в контейнере;
-# safe.directory — репозиторий смонтирован с хоста и принадлежит другому UID
 RUN apk add --no-cache git \
     && git config --global --add safe.directory /app
 

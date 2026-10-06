@@ -1,0 +1,42 @@
+:root {
+  /* Цвета */
+  --color-bg: #f6f7fb;
+  --color-surface: #ffffff;
+  --color-surface-alt: #eef1f8;
+  --color-text: #14161c;
+  --color-text-muted: #5a6174;
+  --color-text-invert: #ffffff;
+  --color-border: #e2e6f0;
+  --color-border-strong: #cdd4e3;
+
+  --color-accent: #3b5bdb;
+  --color-accent-strong: #2f49b8;
+  --color-accent-soft: #eaeefc;
+
+  /* Важность заметок 1–5 */
+  --importance-1: #64748b;
+  --importance-2: #2563eb;
+  --importance-3: #94a3b8;
+  --importance-4: #ea840b;
+  --importance-5: #e5484d;
+
+  /* Шрифты */
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
+
+  /* Отступы */
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* Радиусы */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  /* Каркас */
+  --container: 1200px;
+  --header-height: 64px;
+}

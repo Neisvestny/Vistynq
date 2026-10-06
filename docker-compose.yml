@@ -69,7 +69,6 @@ services:
       - '127.0.0.1:8000:80'
     volumes:
       - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # nginx проверяет try_files на своей ФС — public монтируем и сюда
       - ./apps/backend/public:/app/public:ro
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- -T 3 http://127.0.0.1/api/v1/healthz || exit 1']

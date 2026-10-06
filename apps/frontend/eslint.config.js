@@ -1,11 +1,3 @@
-/**
- * ESLint flat config for the frontend workspace.
- *
- * The `no-silent-suppressions` rule enforces the team convention that
- * `// eslint-disable*` and `// @ts-ignore` may only be used together with a
- * tracked marker comment explaining the suppression. There is no built-in rule
- * for that, so it is implemented as a small rule defined here.
- */
 import js from '@eslint/js'
 import pluginVue from 'eslint-plugin-vue'
 import tseslint from 'typescript-eslint'
