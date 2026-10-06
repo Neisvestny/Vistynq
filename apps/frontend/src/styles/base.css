@@ -14,7 +14,7 @@ html {
 
 body {
   min-height: 100vh;
-  background: var(--color-bg);
+  background: var(--color-surface);
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: 16px;
@@ -57,13 +57,14 @@ code {
 
 /* Каркас страницы */
 .page {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 100vh;
 }
 
 .page__main {
-  flex: 1;
+  min-width: 0;
+  background: var(--color-bg);
 }
 
 .container {
@@ -74,9 +75,10 @@ code {
 
 /* Кнопки */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  place-items: center;
   gap: 0.5rem;
   padding: 0.7rem 1.35rem;
   border: 1px solid transparent;
@@ -110,4 +112,10 @@ code {
 .btn--lg {
   padding: 0.9rem 1.7rem;
   font-size: 1rem;
+}
+
+h1,
+h2 {
+  text-align: center;
+  margin-top: 16px;
 }
