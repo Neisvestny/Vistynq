@@ -2,23 +2,24 @@ pre-commit:
   parallel: true
   commands:
     format-js:
-      # Prettier only touches files it knows; --ignore-unknown keeps .md/.json safe per its own config.
       tags: frontend style
-      glob: "apps/frontend/**/*.{ts,vue}"
+      glob: 'apps/frontend/**/*.{ts,vue}'
       run: pnpm exec prettier --write --ignore-unknown {staged_files}
       skip:
         - merge
         - rebase
     lint-js:
       tags: frontend style
-      glob: "apps/frontend/**/*.{ts,vue}"
-      run: pnpm --filter frontend exec eslint {staged_files} --fix
+      glob: 'apps/frontend/**/*.{ts,vue}'
+      run: >-
+        pnpm --filter frontend exec sh -c 'eslint --fix
+        $(printf "%s\n" {staged_files} | sed "s|^apps/frontend/||")'
       skip:
         - merge
         - rebase
     format-php:
       tags: backend style
-      glob: "apps/backend/**/*.php"
+      glob: 'apps/backend/**/*.php'
       run: php -d memory_limit=512M apps/backend/vendor/bin/php-cs-fixer fix {staged_files} --config=apps/backend/.php-cs-fixer.dist.php
       skip:
         - merge
