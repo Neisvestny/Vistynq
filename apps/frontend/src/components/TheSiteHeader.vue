@@ -1,7 +1,3 @@
-<script setup lang="ts">
-const docsUrl = 'https://github.com/Neisvestny/Vistynq/tree/main/docs'
-</script>
-
 <template>
   <header class="site-header">
     <div class="container site-header__inner">
@@ -27,9 +23,9 @@ const docsUrl = 'https://github.com/Neisvestny/Vistynq/tree/main/docs'
       </a>
 
       <nav class="site-nav" aria-label="Основная навигация">
+        <a href="#top">Главная</a>
         <a href="#features">Возможности</a>
         <a href="#how">Как это работает</a>
-        <a :href="docsUrl" target="_blank" rel="noopener noreferrer">Документация</a>
       </nav>
 
       <div class="site-header__actions">

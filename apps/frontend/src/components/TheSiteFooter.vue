@@ -1,19 +1,19 @@
 <script setup lang="ts">
 const links = [
   { label: 'Документация', href: 'https://github.com/Neisvestny/Vistynq/tree/main/docs' },
-  { label: 'API Reference', href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/api.md' },
+  { label: 'Описание API', href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/api.md' },
   {
-    label: 'UI/UX-спецификация',
+    label: 'Оформление и интерфейс',
     href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/ui-ux.md',
   },
-  { label: 'Roadmap', href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/ROADMAP.md' },
+  { label: 'Планы', href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/ROADMAP.md' },
 ]
 </script>
 
 <template>
   <footer class="site-footer">
     <div class="container site-footer__inner">
-      <span class="site-footer__meta">© 2026 Vistynq — заметки как граф знаний</span>
+      <span class="site-footer__meta">© 2026 Vistynq — заметки и связи между ними</span>
 
       <nav class="site-footer__links" aria-label="Ссылки проекта">
         <a
@@ -27,7 +27,7 @@ const links = [
         </a>
       </nav>
 
-      <span class="site-footer__meta">Vue 3 · TypeScript · свой CSS</span>
+      <span class="site-footer__meta">Сделано с заботой о ваших идеях</span>
     </div>
   </footer>
 </template>
