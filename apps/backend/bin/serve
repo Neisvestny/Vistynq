@@ -1,0 +1,15 @@
+#!/bin/sh
+# Локальный dev-сервер backend без Docker: ./bin/serve [порт]
+# Читает apps/backend/.env (см. loadEnvFile в public/index.php).
+set -e
+
+cd "$(dirname "$0")/.."
+
+# На хосте расширение pdo_pgsql может быть не включено в php.ini —
+# тогда добавляем его флагом, чтобы /healthz проверял БД, а не падал.
+PHP_ARGS=""
+if ! php -r 'exit(in_array("pgsql", PDO::getAvailableDrivers(), true) ? 0 : 1);' 2>/dev/null; then
+  PHP_ARGS="-d extension=pdo_pgsql"
+fi
+
+exec php $PHP_ARGS -S "127.0.0.1:${1:-8000}" -t public

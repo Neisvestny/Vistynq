@@ -64,6 +64,17 @@ pnpm install
 pnpm --filter frontend dev   # http://localhost:5173; /api идёт на localhost:8000
 ```
 
+Бэкенд только на хосте (без контейнера): переменные читаются из `apps/backend/.env`
+(`cp apps/backend/.env.example apps/backend/.env`, для хоста указать `DB_HOST=127.0.0.1`):
+
+```bash
+apps/backend/bin/serve   # http://localhost:8000 · pdo_pgsql подключается автоматически
+```
+
+`GET /api/v1/healthz` отвечает `200 {"status":"ok"}` только при живой БД;
+при недоступности — `503` с `reason` (`pdo_pgsql_missing` / `database_unreachable`),
+любой другой путь — `404 {"error":{...}}`.
+
 ## Документация
 
 - **Функциональные требования** — [`docs/requirements.md`](docs/requirements.md)
