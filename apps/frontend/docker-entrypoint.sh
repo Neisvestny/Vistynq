@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-if [ ! -d /app/node_modules ]; then
+if [ ! -e /app/apps/frontend/node_modules/.bin/vite ]; then
   pnpm install --frozen-lockfile
 fi
 
