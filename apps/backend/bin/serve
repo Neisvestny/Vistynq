@@ -8,4 +8,5 @@ if ! php -r 'exit(in_array("pgsql", PDO::getAvailableDrivers(), true) ? 0 : 1);'
   PHP_ARGS="-d extension=pdo_pgsql"
 fi
 
-exec php $PHP_ARGS -S "127.0.0.1:${1:-8000}" -t public
+# public/index.php doubles as the router script so every path hits the front controller.
+exec php $PHP_ARGS -S "127.0.0.1:${1:-8000}" -t public public/index.php
