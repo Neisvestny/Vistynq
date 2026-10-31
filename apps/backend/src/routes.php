@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Vistynq\Controllers\AuthController;
+use Vistynq\Controllers\CanvasController;
 use Vistynq\Controllers\HealthController;
 use Vistynq\Http\Router;
 
@@ -20,3 +21,9 @@ $router->add('POST', '/api/v1/auth/logout', [AuthController::class, 'logout']);
 $router->add('POST', '/api/v1/auth/forgot-password', [AuthController::class, 'forgotPassword']);
 $router->add('POST', '/api/v1/auth/reset-password', [AuthController::class, 'resetPassword']);
 $router->add('GET', '/api/v1/auth/me', [AuthController::class, 'me']);
+
+$router->add('GET', '/api/v1/canvases', [CanvasController::class, 'index']);
+$router->add('POST', '/api/v1/canvases', [CanvasController::class, 'create']);
+$router->add('GET', '/api/v1/canvases/{id}/graph', [CanvasController::class, 'graph']);
+$router->add('PATCH', '/api/v1/canvases/{id}', [CanvasController::class, 'update']);
+$router->add('DELETE', '/api/v1/canvases/{id}', [CanvasController::class, 'delete']);
