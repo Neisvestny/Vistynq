@@ -24,10 +24,6 @@ final class AuthMiddleware implements MiddlewareInterface
         '/api/v1/auth/reset-password',
     ];
 
-    private const OPTIONAL_AUTH_PREFIXES = [
-        '/api/v1/canvases/',
-    ];
-
     public function __construct(private readonly JwtService $jwt)
     {
     }
@@ -46,9 +42,8 @@ final class AuthMiddleware implements MiddlewareInterface
             }
         }
 
-        // Allow optional auth for canvas graph
         $optional = false;
-        if (preg_match('#^/api/v1/canvases/[^/]+/graph$#', $path)) {
+        if (preg_match('#^/api/v1/canvases/[^/]+/graph$#', $path) || preg_match('#^/api/v1/canvases/[^/]+/search$#', $path) || preg_match('#^/api/v1/notes/[^/]+$#', $path) && $request->method() === 'GET') {
             $optional = true;
         }
 
