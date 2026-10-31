@@ -1,0 +1,143 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Vistynq\Config\Config;
+use Vistynq\Config\EnvLoader;
+
+$baseDir = dirname(__DIR__);
+
+require $baseDir . '/vendor/autoload.php';
+
+if (!in_array('pgsql', PDO::getAvailableDrivers(), true)) {
+    if (getenv('MIGRATE_LOAD_PGSQL') === '1') {
+        fwrite(STDERR, "Ошибка: расширение pdo_pgsql недоступно.\n");
+
+        exit(1);
+    }
+
+    $cmd = 'MIGRATE_LOAD_PGSQL=1 ' . escapeshellarg(PHP_BINARY) . ' -d extension=pdo_pgsql ' . escapeshellarg(__FILE__);
+    passthru($cmd, $exitCode);
+
+    exit($exitCode);
+}
+
+EnvLoader::load($baseDir . '/.env');
+
+$config = new Config();
+
+$statusOnly = in_array('--status', array_slice($argv, 1), true);
+
+try {
+    $pdo = new PDO(
+        $config->dbDsn(),
+        $config->dbUser(),
+        $config->dbPass(),
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_TIMEOUT => 3,
+        ],
+    );
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Ошибка подключения к БД (' . $config->dbHost() . ':' . $config->dbPort() . '/' . $config->dbName() . '): ' . $e->getMessage() . "\n");
+
+    exit(1);
+}
+
+$pdo->exec(
+    'CREATE TABLE IF NOT EXISTS schema_migrations (
+        version    text PRIMARY KEY,
+        checksum   char(64) NOT NULL,
+        applied_at timestamptz NOT NULL DEFAULT now()
+    )'
+);
+
+$migrationsDir = $baseDir . '/migrations';
+$files = is_dir($migrationsDir)
+    ? glob($migrationsDir . '/*.sql') ?: []
+    : [];
+sort($files, SORT_STRING);
+
+/** @var array<string, string> $applied version => checksum */
+$applied = [];
+foreach ($pdo->query('SELECT version, checksum FROM schema_migrations') as $row) {
+    $applied[(string) $row['version']] = (string) $row['checksum'];
+}
+
+$errors = [];
+
+foreach ($applied as $version => $checksum) {
+    $path = $migrationsDir . '/' . $version;
+    if (!is_file($path)) {
+        $errors[] = sprintf('миграция %s применена, но файла нет на диске (migrations/)', $version);
+
+        continue;
+    }
+
+    if (!hash_equals($checksum, hash('sha256', (string) file_get_contents($path)))) {
+        $errors[] = sprintf('файл миграции %s изменён после применения (checksum не совпадает); создайте новую миграцию вместо правки применённой', $version);
+    }
+}
+
+if ($errors !== []) {
+    fwrite(STDERR, "Ошибка целостности миграций:\n");
+    foreach ($errors as $error) {
+        fwrite(STDERR, '  - ' . $error . "\n");
+    }
+
+    exit(1);
+}
+
+$pending = array_values(array_filter(
+    $files,
+    static fn (string $path): bool => !isset($applied[basename($path)]),
+));
+
+if ($statusOnly) {
+    foreach ($files as $path) {
+        $version = basename($path);
+        printf(
+            "  %s %s\n",
+            isset($applied[$version]) ? '[applied]' : '[pending]',
+            $version,
+        );
+    }
+    printf("%d migration(s): %d applied, %d pending\n", count($files), count($applied), count($pending));
+
+    exit(0);
+}
+
+if ($pending === []) {
+    echo "No pending migrations.\n";
+
+    exit(0);
+}
+
+$insert = $pdo->prepare('INSERT INTO schema_migrations (version, checksum) VALUES (:version, :checksum)');
+
+foreach ($pending as $path) {
+    $version = basename($path);
+    $sql = (string) file_get_contents($path);
+    $checksum = hash('sha256', $sql);
+
+    try {
+        $pdo->beginTransaction();
+        $pdo->exec($sql);
+        $insert->execute(['version' => $version, 'checksum' => $checksum]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        fwrite(STDERR, sprintf("Migration %s FAILED: %s\n", $version, $e->getMessage()));
+
+        exit(1);
+    }
+
+    echo 'Applied ' . $version . "\n";
+}
+
+echo sprintf("Done: %d migration(s) applied.\n", count($pending));
+
+exit(0);

@@ -59,5 +59,5 @@ cp .env.example .env                       # сменить пароли и JWT_
 docker compose up -d                       # postgres, minio (+init бакета), mailpit, nginx+php-fpm, frontend (vite)
 curl http://localhost:8000/api/v1/healthz  # {"status":"ok"}
 # фронт: http://localhost:5173 · API: http://localhost:8000/api/v1 · Mailpit: http://localhost:8025 · MinIO console: http://localhost:9001
-# миграции и seed (появятся в R05): docker compose exec backend php bin/migrate · bin/seed
+# миграции: docker compose exec backend php bin/migrate · seed появится позже (bin/seed)
 ```

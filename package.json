@@ -14,6 +14,7 @@
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "typecheck": "turbo run typecheck",
+    "db:migrate": "php apps/backend/bin/migrate",
     "commit": "cz",
     "prepare": "lefthook install"
   },
