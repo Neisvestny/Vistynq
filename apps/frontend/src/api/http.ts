@@ -118,7 +118,11 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   return execute<T>(path, options, true)
 }
 
-async function execute<T>(path: string, options: RequestOptions, allowRefresh: boolean): Promise<T> {
+async function execute<T>(
+  path: string,
+  options: RequestOptions,
+  allowRefresh: boolean
+): Promise<T> {
   const method = options.method ?? 'GET'
   const headers: Record<string, string> = { Accept: 'application/json', ...options.headers }
   let body: string | undefined
@@ -171,7 +175,7 @@ async function fetchWithNetworkRetry(
   url: string,
   method: string,
   headers: Record<string, string>,
-  body?: string,
+  body?: string
 ): Promise<Response> {
   const init: RequestInit = { method, headers, credentials: 'same-origin' }
   if (body !== undefined) {

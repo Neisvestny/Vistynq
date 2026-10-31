@@ -55,7 +55,11 @@ export const useAuthStore = defineStore('auth', () => {
   /** Повторный 401 после неудачного refresh: logout + тост + редирект на /login. */
   function handleSessionExpired(): void {
     reset()
-    notify({ title: 'Сессия истекла', description: 'Войдите снова, чтобы продолжить', status: 'error' })
+    notify({
+      title: 'Сессия истекла',
+      description: 'Войдите снова, чтобы продолжить',
+      status: 'error',
+    })
     void router.push({ name: 'login' })
   }
 

@@ -89,7 +89,9 @@ async function onSubmit() {
     </template>
 
     <template v-else>
-      <p class="auth-form__status">Ссылка неполная — в ней нет токена. Откройте её из письма целиком.</p>
+      <p class="auth-form__status">
+        Ссылка неполная — в ней нет токена. Откройте её из письма целиком.
+      </p>
       <UiButton variant="ghost" to="/forgot-password">Запросить новую ссылку</UiButton>
     </template>
 

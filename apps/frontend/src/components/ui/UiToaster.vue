@@ -18,9 +18,7 @@ const { toasts } = useToastManager()
             </p>
           </div>
 
-          <ToastClose class="ui-toast__close" aria-label="Закрыть уведомление">
-            ✕
-          </ToastClose>
+          <ToastClose class="ui-toast__close" aria-label="Закрыть уведомление"> ✕ </ToastClose>
         </ToastRoot>
       </Transition>
     </li>

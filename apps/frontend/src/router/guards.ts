@@ -11,7 +11,11 @@ import { useAuthStore } from '@/stores/auth'
 export function setupGuards(router: Router): void {
   router.beforeEach(async (to) => {
     const meta = to.meta
-    if (meta.requiresAuth !== true && meta.requiresGuest !== true && meta.requiresVerified !== true) {
+    if (
+      meta.requiresAuth !== true &&
+      meta.requiresGuest !== true &&
+      meta.requiresVerified !== true
+    ) {
       return true
     }
 
@@ -31,7 +35,8 @@ export function setupGuards(router: Router): void {
     if (meta.requiresVerified === true && auth.isAuthenticated && !auth.isVerified) {
       notify({
         title: 'Email не подтверждён',
-        description: 'Подтвердите почту по ссылке из письма — редактирование доступно после верификации',
+        description:
+          'Подтвердите почту по ссылке из письма — редактирование доступно после верификации',
         status: 'error',
       })
 

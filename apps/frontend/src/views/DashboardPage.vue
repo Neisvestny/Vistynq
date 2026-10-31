@@ -13,9 +13,7 @@ const auth = useAuthStore()
 <template>
   <div class="stub-page">
     <header class="stub-page__header">
-      <h1 class="stub-page__title">
-        Привет{{ auth.user ? `, ${auth.user.displayName}` : '' }}!
-      </h1>
+      <h1 class="stub-page__title">Привет{{ auth.user ? `, ${auth.user.displayName}` : '' }}!</h1>
       <span class="stub-badge">Каркас · R04</span>
     </header>
 

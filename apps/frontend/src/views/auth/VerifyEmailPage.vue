@@ -49,7 +49,9 @@ onMounted(async () => {
     </template>
 
     <template v-else-if="state === 'no-token'">
-      <p class="auth-form__status">Ссылка неполная — в ней нет токена. Откройте её из письма целиком.</p>
+      <p class="auth-form__status">
+        Ссылка неполная — в ней нет токена. Откройте её из письма целиком.
+      </p>
       <UiButton variant="ghost" to="/login">Перейти ко входу</UiButton>
     </template>
 

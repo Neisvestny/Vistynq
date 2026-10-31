@@ -16,7 +16,11 @@ export interface RegisterPayload extends LoginPayload {
 
 export const authApi = {
   login(payload: LoginPayload): Promise<AccessTokenResponse> {
-    return request<AccessTokenResponse>('/auth/login', { method: 'POST', body: payload, auth: false })
+    return request<AccessTokenResponse>('/auth/login', {
+      method: 'POST',
+      body: payload,
+      auth: false,
+    })
   },
 
   /** 201: письмо верификации, refresh-кука не выдаётся до верификации. */
@@ -43,7 +47,11 @@ export const authApi = {
 
   /** Всегда 202 — без утечки существования email. */
   resendVerification(email: string): Promise<void> {
-    return request<void>('/auth/resend-verification', { method: 'POST', body: { email }, auth: false })
+    return request<void>('/auth/resend-verification', {
+      method: 'POST',
+      body: { email },
+      auth: false,
+    })
   },
 
   /** Всегда 202. */
@@ -53,6 +61,10 @@ export const authApi = {
 
   /** 204 + отзыв всех refresh-токенов. */
   resetPassword(token: string, password: string): Promise<void> {
-    return request<void>('/auth/reset-password', { method: 'POST', body: { token, password }, auth: false })
+    return request<void>('/auth/reset-password', {
+      method: 'POST',
+      body: { token, password },
+      auth: false,
+    })
   },
 }

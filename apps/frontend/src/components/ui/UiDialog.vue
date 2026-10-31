@@ -31,7 +31,10 @@ defineProps<{
             <slot name="title">{{ title }}</slot>
           </DialogTitle>
 
-          <DialogDescription v-if="description || $slots.description" class="ui-dialog__description">
+          <DialogDescription
+            v-if="description || $slots.description"
+            class="ui-dialog__description"
+          >
             <slot name="description">{{ description }}</slot>
           </DialogDescription>
 
