@@ -46,7 +46,7 @@
 | 4 | Ссылки: прямые (в т.ч. «создать от этой заметки»), косвенные через `[[...]]`, битые ссылки |
 | 5 | Загрузка файлов: картинки в текст, аудио с плеером, .txt/.md → заметка, drop на канвас, S3/MinIO |
 | 6 | Доступы: инвайты по email, роли viewer/editor, публичные read-only ссылки, приватность графа |
-| 7 | i18n, полировка состояний, тесты сервисов (LinkParser, AccessService, Jwt) |
+| 7 | i18n, полировка состояний, тесты (unit + интеграция + e2e, этап 4 в ROADMAP) |
 
 ## Вне скоупа v1 (бэклог v2)
 
@@ -54,10 +54,23 @@ Realtime-коллаборация, история версий заметок, �
 
 ## Быстрый старт (dev)
 
+Основной путь — инфраструктура в docker, приложение на хосте:
+
 ```bash
-cp .env.example .env                       # сменить пароли и JWT_SECRET
-docker compose up -d                       # postgres, minio (+init бакета), mailpit, nginx+php-fpm, frontend (vite)
-curl http://localhost:8000/api/v1/healthz  # {"status":"ok"}
-# фронт: http://localhost:5173 · API: http://localhost:8000/api/v1 · Mailpit: http://localhost:8025 · MinIO console: http://localhost:9001
-# миграции: docker compose exec backend php bin/migrate · seed появится позже (bin/seed)
+cp .env.example .env                             # сменить пароли и JWT_SECRET
+docker compose up -d postgres minio minio-init mailpit
+cp apps/backend/.env.example apps/backend/.env   # для работы на хосте: DB_HOST=127.0.0.1
+pnpm install
+pnpm db:migrate                                  # миграции (bin/migrate)
+pnpm dev                                         # turbo: vite (5173) + bin/serve (8000)
+curl http://localhost:8000/api/v1/healthz       # {"status":"ok"}
 ```
+
+Альтернатива — всё в docker (nginx+php-fpm вместо `pnpm dev`, порты 8000/5173 те же, поэтому два способа одновременно не запускаются):
+
+```bash
+docker compose up -d                             # + nginx+php-fpm (API), frontend (vite)
+docker compose exec backend php bin/migrate
+```
+
+Ссылки: фронт `http://localhost:5173` · API `http://localhost:8000/api/v1` · Mailpit `http://localhost:8025` · MinIO console `http://localhost:9001`

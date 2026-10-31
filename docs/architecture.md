@@ -115,7 +115,7 @@ sequenceDiagram
 
 ### 2. Регистрация и письма
 
-`POST /auth/register` → пользователь с `email_verified_at = null` → письмо со ссылкой на клиентский роут `/verify-email`, который вызывает `POST /auth/verify-email` с `{token}` в теле (токен не попадает в URL/логи) → после верификации вход разрешён; до неё CRUD заметок/канвасов заблокирован (`EMAIL_NOT_VERIFIED`). Reset-пароль: `POST /auth/forgot-password` (всегда 202, без утечки существования email) → письмо с одноразовым токеном → `POST /auth/reset-password` (отзывает все refresh-токены). SMTP: PHPMailer; в dev — Mailpit.
+`POST /auth/register` → пользователь с `email_verified_at = null` → письмо со ссылкой на клиентский роут `/verify-email?token=…`, который вызывает `POST /auth/verify-email` с `{token}` в теле (токен не попадает в URL бэкенда и серверные логи — в URL он только для роутинга SPA) → после верификации вход разрешён; до неё CRUD заметок/канвасов заблокирован (`EMAIL_NOT_VERIFIED`). Reset-пароль: `POST /auth/forgot-password` (всегда 202, без утечки существования email) → письмо с одноразовым токеном → `POST /auth/reset-password` (отзывает все refresh-токены). SMTP: PHPMailer; в dev — Mailpit.
 
 ### 3. Загрузка файлов (drop → S3)
 
@@ -181,5 +181,8 @@ flowchart TD
 
 ## Тестирование
 
-- Backend: PHPUnit unit-тесты на `LinkParserService`, `AccessService`, `JwtService` — в v1 (этап 7, см. `docs/README.md`); интеграционные тесты с переносной БД и e2e — за пределами v1.
-- Frontend: `vue-tsc` (уже в `pnpm build`); Vitest на клиентской логике и e2e (Playwright) — согласно `docs/ROADMAP.md`.
+Единая позиция (см. `docs/ROADMAP.md`, этап 4): все три уровня — в v1.
+
+- Backend: PHPUnit — unit (AccessService, JwtService, Validator, ErrorHandler, LinkParserService) + интеграционные тесты на переносной test-postgres БД (R15).
+- Frontend: Vitest на клиентской логике; e2e — Playwright против полного стека (R16, CI).
+- `vue-tsc` входит в `pnpm build` и CI.
