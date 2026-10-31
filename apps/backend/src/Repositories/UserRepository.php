@@ -53,9 +53,15 @@ final class UserRepository
     public function markEmailVerified(string $id): void
     {
         $stmt = $this->db->pdo()->prepare(
-            'UPDATE users SET email_verified_at = now(), updated_at = now()
-             WHERE id = :id AND email_verified_at IS NULL',
+            'UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
+             WHERE id = :id',
         );
         $stmt->execute(['id' => $id]);
+    }
+
+    public function updatePassword(string $userId, string $passwordHash): void
+    {
+        $stmt = $this->db->pdo()->prepare('UPDATE users SET password_hash = :password_hash, updated_at = now() WHERE id = :id');
+        $stmt->execute(['id' => $userId, 'password_hash' => $passwordHash]);
     }
 }

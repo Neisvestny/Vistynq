@@ -9,22 +9,20 @@ use Vistynq\Repositories\AuthTokenRepository;
 use Vistynq\Repositories\UserRepository;
 use Vistynq\Support\ApiException;
 
-/**
- * Auth slice 1 (roadmap R09): register, email verification, resend, login.
- * Refresh cookies, password reset and rate limiting land in R10.
- */
 final class AuthService
 {
-    /** Email verification token lifetime (docs/data-model.md: 1 ч). */
     private const VERIFY_TTL_SECONDS = 3600;
+    private const RESET_TTL_SECONDS = 3600;
 
     private const PURPOSE_EMAIL_VERIFY = 'email_verify';
+    private const PURPOSE_PASSWORD_RESET = 'password_reset';
 
     public function __construct(
         private readonly UserRepository $users,
         private readonly AuthTokenRepository $authTokens,
         private readonly JwtService $jwt,
         private readonly MailService $mail,
+        private readonly RefreshTokenService $refreshTokens,
     ) {
     }
 
@@ -50,9 +48,6 @@ final class AuthService
         $this->users->markEmailVerified($tokenRow['user_id']);
     }
 
-    /**
-     * Always succeeds from the client's perspective: no email-existence leak (docs/api.md).
-     */
     public function resendVerification(string $email): void
     {
         $user = $this->users->findByEmail($email);
@@ -64,7 +59,7 @@ final class AuthService
     }
 
     /**
-     * @return array{user: User, accessToken: string}
+     * @return array{user: User, accessToken: string, cookie: string}
      */
     public function login(string $email, string $password): array
     {
@@ -77,10 +72,48 @@ final class AuthService
             throw ApiException::forbidden('EMAIL_NOT_VERIFIED', 'Email не подтверждён');
         }
 
-        return [
-            'user' => $user,
-            'accessToken' => $this->jwt->sign($user->id, $user->email),
-        ];
+        return $this->refreshTokens->issue($user->id);
+    }
+
+    public function forgotPassword(string $email): void
+    {
+        $user = $this->users->findByEmail($email);
+        if ($user === null) {
+            return;
+        }
+
+        $this->authTokens->invalidatePending($user->id, self::PURPOSE_PASSWORD_RESET);
+
+        $token = bin2hex(random_bytes(32));
+        $this->authTokens->create($user->id, self::PURPOSE_PASSWORD_RESET, hash('sha256', $token), self::RESET_TTL_SECONDS);
+
+        $this->mail->sendPasswordResetEmail($user->email, $token);
+    }
+
+    public function resetPassword(string $token, string $password): void
+    {
+        $tokenRow = $this->authTokens->findValid(hash('sha256', $token), self::PURPOSE_PASSWORD_RESET);
+        if ($tokenRow === null) {
+            throw ApiException::gone('Токен недействителен или истёк');
+        }
+
+        $this->authTokens->markUsed($tokenRow['id']);
+        $this->users->updatePassword($tokenRow['user_id'], password_hash($password, PASSWORD_DEFAULT));
+        $this->refreshTokens->revokeAllForUser($tokenRow['user_id']);
+    }
+
+    public function refresh(string $rawRefreshToken): array
+    {
+        return $this->refreshTokens->rotate($rawRefreshToken);
+    }
+
+    public function logout(string $rawRefreshToken): string
+    {
+        if ($rawRefreshToken !== '') {
+            $this->refreshTokens->revokeByRaw($rawRefreshToken);
+        }
+
+        return $this->refreshTokens->clearCookie();
     }
 
     private function sendVerification(string $userId, string $email): void

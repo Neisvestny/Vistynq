@@ -34,6 +34,24 @@ final class MailService
         );
     }
 
+    public function sendPasswordResetEmail(string $to, string $token): void
+    {
+        $link = $this->config->frontendUrl() . '/reset-password?token=' . rawurlencode($token);
+
+        $this->send(
+            $to,
+            'Сброс пароля — Vistynq',
+            sprintf(
+                "Здравствуйте!\n\nДля сброса пароля перейдите по ссылке:\n%s\n\nСсылка действует 1 час. Если вы не запрашивали сброс — проигнорируйте письмо.\n",
+                $link,
+            ),
+            sprintf(
+                '<p>Здравствуйте!</p><p>Для сброса пароля перейдите по ссылке: <a href="%s">Сбросить пароль</a></p><p>Ссылка действует 1 час. Если вы не запрашивали сброс — проигнорируйте письмо.</p>',
+                htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            ),
+        );
+    }
+
     private function send(string $to, string $subject, string $text, string $html): void
     {
         $mail = new PHPMailer(true);

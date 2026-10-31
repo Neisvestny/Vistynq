@@ -16,17 +16,12 @@ use Vistynq\Middleware\CorsMiddleware;
 use Vistynq\Middleware\ErrorHandlerMiddleware;
 use Vistynq\Middleware\JsonBodyMiddleware;
 use Vistynq\Middleware\MiddlewareInterface;
+use Vistynq\Middleware\RateLimitMiddleware;
 use Vistynq\Services\JwtService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Container;
 use Vistynq\Support\Database;
 
-/**
- * Application bootstrap: env -> config -> DI -> routes -> middleware pipeline.
- *
- * Pipeline order (outermost first):
- *   ErrorHandler -> CORS -> JSON body -> Auth (Bearer JWT) -> router dispatch.
- */
 final class Kernel
 {
     private function __construct(
@@ -69,7 +64,6 @@ final class Kernel
         try {
             $response = $pipeline($request);
         } catch (Throwable $e) {
-            // Last-resort guard: never let a broken pipeline leak a PHP error page.
             error_log('[kernel] pipeline failure: ' . $e::class . ': ' . $e->getMessage());
             $status = $e instanceof ApiException ? $e->httpStatus() : 500;
             $response = Response::json(['error' => ['code' => 'INTERNAL', 'message' => 'Внутренняя ошибка сервера']], $status);
@@ -89,6 +83,7 @@ final class Kernel
         $middleware = [
             new ErrorHandlerMiddleware($this->config),
             new CorsMiddleware($this->config),
+            new RateLimitMiddleware(),
             new JsonBodyMiddleware(),
             new AuthMiddleware($this->container->get(JwtService::class)),
         ];

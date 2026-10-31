@@ -88,6 +88,11 @@ class ApiException extends Exception
         return new self(410, 'GONE', $message);
     }
 
+    public static function tooManyRequests(string $message = 'Слишком много запросов'): self
+    {
+        return new self(429, 'TOO_MANY_REQUESTS', $message);
+    }
+
     /**
      * @param array<string, list<string>> $details field => [messages]
      */

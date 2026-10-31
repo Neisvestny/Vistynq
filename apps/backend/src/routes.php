@@ -15,4 +15,8 @@ $router->add('POST', '/api/v1/auth/register', [AuthController::class, 'register'
 $router->add('POST', '/api/v1/auth/verify-email', [AuthController::class, 'verifyEmail']);
 $router->add('POST', '/api/v1/auth/resend-verification', [AuthController::class, 'resendVerification']);
 $router->add('POST', '/api/v1/auth/login', [AuthController::class, 'login']);
+$router->add('POST', '/api/v1/auth/refresh', [AuthController::class, 'refresh']);
+$router->add('POST', '/api/v1/auth/logout', [AuthController::class, 'logout']);
+$router->add('POST', '/api/v1/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+$router->add('POST', '/api/v1/auth/reset-password', [AuthController::class, 'resetPassword']);
 $router->add('GET', '/api/v1/auth/me', [AuthController::class, 'me']);

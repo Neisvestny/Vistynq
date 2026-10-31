@@ -9,32 +9,58 @@ use Vistynq\Http\Response;
 use Vistynq\Services\JwtService;
 use Vistynq\Support\ApiException;
 
-/**
- * Extracts the Bearer access token into a request attribute (authUserId).
- * Requests without the header pass through (public routes); requests with
- * an invalid or expired token get 401 before hitting a controller.
- */
 final class AuthMiddleware implements MiddlewareInterface
 {
+    private const PUBLIC_PREFIXES = [
+        '/healthz',
+        '/api/v1/healthz',
+        '/api/v1/auth/register',
+        '/api/v1/auth/verify-email',
+        '/api/v1/auth/resend-verification',
+        '/api/v1/auth/login',
+        '/api/v1/auth/refresh',
+        '/api/v1/auth/logout',
+        '/api/v1/auth/forgot-password',
+        '/api/v1/auth/reset-password',
+    ];
+
     public function __construct(private readonly JwtService $jwt)
     {
     }
 
     public function process(Request $request, callable $next): Response
     {
-        $header = $request->header('Authorization', '');
-        if ($header === '' || !preg_match('/^Bearer\s+(\S+)$/i', $header, $matches)) {
+        $path = $request->path();
+
+        if ($request->method() === 'OPTIONS') {
             return $next($request);
         }
 
-        $claims = $this->jwt->verify($matches[1]);
+        foreach (self::PUBLIC_PREFIXES as $prefix) {
+            if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
+                return $next($request);
+            }
+        }
 
-        return $next($request->withAttributes(['authUserId' => $claims['sub']]));
+        $header = $request->header('Authorization', '');
+        if ($header === '' || !preg_match('/^Bearer\s+(\S+)$/i', $header, $matches)) {
+            throw ApiException::unauthorized();
+        }
+
+        try {
+            $claims = $this->jwt->verify($matches[1]);
+        } catch (\Throwable) {
+            throw ApiException::unauthorized('TOKEN_EXPIRED', 'Токен истёк или недействителен');
+        }
+
+        $sub = $claims['sub'] ?? null;
+        if (!is_string($sub) || $sub === '') {
+            throw ApiException::unauthorized();
+        }
+
+        return $next($request->withAttributes(['authUserId' => $sub]));
     }
 
-    /**
-     * @throws ApiException 401 when the route requires auth and the token was absent
-     */
     public static function userId(Request $request): string
     {
         $userId = $request->attribute('authUserId');

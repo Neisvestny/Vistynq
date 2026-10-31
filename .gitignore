@@ -37,4 +37,4 @@ Thumbs.db
 .playwright-mcp/
 
 # Local overrides
-*.local
+*.local.kilo/
