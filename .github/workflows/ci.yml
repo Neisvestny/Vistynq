@@ -15,12 +15,12 @@ jobs:
     name: frontend (eslint, vue-tsc, prettier)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # pnpm before node so setup-node can use its cache.
       - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -36,14 +36,16 @@ jobs:
       run:
         working-directory: apps/backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
+      # Must match apps/backend/Dockerfile (php:8.5-fpm-alpine): composer.lock
+      # resolves dev dependencies (php-cs-fixer, symfony) for PHP 8.5.
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.5'
           coverage: none
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.composer/cache/files
           key: composer-${{ runner.os }}-${{ hashFiles('apps/backend/composer.lock') }}
