@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from '../ui/UiCard.vue'
 import { FileText, Infinity as InfinityIcon, Link2, Search, Tags, Users } from 'lucide-vue-next'
 
 const features = [
@@ -47,13 +48,13 @@ const features = [
       </header>
 
       <div class="features">
-        <article v-for="feature in features" :key="feature.title" class="feature">
+        <UiCard v-for="feature in features" :key="feature.title" class="feature">
           <h3>
             <component :is="feature.icon" :size="18" aria-hidden="true" />
             {{ feature.title }}
           </h3>
           <p>{{ feature.text }}</p>
-        </article>
+        </UiCard>
       </div>
     </div>
   </section>

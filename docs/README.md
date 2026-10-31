@@ -19,7 +19,7 @@
 ## Стек
 
 - **Backend:** ванильный PHP ≥ 8.2 (без фреймворка), PostgreSQL, REST JSON API, JWT (access в памяти клиента + refresh в httpOnly-cookie), S3-совместимое хранилище (MinIO), Composer-пакеты: `nikic/fast-route`, `firebase/php-jwt`, `aws/aws-sdk-php`, `phpmailer/phpmailer`.
-- **Frontend:** Vue 3 + TypeScript + Vite, Pinia, Vue Router, vue-i18n (RU/EN), свой CSS без UI-библиотек, канвас — Vue Flow, редактор — Tiptap.
+- **Frontend:** Vue 3 + TypeScript + Vite, Pinia, Vue Router, vue-i18n (RU/EN), свой CSS без UI-библиотек (headless-примитивы Reka UI), канвас — Vue Flow, редактор — Tiptap.
 - **Инфраструктура:** docker compose (nginx + php-fpm, postgres, minio, mailpit).
 
 ## Разделы документации

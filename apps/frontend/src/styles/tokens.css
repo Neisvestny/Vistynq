@@ -35,8 +35,33 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
+  --radius-full: 999px;
 
   /* Каркас */
   --container: 1200px;
   --header-height: 64px;
+
+  /* Размеры контролов (кнопки, инпуты, элементы меню) */
+  --control-height-sm: 2rem;
+  --control-height-md: 2.5rem;
+  --control-height-lg: 2.875rem;
+  --control-padding-x: 1rem;
+  --control-font-size: 0.95rem;
+
+  /* Тени */
+  --shadow-sm: 0 1px 2px rgb(20 22 28 / 0.06);
+  --shadow-md: 0 4px 12px rgb(20 22 28 / 0.08);
+  --shadow-lg: 0 12px 32px rgb(20 22 28 / 0.14);
+
+  /* Слои (оверлеи, попапы, уведомления) */
+  --z-overlay: 100;
+  --z-dialog: 110;
+  --z-dropdown: 120;
+  --z-tooltip: 130;
+  --z-toast: 140;
+
+  /* Переходы и фокус */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+  --focus-ring: 0 0 0 3px var(--color-accent-soft);
 }

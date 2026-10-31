@@ -1,18 +1,21 @@
 # UI/UX спецификация
 
-Язык интерфейса: RU по умолчанию, переключатель EN (vue-i18n). Тёмная/светлая тема — не в v1, только светлая. Все стили — свой CSS, дизайн-токены в `src/styles/tokens.css`.
+Язык интерфейса: RU по умолчанию, переключатель EN (vue-i18n). Тёмная/светлая тема — не в v1, только светлая. Все стили — свой CSS, дизайн-токены в `src/styles/tokens.css`, базовые классы компонентов — `src/styles/components.css`. Headless-примитивы (поведение и доступность без стилей) — Reka UI, компоненты-обёртки живут в `src/components/ui/`.
 
 ## Карта экранов и маршруты
 
 | Маршрут | Экран | Доступ |
 |---|---|---|
 | `/login`, `/register`, `/verify-email`, `/forgot-password`, `/reset-password` | auth | гости |
-| `/` | Dashboard (список канвасов) | auth |
+| `/` | Лендинг (маркетинг) | — |
+| `/dashboard` | Dashboard (список канвасов) | auth |
 | `/canvas/:id` | CanvasView (редактор) | ≥viewer (edit по правам) |
 | `/shared/canvas/:slug` | SharedCanvas | анонимы |
 | `/shared/note/:slug` | SharedNote | анонимы |
 | `/profile` | Настройки профиля | auth |
 | `*` | 404 | |
+
+> Примечание (R04): изначально Dashboard был на `/`; лендинг уже занимал `/`, поэтому Dashboard вынесен на `/dashboard` — согласовано при реализации каркаса.
 
 ## 1. Dashboard
 

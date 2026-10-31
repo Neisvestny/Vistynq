@@ -11,9 +11,13 @@
       </p>
 
       <div class="hero__actions">
-        <a class="btn btn--primary btn--lg" href="#cta">Начать</a>
-        <a class="btn btn--ghost btn--lg" href="#how">Как это работает</a>
+        <UiButton size="lg" href="#cta">Начать</UiButton>
+        <UiButton variant="ghost" size="lg" href="#how">Как это работает</UiButton>
       </div>
     </div>
   </section>
 </template>
+
+<script setup lang="ts">
+import UiButton from '../ui/UiButton.vue'
+</script>

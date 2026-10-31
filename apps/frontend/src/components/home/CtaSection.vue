@@ -10,9 +10,13 @@
       </div>
 
       <div class="cta__actions">
-        <a class="btn btn--primary btn--lg" href="#top">Начать</a>
-        <a class="btn btn--ghost btn--lg" href="#top">Войти</a>
+        <UiButton size="lg" to="/register">Начать</UiButton>
+        <UiButton variant="ghost" size="lg" to="/login">Войти</UiButton>
       </div>
     </div>
   </section>
 </template>
+
+<script setup lang="ts">
+import UiButton from '../ui/UiButton.vue'
+</script>

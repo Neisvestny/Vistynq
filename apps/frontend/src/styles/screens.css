@@ -1,0 +1,209 @@
+/* Экраны каркаса (R04): auth-layout, шапка приложения, заглушки. */
+
+/* --- Auth-экраны: центрированная карточка --- */
+
+.auth-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+
+.auth-layout__header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4) 0;
+}
+
+.auth-layout__main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5) var(--space-4);
+}
+
+.auth-layout__card {
+  width: 100%;
+  max-width: 26rem;
+  padding: var(--space-6);
+  box-shadow: var(--shadow-md);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.auth-form__title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: var(--space-1, 0.25rem);
+}
+
+.auth-form__subtitle {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.auth-form__error {
+  color: var(--color-importance-5, #e5484d);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.auth-form__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.auth-form__footer a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.auth-form__footer a:hover {
+  text-decoration: underline;
+}
+
+.auth-form__status {
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* --- Шапка приложения --- */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-overlay);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-header__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  height: var(--header-height);
+}
+
+.app-header__nav {
+  flex: 1;
+  display: flex;
+  gap: var(--space-4);
+}
+
+.app-header__nav a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.app-header__nav a.router-link-active {
+  color: var(--color-text);
+}
+
+.app-header__user {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-sm);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.app-header__user:hover {
+  border-color: var(--color-border-strong);
+}
+
+.app-page__main {
+  padding: var(--space-5) var(--space-4);
+}
+
+/* --- Заглушки экранов (R04: до появления API/R11/R25) --- */
+
+.stub-page {
+  max-width: var(--container);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.stub-page__title {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.stub-page__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.stub-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.stub-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.2rem 0.7rem;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.stub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.stub-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stub-section__heading {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.stub-hint {
+  color: var(--color-text-muted);
+}
+
+/* Баннер публичного read-only вида */
+.shared-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: 0.9rem;
+  font-weight: 500;
+}

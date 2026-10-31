@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import TheSiteHeader from './components/TheSiteHeader.vue'
-import TheSiteFooter from './components/TheSiteFooter.vue'
-import HomePage from './views/HomePage.vue'
+import { ToastProvider, TooltipProvider } from 'reka-ui'
+import { RouterView } from 'vue-router'
+import UiToaster from './components/ui/UiToaster.vue'
+import ToastBridge from './components/ToastBridge.vue'
 </script>
 
 <template>
-  <div id="top" class="page">
-    <TheSiteHeader />
-    <main class="page__main">
-      <HomePage />
-    </main>
-    <TheSiteFooter />
-  </div>
+  <TooltipProvider :delay-duration="400" :skip-delay-duration="300">
+    <ToastProvider>
+      <RouterView />
+      <UiToaster />
+      <ToastBridge />
+    </ToastProvider>
+  </TooltipProvider>
 </template>
