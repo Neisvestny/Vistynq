@@ -163,11 +163,12 @@ async function execute<T>(
     throw await toApiError(res)
   }
 
-  if (res.status === 204) {
-    return undefined as T
+  const text = await res.text()
+  if (text === '') {
+    throw new ApiError(res.status, 'EMPTY_RESPONSE', 'Пустой ответ от сервера')
   }
 
-  return (await res.json()) as T
+  return JSON.parse(text) as T
 }
 
 /** GET-запросы повторяются один раз при сетевой ошибке. */

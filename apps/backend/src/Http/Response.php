@@ -39,7 +39,7 @@ final class Response
      */
     public static function noContent(array $headers = []): self
     {
-        return new self(204, $headers);
+        return self::json(['ok' => true], 200, $headers);
     }
 
     /**
@@ -85,7 +85,7 @@ final class Response
             }
         }
 
-        if ($this->body !== '' && $this->status !== 204) {
+        if ($this->body !== '') {
             echo $this->body;
         }
     }

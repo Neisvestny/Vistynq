@@ -49,8 +49,8 @@ final class CorsMiddleware implements MiddlewareInterface
         }
 
         if ($request->method() === 'OPTIONS') {
-            // Preflight never reaches handlers: 204 with (or without) CORS headers.
-            return Response::noContent($corsHeaders);
+            // Preflight never reaches handlers: 200 with (or without) CORS headers.
+            return Response::json(['ok' => true], 200, $corsHeaders);
         }
 
         return $next($request)->withHeaders($corsHeaders);

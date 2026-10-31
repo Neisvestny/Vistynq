@@ -11,18 +11,21 @@ use Vistynq\Config\EnvLoader;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Http\Router;
+use Vistynq\Middleware\AuthMiddleware;
 use Vistynq\Middleware\CorsMiddleware;
 use Vistynq\Middleware\ErrorHandlerMiddleware;
 use Vistynq\Middleware\JsonBodyMiddleware;
 use Vistynq\Middleware\MiddlewareInterface;
+use Vistynq\Services\JwtService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Container;
+use Vistynq\Support\Database;
 
 /**
  * Application bootstrap: env -> config -> DI -> routes -> middleware pipeline.
  *
  * Pipeline order (outermost first):
- *   ErrorHandler -> CORS -> JSON body -> router dispatch.
+ *   ErrorHandler -> CORS -> JSON body -> Auth (Bearer JWT) -> router dispatch.
  */
 final class Kernel
 {
@@ -44,6 +47,7 @@ final class Kernel
 
         $container = new Container();
         $container->singleton(Config::class, static fn (): Config => $config);
+        $container->singleton(Database::class, static fn (Container $c): Database => new Database($c->get(Config::class)));
         $container->singleton(Router::class, static function (): Router {
             $router = new Router();
             require __DIR__ . '/routes.php';
@@ -86,6 +90,7 @@ final class Kernel
             new ErrorHandlerMiddleware($this->config),
             new CorsMiddleware($this->config),
             new JsonBodyMiddleware(),
+            new AuthMiddleware($this->container->get(JwtService::class)),
         ];
 
         $core = fn (Request $request): Response => $this->dispatch($request);
