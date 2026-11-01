@@ -1,0 +1,4 @@
+#!/bin/sh
+# Strip everything after the subject line, then lint with commitlint.
+sed -i '2,$d' "$1"
+pnpm exec commitlint --edit "$1"

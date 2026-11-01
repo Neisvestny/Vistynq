@@ -9,6 +9,7 @@ use Firebase\JWT\ExpiredException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
+use UnexpectedValueException;
 use Vistynq\Config\Config;
 use Vistynq\Support\ApiException;
 
@@ -49,7 +50,7 @@ final class JwtService
             $claims = JWT::decode($token, new Key($this->config->jwtSecret(), 'HS256'));
         } catch (ExpiredException) {
             throw ApiException::unauthorized('TOKEN_EXPIRED', 'Токен истёк');
-        } catch (SignatureInvalidException | DomainException) {
+        } catch (SignatureInvalidException | DomainException | UnexpectedValueException) {
             throw ApiException::unauthorized('UNAUTHORIZED', 'Некорректный токен');
         }
 

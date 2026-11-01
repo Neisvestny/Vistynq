@@ -166,6 +166,23 @@ final class Config
         return self::bool('COOKIE_SECURE', false);
     }
 
+    /**
+     * Trusted reverse proxies whose X-Forwarded-For may be used for the
+     * client IP. Comma-separated list of IPs/CIDRs. Empty = do not trust
+     * X-Forwarded-For at all; fall back to REMOTE_ADDR.
+     *
+     * @return list<string>
+     */
+    public function trustedProxies(): array
+    {
+        $raw = self::str('TRUSTED_PROXIES', '');
+        if ($raw === '') {
+            return [];
+        }
+
+        return array_values(array_unique(array_map('trim', explode(',', $raw))));
+    }
+
     private static function str(string $name, string $default): string
     {
         $value = getenv($name);

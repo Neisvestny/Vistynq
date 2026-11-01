@@ -16,6 +16,7 @@ final class Request
      * @param array<string, string>       $cookies
      * @param array<string, mixed>        $routeParams
      * @param array<string, mixed>        $attributes
+     * @param string|null                 $remoteAddr
      */
     public function __construct(
         private readonly string $method,
@@ -26,6 +27,7 @@ final class Request
         private readonly array $cookies,
         private array $routeParams = [],
         private array $attributes = [],
+        private readonly ?string $remoteAddr = null,
     ) {
     }
 
@@ -58,7 +60,9 @@ final class Request
             }
         }
 
-        return new self($method, $path, $_GET, $headers, $rawBody === false ? '' : $rawBody, $cookies);
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
+
+        return new self($method, $path, $_GET, $headers, $rawBody === false ? '' : $rawBody, $cookies, [], [], $remoteAddr);
     }
 
     public function method(): string
@@ -124,6 +128,16 @@ final class Request
     public function cookie(string $name): ?string
     {
         return $this->cookies[$name] ?? null;
+    }
+
+    /**
+     * Real client IP as seen by the web server (REMOTE_ADDR).
+     * Never spoofable by the client: use this as the rate-limit key unless
+     * a trusted reverse proxy is configured.
+     */
+    public function remoteAddr(): ?string
+    {
+        return $this->remoteAddr;
     }
 
     /**

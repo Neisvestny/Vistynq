@@ -31,7 +31,11 @@ Thumbs.db
 # Tooling caches
 .eslintcache
 .php-cs-fixer.cache
+.phpunit.cache/
 *.tsbuildinfo
+
+# Kilo
+.kilo/
 
 # Playwright MCP: артефакты обследования страниц
 .playwright-mcp/

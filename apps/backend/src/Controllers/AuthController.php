@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Vistynq\Controllers;
 
+use Vistynq\Config\Config;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Middleware\AuthMiddleware;
@@ -17,6 +18,7 @@ final class AuthController
     public function __construct(
         private readonly AuthService $auth,
         private readonly UserRepository $users,
+        private readonly Config $config,
     ) {
     }
 
@@ -67,7 +69,7 @@ final class AuthController
         $response = Response::json([
             'user' => $result['user']->toArray(),
             'accessToken' => $result['accessToken'],
-            'accessTokenExpiresIn' => 900,
+            'accessTokenExpiresIn' => $this->config->accessTtl(),
         ]);
 
         return $response->withHeaders(['Set-Cookie' => $result['cookie']]);
@@ -85,7 +87,7 @@ final class AuthController
         $response = Response::json([
             'user' => $result['user']->toArray(),
             'accessToken' => $result['accessToken'],
-            'accessTokenExpiresIn' => 900,
+            'accessTokenExpiresIn' => $this->config->accessTtl(),
         ]);
 
         return $response->withHeaders(['Set-Cookie' => $result['cookie']]);

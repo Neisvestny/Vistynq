@@ -24,8 +24,3 @@ pre-commit:
       skip:
         - merge
         - rebase
-
-commit-msg:
-  commands:
-    lint-commit:
-      run: pnpm exec commitlint --edit "$1"

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Vistynq\Middleware;
 
+use Vistynq\Config\Config;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Support\ApiException;
@@ -13,8 +14,11 @@ final class RateLimitMiddleware implements MiddlewareInterface
     /** @var array<string, array{count:int,reset:int}> */
     private array $store = [];
 
-    public function __construct(private readonly int $maxAttempts = 60, private readonly int $windowSeconds = 60)
-    {
+    public function __construct(
+        private readonly Config $config,
+        private readonly int $maxAttempts = 60,
+        private readonly int $windowSeconds = 60,
+    ) {
     }
 
     public function process(Request $request, callable $next): Response
@@ -24,7 +28,7 @@ final class RateLimitMiddleware implements MiddlewareInterface
             return $next($request);
         }
 
-        $ip = $this->ip($request);
+        $ip = $this->clientIp($request);
         $key = $ip . '|' . $path;
         $now = time();
 
@@ -42,21 +46,30 @@ final class RateLimitMiddleware implements MiddlewareInterface
         return $next($request);
     }
 
-    private function ip(Request $request): string
+    /**
+     * Resolves the client IP for rate limiting.
+     *
+     * X-Forwarded-For is used only when the direct REMOTE_ADDR belongs to a
+     * trusted reverse proxy (TRUSTED_PROXIES). Otherwise REMOTE_ADDR is the
+     * authority, which prevents clients from spoofing an arbitrary IP to
+     * bypass the per-IP limit.
+     */
+    private function clientIp(Request $request): string
     {
-        $forwarded = $request->header('x-forwarded-for');
-        if (is_string($forwarded) && $forwarded !== '') {
-            $parts = explode(',', $forwarded);
-            $ip = trim($parts[0]);
+        $remote = $request->remoteAddr();
+        $trusted = $this->config->trustedProxies();
 
-            return $ip !== '' ? $ip : 'unknown';
+        if ($remote !== null && $trusted !== [] && in_array($remote, $trusted, true)) {
+            $forwarded = $request->header('x-forwarded-for');
+            if (is_string($forwarded) && $forwarded !== '') {
+                $parts = explode(',', $forwarded);
+                $ip = trim($parts[0] ?? '');
+                if ($ip !== '') {
+                    return $ip;
+                }
+            }
         }
 
-        $real = $request->header('x-real-ip');
-        if (is_string($real) && $real !== '') {
-            return $real;
-        }
-
-        return 'unknown';
+        return $remote ?? 'unknown';
     }
 }

@@ -28,6 +28,26 @@ final class RefreshTokenRepository
         return is_array($row) ? $row : null;
     }
 
+    /**
+     * LIKE findByHash, but takes a row lock (FOR UPDATE) inside a transaction
+     * so concurrent rotations of the same refresh token are serialized.
+     *
+     * @return array{id:string,user_id:string,family_id:string,token_hash:string,expires_at:string,revoked_at:?string,replaced_by:?string}|null
+     */
+    public function findByHashForUpdate(string $hash): ?array
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'SELECT id, user_id, family_id, token_hash, expires_at, revoked_at, replaced_by
+             FROM refresh_tokens
+             WHERE token_hash = :hash
+             FOR UPDATE'
+        );
+        $stmt->execute(['hash' => $hash]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
     public function create(string $userId, string $familyId, string $hash, int $ttlSeconds): string
     {
         $expiresAt = (new DateTimeImmutable(sprintf('+%d seconds', $ttlSeconds)))->format('Y-m-d H:i:sP');

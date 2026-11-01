@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
+use Throwable;
 use Vistynq\Repositories\DeletedNoteRepository;
 use Vistynq\Repositories\IndirectLinkRepository;
 use Vistynq\Repositories\NoteRepository;
@@ -110,6 +111,12 @@ final class NoteService
         if (!$this->access->canEditCanvas($ctx['role'])) {
             throw ApiException::notFound();
         }
+
+        $note = $this->notes->findById($noteId);
+        if ($note === null || $note['canvas_id'] !== $canvasId) {
+            throw ApiException::notFound();
+        }
+
         $update = [];
         if ($x !== null) {
             $update['x'] = $x;
@@ -150,8 +157,17 @@ final class NoteService
             throw ApiException::notFound();
         }
         $note = $ctx['note'];
-        $this->deletedNotes->create($noteId, $note['canvas_id'], $note['title'], $userId);
         $pdo = $this->db->pdo();
-        $pdo->prepare('DELETE FROM notes WHERE id = :id')->execute(['id' => $noteId]);
+        $pdo->beginTransaction();
+        try {
+            $this->deletedNotes->create($noteId, $note['canvas_id'], $note['title'], $userId);
+            $pdo->prepare('DELETE FROM notes WHERE id = :id')->execute(['id' => $noteId]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
     }
 }

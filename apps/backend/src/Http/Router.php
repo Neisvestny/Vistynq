@@ -7,6 +7,7 @@ namespace Vistynq\Http;
 use FastRoute\Dispatcher;
 use FastRoute\RouteCollector;
 use Vistynq\Support\ApiException;
+use Vistynq\Support\Validator;
 
 use function FastRoute\simpleDispatcher;
 
@@ -38,7 +39,7 @@ final class Router
      * @return array{0: callable|array{0: class-string, 1: string}|string, 1: array<string, mixed>}|null
      *         [handler, routeParams]
      *
-     * @throws ApiException on 404 / 405
+     * @throws ApiException on 404 / 405 / 400 (invalid UUID route param)
      */
     public function match(Request $request): ?array
     {
@@ -55,6 +56,8 @@ final class Router
                 /** @var array<string, mixed> $vars */
                 $vars = $routeInfo[2];
 
+                $this->validateUuidRouteParams($vars);
+
                 return [$routeInfo[1], $vars];
 
             case Dispatcher::METHOD_NOT_ALLOWED:
@@ -67,6 +70,24 @@ final class Router
 
             default:
                 throw ApiException::notFound('Маршрут не найден');
+        }
+    }
+
+    /**
+     * Все route-параметры бэкенда — UUID. Некорректный UUID → 400 вместо 500
+     * от PostgreSQL downstream.
+     *
+     * @param array<string, mixed> $vars
+     */
+    private function validateUuidRouteParams(array $vars): void
+    {
+        foreach ($vars as $value) {
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+            if (preg_match(Validator::UUID_PATTERN, $value) !== 1) {
+                throw ApiException::badRequest('Некорректный идентификатор ресурса');
+            }
         }
     }
 }

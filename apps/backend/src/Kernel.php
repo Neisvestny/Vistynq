@@ -83,7 +83,7 @@ final class Kernel
         $middleware = [
             new ErrorHandlerMiddleware($this->config),
             new CorsMiddleware($this->config),
-            new RateLimitMiddleware(),
+            new RateLimitMiddleware($this->config),
             new JsonBodyMiddleware(),
             new AuthMiddleware($this->container->get(JwtService::class)),
         ];

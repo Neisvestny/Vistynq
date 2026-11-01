@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Vistynq\Services;
 
 use DateTimeImmutable;
+use Throwable;
 use Vistynq\Config\Config;
 use Vistynq\Repositories\RefreshTokenRepository;
 use Vistynq\Repositories\UserRepository;
 use Vistynq\Support\ApiException;
+use Vistynq\Support\Database;
 
 final class RefreshTokenService
 {
@@ -19,6 +21,7 @@ final class RefreshTokenService
         private readonly RefreshTokenRepository $refreshTokens,
         private readonly UserRepository $users,
         private readonly JwtService $jwt,
+        private readonly Database $db,
     ) {
     }
 
@@ -49,41 +52,62 @@ final class RefreshTokenService
      */
     public function rotate(string $rawToken): array
     {
-        $hash = hash('sha256', $rawToken);
-        $tokenRow = $this->refreshTokens->findByHash($hash);
-        if ($tokenRow === null) {
-            throw ApiException::unauthorized();
+        $pdo = $this->db->pdo();
+        $pdo->beginTransaction();
+        try {
+            $hash = hash('sha256', $rawToken);
+            // Блокируем строку для сериализации конкурентных ротаций одного токена.
+            $tokenRow = $this->refreshTokens->findByHashForUpdate($hash);
+            if ($tokenRow === null) {
+                $pdo->rollBack();
+                throw ApiException::unauthorized();
+            }
+
+            if ($tokenRow['revoked_at'] !== null || $tokenRow['replaced_by'] !== null) {
+                // reuse detected - revoke entire family and persist it
+                $this->refreshTokens->revokeFamily($tokenRow['family_id']);
+                $pdo->commit();
+                throw ApiException::unauthorized();
+            }
+
+            $expiresAt = new DateTimeImmutable($tokenRow['expires_at']);
+            if ($expiresAt < new DateTimeImmutable()) {
+                $this->refreshTokens->revokeFamily($tokenRow['family_id']);
+                $pdo->commit();
+                throw ApiException::unauthorized();
+            }
+
+            $user = $this->users->findById($tokenRow['user_id']);
+            if ($user === null) {
+                $this->refreshTokens->revokeFamily($tokenRow['family_id']);
+                $pdo->commit();
+                throw ApiException::unauthorized();
+            }
+
+            $familyId = $tokenRow['family_id'];
+            $rawNew = bin2hex(random_bytes(32));
+            $hashNew = hash('sha256', $rawNew);
+            $newId = $this->refreshTokens->create($user->id, $familyId, $hashNew, $this->config->refreshTtl());
+            $this->refreshTokens->markReplaced($tokenRow['id'], $newId);
+
+            $pdo->commit();
+
+            return [
+                'user' => $user,
+                'accessToken' => $this->jwt->sign($user->id, $user->email),
+                'cookie' => $this->buildCookie($rawNew, $this->config->refreshTtl()),
+            ];
+        } catch (ApiException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
-
-        if ($tokenRow['revoked_at'] !== null || $tokenRow['replaced_by'] !== null) {
-            // reuse detected - revoke entire family
-            $this->refreshTokens->revokeFamily($tokenRow['family_id']);
-            throw ApiException::unauthorized();
-        }
-
-        $expiresAt = new DateTimeImmutable($tokenRow['expires_at']);
-        if ($expiresAt < new DateTimeImmutable()) {
-            $this->refreshTokens->revokeFamily($tokenRow['family_id']);
-            throw ApiException::unauthorized();
-        }
-
-        $user = $this->users->findById($tokenRow['user_id']);
-        if ($user === null) {
-            $this->refreshTokens->revokeFamily($tokenRow['family_id']);
-            throw ApiException::unauthorized();
-        }
-
-        $familyId = $tokenRow['family_id'];
-        $rawNew = bin2hex(random_bytes(32));
-        $hashNew = hash('sha256', $rawNew);
-        $newId = $this->refreshTokens->create($user->id, $familyId, $hashNew, $this->config->refreshTtl());
-        $this->refreshTokens->markReplaced($tokenRow['id'], $newId);
-
-        return [
-            'user' => $user,
-            'accessToken' => $this->jwt->sign($user->id, $user->email),
-            'cookie' => $this->buildCookie($rawNew, $this->config->refreshTtl()),
-        ];
     }
 
     public function revokeByRaw(string $rawToken): void

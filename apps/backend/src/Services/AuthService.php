@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
+use RuntimeException;
 use Vistynq\Models\User;
 use Vistynq\Repositories\AuthTokenRepository;
 use Vistynq\Repositories\UserRepository;
@@ -24,6 +25,22 @@ final class AuthService
         private readonly MailService $mail,
         private readonly RefreshTokenService $refreshTokens,
     ) {
+        if (!extension_loaded('sodium')) {
+            throw new RuntimeException('ext-sodium is required for argon2id password hashing');
+        }
+    }
+
+    /**
+     * Хеш пароля argon2id. Требует ext-sodium (проверяется в конструкторе).
+     */
+    private static function hashPassword(string $password): string
+    {
+        $hash = password_hash($password, PASSWORD_ARGON2ID);
+        if ($hash === false) {
+            throw new RuntimeException('Не удалось вычислить хеш пароля');
+        }
+
+        return $hash;
     }
 
     public function register(string $email, string $password, string $displayName): void
@@ -32,7 +49,7 @@ final class AuthService
             throw ApiException::conflict('Email уже зарегистрирован', ['email' => ['email занят']]);
         }
 
-        $user = $this->users->insert($email, password_hash($password, PASSWORD_DEFAULT), $displayName);
+        $user = $this->users->insert($email, self::hashPassword($password), $displayName);
 
         $this->sendVerification($user->id, $user->email);
     }
@@ -98,7 +115,7 @@ final class AuthService
         }
 
         $this->authTokens->markUsed($tokenRow['id']);
-        $this->users->updatePassword($tokenRow['user_id'], password_hash($password, PASSWORD_DEFAULT));
+        $this->users->updatePassword($tokenRow['user_id'], self::hashPassword($password));
         $this->refreshTokens->revokeAllForUser($tokenRow['user_id']);
     }
 

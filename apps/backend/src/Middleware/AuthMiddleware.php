@@ -43,7 +43,11 @@ final class AuthMiddleware implements MiddlewareInterface
         }
 
         $optional = false;
-        if (preg_match('#^/api/v1/canvases/[^/]+/graph$#', $path) || preg_match('#^/api/v1/canvases/[^/]+/search$#', $path) || preg_match('#^/api/v1/notes/[^/]+$#', $path) && $request->method() === 'GET') {
+        if (
+            preg_match('#^/api/v1/canvases/[^/]+/graph$#', $path)
+            || preg_match('#^/api/v1/canvases/[^/]+/search$#', $path)
+            || (preg_match('#^/api/v1/notes/[^/]+$#', $path) && $request->method() === 'GET')
+        ) {
             $optional = true;
         }
 
