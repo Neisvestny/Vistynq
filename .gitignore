@@ -40,5 +40,9 @@ Thumbs.db
 # Playwright MCP: артефакты обследования страниц
 .playwright-mcp/
 
+# Playwright: тестовые результаты и отчёты
+test-results/
+playwright-report/
+
 # Local overrides
 *.local.kilo/

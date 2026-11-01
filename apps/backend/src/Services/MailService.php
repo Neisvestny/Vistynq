@@ -73,6 +73,14 @@ final class MailService
         $mail->AltBody = $text;
         $mail->isHTML(true);
 
-        $mail->send();
+        try {
+            $mail->send();
+        } catch (\Throwable $e) {
+            if (!$this->config->isProd()) {
+                error_log('[mail] SMTP send failed (non-prod, ignoring): ' . $e->getMessage());
+                return;
+            }
+            throw $e;
+        }
     }
 }
