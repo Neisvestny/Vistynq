@@ -23,7 +23,10 @@ export const useAuthStore = defineStore('auth', () => {
   function applyToken(data: AccessTokenResponse): void {
     accessToken.value = data.accessToken
     setAccessToken(data.accessToken)
-    user.value = data.user
+    // login всегда возвращает user; refresh — не обязательно. Не затираем на undefined.
+    if (data.user) {
+      user.value = data.user
+    }
   }
 
   function reset(): void {
@@ -68,7 +71,9 @@ export const useAuthStore = defineStore('auth', () => {
   setOnTokenRefreshed((data) => {
     accessToken.value = data.accessToken
     setAccessToken(data.accessToken)
-    user.value = data.user
+    if (data.user) {
+      user.value = data.user
+    }
   })
 
   /* ---------------- bootstrap-восстановление сессии ---------------- */

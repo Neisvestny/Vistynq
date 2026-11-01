@@ -83,6 +83,7 @@ final class AuthController
         $result = $this->auth->refresh($raw);
 
         $response = Response::json([
+            'user' => $result['user']->toArray(),
             'accessToken' => $result['accessToken'],
             'accessTokenExpiresIn' => 900,
         ]);

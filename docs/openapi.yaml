@@ -241,7 +241,9 @@ paths:
       responses:
         '200':
           description: Новый access + ротация refresh
-          content: { application/json: { schema: { type: object, properties: { accessToken: { type: string }, accessTokenExpiresIn: { type: integer } } } } }
+          headers:
+            Set-Cookie: { description: "vistynq_refresh=...; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth/refresh", schema: { type: string } }
+          content: { application/json: { schema: { $ref: '#/components/schemas/AccessTokenResponse' } } }
         '401': { description: Кука недействительна/reuse — семья отозвана }
   /auth/logout:
     post:

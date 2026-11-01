@@ -22,7 +22,8 @@ export interface User {
 
 /** Ответ login/refresh: access только в памяти, refresh — httpOnly cookie */
 export interface AccessTokenResponse {
-  user: User
+  /** Обязателен в login; в refresh может отсутствовать — store не затирает user на undefined. */
+  user?: User
   accessToken: string
   accessTokenExpiresIn: number
 }

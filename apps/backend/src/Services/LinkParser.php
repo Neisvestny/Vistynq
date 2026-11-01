@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
-use PDO;
 use Vistynq\Repositories\IndirectLinkRepository;
 use Vistynq\Repositories\NoteRepository;
 use Vistynq\Support\Database;

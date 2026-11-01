@@ -33,7 +33,7 @@
 | POST | `/auth/verify-email` | все | `{token}` → 204; 410 если токен протух |
 | POST | `/auth/resend-verification` | все | `{email}` → всегда 202 |
 | POST | `/auth/login` | все | `{email, password}` → 200 `{user, accessToken, accessTokenExpiresIn}` + Set-Cookie refresh; 403 `EMAIL_NOT_VERIFIED` (с пометкой «письмо не пришло?» → resend) |
-| POST | `/auth/refresh` | cookie | Ротация: новый access + новая кука; reuse → отзыв всей family (401) |
+| POST | `/auth/refresh` | cookie | Ротация: `{user, accessToken, accessTokenExpiresIn}` + новая кука; reuse → отзыв всей family (401) |
 | POST | `/auth/logout` | auth | отзывает refresh-семью, сбрасывает куку → 204 |
 | POST | `/auth/forgot-password` | все | `{email}` → всегда 202; письмо со ссылкой `reset?token=` |
 | POST | `/auth/reset-password` | все | `{token, password}` → 204, отзывает все refresh; 410 если токен протух |

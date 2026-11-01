@@ -30,7 +30,7 @@ final class ArchiveService
         }
 
         $pdo = $this->db->pdo();
-        $stmt = $pdo->prepare("SELECT id, title, canvas_id FROM notes WHERE canvas_id = :canvasId AND deleted_at IS NULL AND is_relevant = false");
+        $stmt = $pdo->prepare('SELECT id, title, canvas_id FROM notes WHERE canvas_id = :canvasId AND deleted_at IS NULL AND is_relevant = false');
         $stmt->execute(['canvasId' => $canvasId]);
         $notRelevant = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
