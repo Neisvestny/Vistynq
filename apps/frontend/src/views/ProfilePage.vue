@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** Профиль: данные из auth-store; правки профиля/аватара — R14. */
+/** Профиль (R14): имя/email/верификация из auth-store; правки профиля и аватара — позже. */
 import { useRouter } from 'vue-router'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
@@ -18,7 +18,6 @@ async function onLogout() {
   <div class="stub-page">
     <header class="stub-page__header">
       <h1 class="stub-page__title">Профиль</h1>
-      <span class="stub-badge">Каркас · R04</span>
     </header>
 
     <UiCard v-if="auth.user">

@@ -1,0 +1,10 @@
+# Generated/build output
+node_modules
+dist
+dist-ssr
+coverage
+.turbo
+
+# Playwright artifacts (gitignored; появляются после локального прогона e2e)
+test-results
+playwright-report

@@ -36,7 +36,9 @@ final class CanvasRepository
                         WHEN c.owner_id = :userId THEN 'owner'
                         WHEN ca.role IS NOT NULL THEN ca.role
                         ELSE NULL
-                    END as my_role
+                    END as my_role,
+                    (SELECT count(*) FROM notes n
+                      WHERE n.canvas_id = c.id AND n.deleted_at IS NULL) AS note_count
              FROM canvases c
              LEFT JOIN canvas_access ca ON ca.canvas_id = c.id AND ca.user_id = :userId
              WHERE c.owner_id = :userId OR ca.user_id IS NOT NULL

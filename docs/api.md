@@ -46,7 +46,7 @@
 
 | Метод | Путь | Роль | Описание |
 |---|---|---|---|
-| GET | `/canvases` | auth | мои канвасы + канвасы, куда инвайтили |
+| GET | `/canvases` | auth | мои канвасы + канвасы, куда инвайтили; каждый элемент несёт `noteCount` (незамеченные заметки) |
 | POST | `/canvases` | verified | `{title}` → 201 |
 | GET | `/canvases/{id}/graph` | ≥viewer | загрузка канваса целиком (см. ниже) |
 | PATCH | `/canvases/{id}` | owner/editor(title) | `{title?}` |

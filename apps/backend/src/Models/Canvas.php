@@ -22,6 +22,7 @@ final class Canvas
         public readonly ?string $publicSlug,
         public readonly string $myRole,
         public readonly string $createdAt,
+        public readonly ?int $noteCount = null,
     ) {
     }
 
@@ -41,23 +42,30 @@ final class Canvas
             publicSlug: $row['public_slug'] !== null ? (string) $row['public_slug'] : null,
             myRole: $role ?? 'none',
             createdAt: self::date((string) $row['created_at']),
+            noteCount: isset($row['note_count']) && is_numeric($row['note_count'])
+                ? (int) $row['note_count']
+                : null,
         );
     }
 
     /**
      * Public API shape (docs/openapi.yaml → Canvas).
      *
+     * `noteCount` приходит только из GET /canvases (выборка со счётчиком);
+     * у графа/созданного канваса поля нет — omitted, чтобы не врать нулём.
+     *
      * @return array{
      *     id: string,
      *     title: string,
      *     ownerId: string,
      *     access: array{level: string, publicSlug: string|null, myRole: string},
-     *     createdAt: string
+     *     createdAt: string,
+     *     noteCount?: int
      * }
      */
     public function toArray(): array
     {
-        return [
+        $data = [
             'id' => $this->id,
             'title' => $this->title,
             'ownerId' => $this->ownerId,
@@ -68,6 +76,12 @@ final class Canvas
             ],
             'createdAt' => $this->createdAt,
         ];
+
+        if ($this->noteCount !== null) {
+            $data['noteCount'] = $this->noteCount;
+        }
+
+        return $data;
     }
 
     private static function date(string $value): string

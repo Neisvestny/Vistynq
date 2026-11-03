@@ -29,14 +29,60 @@ export interface AccessTokenResponse {
 }
 
 export type AccessLevel = 'private' | 'specific' | 'public_link'
-export type AccessRole = 'owner' | 'editor' | 'viewer'
+export type AccessRole = 'owner' | 'editor' | 'viewer' | 'none'
 
+/** docs/openapi.yaml → Canvas */
 export interface Canvas {
   id: string
   title: string
   ownerId: string
-  accessLevel: AccessLevel
-  publicSlug?: string | null
+  access: {
+    level: AccessLevel
+    publicSlug: string | null
+    myRole: AccessRole
+  }
   createdAt: string
-  updatedAt: string
+  /** Только GET /canvases: незамеченные заметки; у графа/созданного канваса поля нет. */
+  noteCount?: number
+}
+
+/** docs/openapi.yaml → GraphNode */
+export interface GraphNode {
+  id: string
+  title: string
+  importance: number
+  isRelevant: boolean
+  x: number
+  y: number
+  width: number
+  deletedAt: string | null
+  tags: string[]
+  authorId: string
+}
+
+export type EdgeState = 'ok' | 'removed'
+
+/** docs/openapi.yaml → GraphEdge; label заполнен только у state=removed. */
+export interface GraphEdge {
+  id: string
+  type: 'direct' | 'indirect'
+  from: string
+  to: string | null
+  state: EdgeState
+  label: string | null
+}
+
+/** docs/openapi.yaml → Tag */
+export interface GraphTag {
+  id: string
+  name: string
+  color: string
+}
+
+/** docs/openapi.yaml → Graph: GET /canvases/{id}/graph */
+export interface GraphResponse {
+  canvas: Canvas
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  tags: GraphTag[]
 }

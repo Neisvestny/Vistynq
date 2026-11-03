@@ -126,6 +126,32 @@ final class CanvasCrudTest extends IntegrationTestCase
         $this->assertNotContains($this->canvasId, array_column($strangerView['items'], 'id'));
     }
 
+    public function testIndexCountsLiveNotesOnly(): void
+    {
+        $this->createNote($this->canvasId, $this->ownerId, 'Первая');
+        $deleted = $this->createNote($this->canvasId, $this->ownerId, 'Удаляемая');
+        $this->service(NoteService::class)->softDelete($deleted, $this->ownerId);
+
+        $view = $this->json($this->canvasController->index(
+            $this->request('GET', '/api/v1/canvases', [], null, [], [], $this->ownerId),
+        ));
+
+        $this->assertSame(1, $this->itemById($view, $this->canvasId)['noteCount'], 'soft-deleted не считаются');
+
+        // созданный через контроллер канвас без заметок — noteCount = 0
+        $created = $this->json($this->canvasController->create($this->request(
+            'POST',
+            '/api/v1/canvases',
+            [],
+            ['title' => 'Пустой'],
+            [],
+            [],
+            $this->ownerId,
+        )));
+        $this->trackCanvasId((string) $created['id']);
+        $this->assertArrayNotHasKey('noteCount', $created, 'POST /canvases не считает заметки');
+    }
+
     public function testUpdateTitleByEditorReturnsCanvas(): void
     {
         $response = $this->canvasController->update($this->request(

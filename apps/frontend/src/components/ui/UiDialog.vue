@@ -7,6 +7,7 @@ import {
   DialogPortal,
   DialogRoot,
   DialogTitle,
+  DialogTrigger,
 } from 'reka-ui'
 
 defineProps<{

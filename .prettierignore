@@ -5,6 +5,10 @@ dist-ssr
 coverage
 .turbo
 
+# Playwright artifacts (gitignored; появляются после локального прогона e2e)
+test-results
+playwright-report
+
 # Lock files (managed by package managers)
 pnpm-lock.yaml
 composer.lock

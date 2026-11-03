@@ -127,6 +127,9 @@ components:
             publicSlug: { type: [string, "null"] }
             myRole: { type: string, enum: [owner, editor, viewer, none] }
         createdAt: { type: string, format: date-time }
+        noteCount:
+          type: integer
+          description: Незамеченные заметки канваса; приходит только в GET /canvases
     Graph:
       type: object
       properties:
