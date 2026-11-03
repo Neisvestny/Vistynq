@@ -98,10 +98,10 @@
 
 | Метод | Путь | Роль |
 |---|---|---|
-| GET | `/canvases/{id}/tags` | ≥viewer |
-| POST | `/canvases/{id}/tags` | ≥editor — `{name, color}`; 409 при дубле |
-| PATCH | `/tags/{id}` | ≥editor — переименование/цвет; обновляет все заметки канваса |
-| DELETE | `/tags/{id}` | ≥editor — снимает тег со всех заметок |
+| GET | `/canvases/{id}/tags` | ≥viewer — `[{id, name, color}]` по имени |
+| POST | `/canvases/{id}/tags` | ≥editor (verified) — `{name, color?}` → 201; цвет `#rrggbb`; 409 при дубле имени без учёта регистра |
+| PATCH | `/tags/{id}` | ≥editor (verified) — `{name?, color?}` → 200; переименование видно на всех заметках канваса сразу; пустое тело — no-op |
+| DELETE | `/tags/{id}` | ≥editor (verified) → 204 — hard delete, тег снимается со всех заметок (каскад `note_tags`) |
 
 ## Ссылки
 

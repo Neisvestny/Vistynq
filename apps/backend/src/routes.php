@@ -6,6 +6,7 @@ use Vistynq\Controllers\AuthController;
 use Vistynq\Controllers\CanvasController;
 use Vistynq\Controllers\HealthController;
 use Vistynq\Controllers\NoteController;
+use Vistynq\Controllers\TagController;
 use Vistynq\Http\Router;
 
 /** @var Router $router */
@@ -40,3 +41,8 @@ $router->add('PUT', '/api/v1/notes/{id}/body', [NoteController::class, 'updateBo
 $router->add('DELETE', '/api/v1/notes/{id}', [NoteController::class, 'delete']);
 $router->add('POST', '/api/v1/notes/{id}/restore', [NoteController::class, 'restore']);
 $router->add('DELETE', '/api/v1/notes/{id}/purge', [NoteController::class, 'purge']);
+
+$router->add('GET', '/api/v1/canvases/{id}/tags', [TagController::class, 'index']);
+$router->add('POST', '/api/v1/canvases/{id}/tags', [TagController::class, 'create']);
+$router->add('PATCH', '/api/v1/tags/{id}', [TagController::class, 'update']);
+$router->add('DELETE', '/api/v1/tags/{id}', [TagController::class, 'delete']);

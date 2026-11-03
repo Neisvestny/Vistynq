@@ -58,6 +58,69 @@ final class TagRepository
     }
 
     /**
+     * Новый тег канваса. Нарушение UNIQUE (canvas_id, name) не перехватывается
+     * здесь — его ловит TagService и превращает в 409.
+     *
+     * @return array<string, mixed> row (id, canvas_id, name, color, created_at)
+     */
+    public function create(string $canvasId, string $name, string $color): array
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'INSERT INTO tags (canvas_id, name, color) VALUES (:canvasId, :name, :color) RETURNING *'
+        );
+        $stmt->execute(['canvasId' => $canvasId, 'name' => $name, 'color' => $color]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : [];
+    }
+
+    /**
+     * Частичное обновление тега (только переданные поля).
+     *
+     * @param array<string, string> $fields name и/или color
+     *
+     * @return array<string, mixed>|null null, если тег исчез между чтением и записью
+     */
+    public function update(string $id, array $fields): ?array
+    {
+        if ($fields === []) {
+            return $this->findById($id);
+        }
+
+        $set = [];
+        $params = ['id' => $id];
+        foreach ($fields as $column => $value) {
+            // whitelist: имя колонки подставляется в SQL
+            if (!in_array($column, ['name', 'color'], true)) {
+                continue;
+            }
+            $set[] = "{$column} = :{$column}";
+            $params[$column] = $value;
+        }
+        if ($set === []) {
+            return $this->findById($id);
+        }
+
+        $stmt = $this->db->pdo()->prepare(
+            'UPDATE tags SET ' . implode(', ', $set) . ' WHERE id = :id RETURNING *'
+        );
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * Hard delete тега: note_tags уходят каскадом (FK ON DELETE CASCADE) —
+     * тег «снимается со всех заметок канваса» (docs/api.md).
+     */
+    public function delete(string $id): void
+    {
+        $stmt = $this->db->pdo()->prepare('DELETE FROM tags WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+
+    /**
      * note_id → tag names, resolved in one query scoped to the canvas.
      * Deliberately not driven by an IN-list of note ids: the note set is
      * already filtered by NoteRepository::findGraphNotes and re-binding it

@@ -451,27 +451,30 @@ paths:
       summary: Список тегов канваса
       operationId: getCanvases_id_tags
       tags: [tags]
-      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Tag' } } } } }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      description: ≥viewer. Массив плоских объектов Tag, отсортирован по имени.
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Tag' } } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
     post:
       summary: Создать тег канваса
       operationId: postCanvases_id_tags
       tags: [tags]
-      requestBody: { content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, maxLength: 50 }, color: { type: string, example: "#7c3aed" } } } } } }
-      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Tag' } } } }, '409': { description: Дубль имени } }
+      description: ≥editor + верифицированный email. Имя уникально в рамках канваса без учёта регистра (citext) → 409 при дубле.
+      requestBody: { content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, maxLength: 50 }, color: { type: string, pattern: '^#[0-9a-fA-F]{6}$', default: "#7c3aed" } } } } } }
+      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Tag' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Дубль имени }, '422': { $ref: '#/components/responses/ValidationError' } }
   /tags/{id}:
     parameters: [{ $ref: '#/components/parameters/TagId' }]
     patch:
       summary: Переименовать/перекрасить тег
       operationId: patchTags_id
       tags: [tags]
-      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, color: { type: string } } } } } }
-      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Tag' } } } }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      description: ≥editor канваса-владельца тега + верифицированный email. Изменение видно на всех заметках канваса сразу (общий join note_tags). Пустое тело — no-op, тот же тег.
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string, maxLength: 50 }, color: { type: string, pattern: '^#[0-9a-fA-F]{6}$' } } } } } }
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Tag' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { description: Дубль имени }, '422': { $ref: '#/components/responses/ValidationError' } }
     delete:
       summary: Удалить тег со всех заметок
       operationId: deleteTags_id
       tags: [tags]
-      description: Снимает тег со всех заметок канваса.
-      responses: { '204': { description: Удалён }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      description: "≥editor канваса-владельца тега. Hard delete: note_tags уходят каскадом (FK ON DELETE CASCADE) — тег снимается со всех заметок канваса."
+      responses: { '204': { description: Удалён }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
 
   /links/direct:
     post:
