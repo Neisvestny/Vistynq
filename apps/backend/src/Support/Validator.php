@@ -15,9 +15,9 @@ namespace Vistynq\Support;
  *   ]);
  *   if ($errors !== []) { throw ApiException::validation($errors); }
  *
- * Rules: required, string, int, email, uuid, in:a,b,c, min:n, max:n,
- * minLength:n, maxLength:n. Fields absent from $data are validated only
- * when "required" is present.
+ * Rules: required, string, int, numeric, bool, array, email, uuid,
+ * in:a,b,c, min:n, max:n, minLength:n, maxLength:n. Fields absent from $data
+ * are validated only when "required" is present.
  */
 final class Validator
 {
@@ -113,6 +113,19 @@ final class Validator
                 return is_string($value) && preg_match('/^-?\d+$/', $value) === 1
                     ? null
                     : 'должно быть целым числом';
+
+            case 'numeric':
+                // is_finite: NAN/INF проходят is_numeric, но не являются координатой
+                return is_numeric($value) && is_finite((float) $value)
+                    ? null
+                    : 'должно быть числом';
+
+            case 'bool':
+                // строго булево: строка "false" не должна превращаться в true
+                return is_bool($value) ? null : 'должно быть булевым значением';
+
+            case 'array':
+                return is_array($value) ? null : 'должно быть массивом';
 
             case 'email':
                 return is_string($value) && preg_match(self::EMAIL_PATTERN, $value) === 1

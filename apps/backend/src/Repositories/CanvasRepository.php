@@ -31,11 +31,11 @@ final class CanvasRepository
     public function findForUser(string $userId): array
     {
         $stmt = $this->db->pdo()->prepare(
-            "SELECT c.*, 
-                    CASE 
+            "SELECT c.*,
+                    CASE
                         WHEN c.owner_id = :userId THEN 'owner'
                         WHEN ca.role IS NOT NULL THEN ca.role
-                        ELSE NULL 
+                        ELSE NULL
                     END as my_role
              FROM canvases c
              LEFT JOIN canvas_access ca ON ca.canvas_id = c.id AND ca.user_id = :userId
@@ -47,17 +47,26 @@ final class CanvasRepository
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function create(string $ownerId, string $title): string
+    /**
+     * @return array<string,mixed> the inserted row
+     */
+    public function create(string $ownerId, string $title): array
     {
         $stmt = $this->db->pdo()->prepare(
-            'INSERT INTO canvases (owner_id, title) VALUES (:owner_id, :title) RETURNING id'
+            'INSERT INTO canvases (owner_id, title) VALUES (:owner_id, :title) RETURNING *'
         );
         $stmt->execute(['owner_id' => $ownerId, 'title' => $title]);
-        $id = $stmt->fetchColumn();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        return is_string($id) ? $id : '';
+        return is_array($row) ? $row : [];
     }
 
+    /**
+     * Whitelisted columns only — mass assignment of owner_id / access_level /
+     * public_slug must stay impossible.
+     *
+     * @param array<string,mixed> $fields
+     */
     public function update(string $id, array $fields): void
     {
         $sets = [];
@@ -77,10 +86,41 @@ final class CanvasRepository
         $stmt->execute($params);
     }
 
+    /**
+     * Hard delete with cascade (docs/ROADMAP.md R11, docs/data-model.md).
+     *
+     * Everything reachable through an FK goes with the DELETE (notes, tags,
+     * note_tags, canvas_access, note_access, direct/indirect links). Rows
+     * referencing a canvas polymorphically — invitations (resource_id has no
+     * FK by design) and deleted_notes tombstones (canvas_id is a plain uuid
+     * so a tombstone can outlive its note) — are removed explicitly, in the
+     * same transaction, so no orphaned record can survive the canvas.
+     */
     public function delete(string $id): void
     {
-        $stmt = $this->db->pdo()->prepare('DELETE FROM canvases WHERE id = :id');
-        $stmt->execute(['id' => $id]);
+        $pdo = $this->db->pdo();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                'DELETE FROM invitations
+                 WHERE (resource_type = \'canvas\' AND resource_id = :id)
+                    OR (resource_type = \'note\' AND resource_id IN (SELECT id FROM notes WHERE canvas_id = :id))'
+            );
+            $stmt->execute(['id' => $id]);
+
+            $stmt = $pdo->prepare('DELETE FROM deleted_notes WHERE canvas_id = :id');
+            $stmt->execute(['id' => $id]);
+
+            $stmt = $pdo->prepare('DELETE FROM canvases WHERE id = :id');
+            $stmt->execute(['id' => $id]);
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
     }
 
     public function findCanvasAccess(string $canvasId, string $userId): ?string

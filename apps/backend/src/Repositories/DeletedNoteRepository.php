@@ -13,6 +13,10 @@ final class DeletedNoteRepository
     {
     }
 
+    /**
+     * Tombstone survives its note by design (migrations/0002_domain.sql):
+     * no FK to notes, created on purge only.
+     */
     public function create(string $noteId, ?string $canvasId, string $title, ?string $deletedBy): void
     {
         $stmt = $this->db->pdo()->prepare(
@@ -24,6 +28,18 @@ final class DeletedNoteRepository
             'title' => $title,
             'deleted_by' => $deletedBy,
         ]);
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    public function findByNoteId(string $noteId): ?array
+    {
+        $stmt = $this->db->pdo()->prepare('SELECT * FROM deleted_notes WHERE note_id = :noteId');
+        $stmt->execute(['noteId' => $noteId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
     }
 
     /**
@@ -41,5 +57,15 @@ final class DeletedNoteRepository
     {
         $stmt = $this->db->pdo()->prepare('DELETE FROM deleted_notes WHERE note_id = :noteId');
         $stmt->execute(['noteId' => $noteId]);
+    }
+
+    /**
+     * Tombstones of a canvas that is being hard-deleted: they would point at
+     * a canvas that no longer exists and could never be rendered again.
+     */
+    public function deleteForCanvas(string $canvasId): void
+    {
+        $stmt = $this->db->pdo()->prepare('DELETE FROM deleted_notes WHERE canvas_id = :canvasId');
+        $stmt->execute(['canvasId' => $canvasId]);
     }
 }

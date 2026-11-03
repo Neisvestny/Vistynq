@@ -4,41 +4,56 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
-use PDO;
+use Vistynq\Models\Note;
 use Vistynq\Repositories\DeletedNoteRepository;
 use Vistynq\Repositories\NoteRepository;
-use Vistynq\Support\Database;
 
+/**
+ * Архив канваса (docs/api.md §Канвасы, ROADMAP R12): «неактуально» — живые
+ * is_relevant=false; «удалённые» — soft-deleted заметки плюс tombstone'ы
+ * purged-заметок (две выборки не пересекаются: заметка либо в notes, либо
+ * в deleted_notes).
+ */
 final class ArchiveService
 {
     public function __construct(
         private readonly NoteRepository $notes,
         private readonly DeletedNoteRepository $deletedNotes,
         private readonly AccessService $access,
-        private readonly Database $db,
     ) {
     }
 
     /**
-     * @return array<string,mixed>
+     * @return array<string, mixed>
      */
     public function get(string $canvasId, string $userId): array
     {
-        $ctx = $this->access->getCanvasContext($canvasId, $userId);
-        if (!$this->access->canEditCanvas($ctx['role'])) {
-            throw \Vistynq\Support\ApiException::notFound();
+        // ≥editor (docs/api.md): viewer видит канвас, но не архив → 403, не 404
+        $this->access->requireCanvasEdit($canvasId, $userId);
+
+        $notRelevant = array_map(
+            static fn (array $row): array => Note::fromRow($row)->toArray(),
+            $this->notes->findNotRelevant($canvasId),
+        );
+
+        $deleted = [];
+        foreach ($this->notes->findDeleted($canvasId) as $row) {
+            $deleted[] = Note::fromRow($row)->toArray();
+        }
+        foreach ($this->deletedNotes->findByCanvas($canvasId) as $row) {
+            $deleted[] = Note::tombstoneToArray($row);
         }
 
-        $pdo = $this->db->pdo();
-        $stmt = $pdo->prepare('SELECT id, title, canvas_id FROM notes WHERE canvas_id = :canvasId AND deleted_at IS NULL AND is_relevant = false');
-        $stmt->execute(['canvasId' => $canvasId]);
-        $notRelevant = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        usort($deleted, static function (array $a, array $b): int {
+            $left = strtotime((string) ($a['deletedAt'] ?? '')) ?: 0;
+            $right = strtotime((string) ($b['deletedAt'] ?? '')) ?: 0;
 
-        $deleted = $this->deletedNotes->findByCanvas($canvasId);
+            return $right <=> $left;
+        });
 
         return [
-            'notRelevant' => array_map(fn ($n) => ['id' => $n['id'], 'title' => $n['title'], 'canvasId' => $n['canvas_id']], $notRelevant),
-            'deleted' => array_map(fn ($n) => ['id' => $n['note_id'], 'title' => $n['title_snapshot'], 'canvasId' => $n['canvas_id'], 'deletedAt' => $n['deleted_at']], $deleted),
+            'notRelevant' => $notRelevant,
+            'deleted' => $deleted,
         ];
     }
 }

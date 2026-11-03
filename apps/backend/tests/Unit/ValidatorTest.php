@@ -79,6 +79,48 @@ final class ValidatorTest extends TestCase
         $this->assertArrayHasKey('name', $errors);
     }
 
+    public function testNumericAcceptsIntFloatAndNumericString(): void
+    {
+        $rules = ['x' => 'numeric'];
+        $this->assertSame([], Validator::validate(['x' => 10], $rules));
+        $this->assertSame([], Validator::validate(['x' => -3.5], $rules));
+        $this->assertSame([], Validator::validate(['x' => '120.5'], $rules));
+    }
+
+    public function testNumericRejectsNonNumericAndNonFinite(): void
+    {
+        $rules = ['x' => 'numeric'];
+        $this->assertArrayHasKey('x', Validator::validate(['x' => 'abc'], $rules));
+        $this->assertArrayHasKey('x', Validator::validate(['x' => []], $rules));
+        $this->assertArrayHasKey('x', Validator::validate(['x' => NAN], $rules));
+        $this->assertArrayHasKey('x', Validator::validate(['x' => INF], $rules));
+    }
+
+    public function testBoolIsStrict(): void
+    {
+        $rules = ['flag' => 'bool'];
+        $this->assertSame([], Validator::validate(['flag' => false], $rules));
+        $this->assertSame([], Validator::validate(['flag' => true], $rules));
+        // строка "false" не должна превращаться в true
+        $this->assertArrayHasKey('flag', Validator::validate(['flag' => 'false'], $rules));
+        $this->assertArrayHasKey('flag', Validator::validate(['flag' => 0], $rules));
+    }
+
+    public function testArrayRule(): void
+    {
+        $rules = ['tagIds' => 'array'];
+        $this->assertSame([], Validator::validate(['tagIds' => []], $rules));
+        $this->assertSame([], Validator::validate(['tagIds' => ['a']], $rules));
+        $this->assertArrayHasKey('tagIds', Validator::validate(['tagIds' => 'nope'], $rules));
+        $this->assertArrayHasKey('tagIds', Validator::validate(['tagIds' => 1], $rules));
+    }
+
+    public function testBoolFalsePassesRequired(): void
+    {
+        $errors = Validator::validate(['isRelevant' => false], ['isRelevant' => 'required|bool']);
+        $this->assertSame([], $errors);
+    }
+
     public function testAssertThrowsOnInvalid(): void
     {
         $this->expectException(\Vistynq\Support\ApiException::class);

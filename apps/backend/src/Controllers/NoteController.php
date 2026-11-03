@@ -10,8 +10,11 @@ use Vistynq\Middleware\AuthMiddleware;
 use Vistynq\Services\ArchiveService;
 use Vistynq\Services\NoteService;
 use Vistynq\Services\SearchService;
-use Vistynq\Support\Validator;
 
+/**
+ * HTTP-обёртка над NoteService/ArchiveService/SearchService: статусы и тела
+ * по docs/openapi.yaml (201 Note, 200 NoteDetail/Note, 204 без тела).
+ */
 final class NoteController
 {
     public function __construct(
@@ -25,47 +28,34 @@ final class NoteController
     {
         $userId = AuthMiddleware::userId($request);
         $canvasId = (string) $request->routeParam('id');
-        $data = $request->json();
-        $title = isset($data['title']) && is_string($data['title']) ? $data['title'] : null;
-        $x = isset($data['x']) ? (float) $data['x'] : 0;
-        $y = isset($data['y']) ? (float) $data['y'] : 0;
 
-        $id = $this->notes->create($canvasId, $userId, $title, $x, $y);
+        $note = $this->notes->create($canvasId, $userId, $request->json());
 
-        return Response::json(['id' => $id], 201);
+        return Response::json($note, 201);
     }
 
     public function show(Request $request): Response
     {
-        $userId = $this->optionalUserId($request);
+        $userId = AuthMiddleware::optionalUserId($request);
         $noteId = (string) $request->routeParam('id');
 
-        $result = $this->notes->get($noteId, $userId);
-
-        return Response::json($result);
+        return Response::json($this->notes->get($noteId, $userId));
     }
 
     public function update(Request $request): Response
     {
         $userId = AuthMiddleware::userId($request);
         $noteId = (string) $request->routeParam('id');
-        $data = $request->json();
 
-        $this->notes->updateManifest($noteId, $userId, $data);
-
-        return Response::json(['ok' => true]);
+        return Response::json($this->notes->updateManifest($noteId, $userId, $request->json()));
     }
 
     public function updateBody(Request $request): Response
     {
         $userId = AuthMiddleware::userId($request);
         $noteId = (string) $request->routeParam('id');
-        $data = $request->json();
-        Validator::assert($data, ['bodyMd' => 'required|string']);
 
-        $this->notes->updateBody($noteId, $userId, (string) $data['bodyMd']);
-
-        return Response::json(['ok' => true]);
+        return Response::json($this->notes->updateBody($noteId, $userId, $request->json()));
     }
 
     public function updatePosition(Request $request): Response
@@ -73,15 +63,10 @@ final class NoteController
         $userId = AuthMiddleware::userId($request);
         $canvasId = (string) $request->routeParam('id');
         $noteId = (string) $request->routeParam('noteId');
-        $data = $request->json();
 
-        $x = array_key_exists('x', $data) ? (float) $data['x'] : null;
-        $y = array_key_exists('y', $data) ? (float) $data['y'] : null;
-        $width = array_key_exists('width', $data) ? (int) $data['width'] : null;
+        $this->notes->updatePosition($canvasId, $noteId, $userId, $request->json());
 
-        $this->notes->updatePosition($canvasId, $noteId, $userId, $x, $y, $width);
-
-        return Response::json(['ok' => true]);
+        return Response::noContent();
     }
 
     public function delete(Request $request): Response
@@ -91,7 +76,7 @@ final class NoteController
 
         $this->notes->softDelete($noteId, $userId);
 
-        return Response::json(['ok' => true]);
+        return Response::noContent();
     }
 
     public function restore(Request $request): Response
@@ -99,9 +84,7 @@ final class NoteController
         $userId = AuthMiddleware::userId($request);
         $noteId = (string) $request->routeParam('id');
 
-        $this->notes->restore($noteId, $userId);
-
-        return Response::json(['ok' => true]);
+        return Response::json($this->notes->restore($noteId, $userId));
     }
 
     public function purge(Request $request): Response
@@ -111,7 +94,7 @@ final class NoteController
 
         $this->notes->purge($noteId, $userId);
 
-        return Response::json(['ok' => true]);
+        return Response::noContent();
     }
 
     public function archive(Request $request): Response
@@ -119,28 +102,15 @@ final class NoteController
         $userId = AuthMiddleware::userId($request);
         $canvasId = (string) $request->routeParam('id');
 
-        $result = $this->archive->get($canvasId, $userId);
-
-        return Response::json($result);
+        return Response::json($this->archive->get($canvasId, $userId));
     }
 
     public function search(Request $request): Response
     {
-        $userId = $this->optionalUserId($request);
+        $userId = AuthMiddleware::optionalUserId($request);
         $canvasId = (string) $request->routeParam('id');
         $q = (string) $request->query('q', '');
 
-        $result = $this->search->search($canvasId, $userId, $q);
-
-        return Response::json($result);
-    }
-
-    private function optionalUserId(Request $request): ?string
-    {
-        try {
-            return AuthMiddleware::userId($request);
-        } catch (\Throwable) {
-            return null;
-        }
+        return Response::json($this->search->search($canvasId, $userId, $q));
     }
 }

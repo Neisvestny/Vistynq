@@ -102,6 +102,7 @@ components:
         x: { type: number }
         y: { type: number }
         width: { type: integer }
+        deletedAt: { type: [string, "null"], format: date-time, description: "Всегда null: soft-deleted заметки в граф не попадают" }
         tags: { type: array, items: { type: string } }
         authorId: { type: string, format: uuid }
     GraphEdge:
@@ -111,8 +112,8 @@ components:
         type: { type: string, enum: [direct, indirect] }
         from: { type: string, format: uuid }
         to: { type: [string, "null"], format: uuid }
-        state: { type: string, enum: [ok, removed], description: removed — «ссылка удалена» (tombstone) }
-        label: { type: [string, "null"], example: ссылка удалена }
+        state: { type: string, enum: [ok, removed], description: "removed — «ссылка удалена»: цель purged (to=null) либо soft-deleted в том же канвасе" }
+        label: { type: [string, "null"], description: "Для state=removed — исходный текст цели в исходной разметке, например [[target]]; для state=ok — null", example: "[[Заметка Б]]" }
     Canvas:
       type: object
       properties:
@@ -309,53 +310,54 @@ paths:
       operationId: postCanvases
       tags: [canvases]
       requestBody: { content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string, maxLength: 200 } } } } } }
-      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Canvas' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Canvas' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '422': { $ref: '#/components/responses/ValidationError' } }
   /canvases/{id}:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }]
     patch:
       summary: Переименовать канвас
       operationId: patchCanvases_id
       tags: [canvases]
-      requestBody: { content: { application/json: { schema: { type: object, properties: { title: { type: string } } } } } }
-      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Canvas' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+      description: ≥editor. Пустое тело — no-op, тот же канвас.
+      requestBody: { content: { application/json: { schema: { type: object, properties: { title: { type: string, maxLength: 200 } } } } } }
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Canvas' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '422': { $ref: '#/components/responses/ValidationError' } }
     delete:
       summary: Удалить канвас с каскадом
       operationId: deleteCanvases_id
       tags: [canvases]
-      description: Только owner. Hard delete с каскадом.
-      responses: { '204': { description: Удалён }, '403': { $ref: '#/components/responses/Forbidden' } }
+      description: Только owner. Hard delete с каскадом; инвайты и tombstone'ы канваса убираются в той же транзакции.
+      responses: { '204': { description: Удалён }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /canvases/{id}/graph:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }]
     get:
       summary: "Граф канваса: узлы, рёбра, теги, права"
       operationId: getCanvases_id_graph
       tags: [canvases]
-      description: Узлы/рёбра без доступа у текущего пользователя — исключены из ответа.
-      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Graph' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+      description: Узлы/рёбра без доступа у текущего пользователя — исключены из ответа. Невалидный или просроченный Bearer → 401 (аноним — только без заголовка Authorization).
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Graph' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
   /canvases/{id}/nodes/{noteId}:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }, { name: noteId, in: path, required: true, schema: { type: string, format: uuid } }]
     patch:
       summary: Сохранить позицию/размер ноды
       operationId: patchCanvases_id_nodes_noteId
       tags: [canvases]
-      description: ≥editor. Вызывается клиентом с дебаунсом после drag/resize.
+      description: ≥editor канваса. Вызывается клиентом с дебаунсом после drag/resize.
       requestBody: { content: { application/json: { schema: { type: object, properties: { x: { type: number }, y: { type: number }, width: { type: integer, minimum: 120, maximum: 800 } } } } } }
-      responses: { '204': { description: Сохранено }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      responses: { '204': { description: Сохранено }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '422': { $ref: '#/components/responses/ValidationError' } }
   /canvases/{id}/search:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }, { name: q, in: query, required: true, schema: { type: string, minLength: 1 } }]
     get:
       summary: Поиск по заголовкам и тегам канваса
       operationId: getCanvases_id_search
       tags: [canvases]
-      description: Совпадения по заголовкам и тегам в рамках канваса.
-      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Note' } } } } } } }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      description: Совпадения по заголовкам и тегам в рамках канваса; регистр не важен, %/_ ищутся буквально, удалённые не попадают. Пустой q — пустой список.
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Note' } } } } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
   /canvases/{id}/archive:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }]
     get:
       summary: "Архив канваса: неактуальные и удалённые заметки"
       operationId: getCanvases_id_archive
       tags: [canvases]
-      description: ≥editor. Панель архива канваса.
+      description: ≥editor. notRelevant — живые is_relevant=false; deleted — soft-deleted заметки плюс tombstone'ы purged-заметок, отсортированы по deletedAt DESC.
       responses:
         '200':
           description: Успешный ответ
@@ -367,6 +369,8 @@ paths:
                   notRelevant: { type: array, items: { $ref: '#/components/schemas/Note' } }
                   deleted: { type: array, items: { $ref: '#/components/schemas/Note' } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /canvases/{id}/notes:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }]
@@ -374,8 +378,8 @@ paths:
       summary: Создать заметку на канвасе
       operationId: postCanvases_id_notes
       tags: [notes]
-      requestBody: { content: { application/json: { schema: { type: object, properties: { title: { type: string, default: "Без названия" }, x: { type: number }, y: { type: number } } } } } }
-      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Note' } } } }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      requestBody: { content: { application/json: { schema: { type: object, properties: { title: { type: string, default: "Без названия", maxLength: 200 }, x: { type: number }, y: { type: number } } } } } }
+      responses: { '201': { description: Создано, content: { application/json: { schema: { $ref: '#/components/schemas/Note' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '422': { $ref: '#/components/responses/ValidationError' } }
   /canvases/{id}/notes/from-text:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }]
     post:
@@ -400,44 +404,46 @@ paths:
       summary: Заметка с телом и моей ролью
       operationId: getNotes_id
       tags: [notes]
-      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/NoteDetail' } } } }, '404': { $ref: '#/components/responses/NotFound' } }
+      description: Плоский объект NoteDetail (не вложенность {note, access}). Невалидный/просроченный Bearer → 401; аноним — только если заметка публично доступна.
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/NoteDetail' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
     patch:
       summary: Обновить манифест заметки
       operationId: patchNotes_id
       tags: [notes]
-      description: Манифест. isRelevant:false — помещает в архив «неактуально».
-      requestBody: { content: { application/json: { schema: { type: object, properties: { title: { type: string }, importance: { type: integer, minimum: 1, maximum: 5 }, isRelevant: { type: boolean }, tagIds: { type: array, items: { type: string, format: uuid } } } } } } }
-      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/NoteDetail' } } } }, '403': { $ref: '#/components/responses/Forbidden' } }
+      description: "Манифест (редактор* = автор ∪ editor канваса ∪ editor-инвайт заметки). isRelevant:false — помещает в архив «неактуально». tagIds — только теги этого канваса; манифест и синхронизация тегов — одной транзакцией."
+      requestBody: { content: { application/json: { schema: { type: object, properties: { title: { type: string, maxLength: 200 }, importance: { type: integer, minimum: 1, maximum: 5 }, isRelevant: { type: boolean }, tagIds: { type: array, items: { type: string, format: uuid } } } } } } }
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/NoteDetail' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '422': { $ref: '#/components/responses/ValidationError' } }
     delete:
       summary: Soft delete заметки в архив
       operationId: deleteNotes_id
       tags: [notes]
       description: Soft delete — заметка попадает в архив «Удалённые».
-      responses: { '204': { description: Удалена }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      responses: { '204': { description: Удалена }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
   /notes/{id}/body:
     parameters: [{ $ref: '#/components/parameters/NoteId' }]
     put:
       summary: Сохранить markdown-тело заметки
       operationId: putNotes_id_body
       tags: [notes]
-      description: Сохранение markdown-тела; сервер перепарсит [[wikilinks]] в indirect_links.
+      description: Сохранение markdown-тела; сервер перепарсит [[wikilinks]] в indirect_links одной транзакцией (повторяющаяся цель — одна строка).
       requestBody: { content: { application/json: { schema: { type: object, required: [bodyMd], properties: { bodyMd: { type: string } } } } } }
-      responses: { '200': { description: "Сохранено, возврат NoteDetail" }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      responses: { '200': { description: "Сохранено, возврат NoteDetail", content: { application/json: { schema: { $ref: '#/components/schemas/NoteDetail' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '422': { $ref: '#/components/responses/ValidationError' } }
   /notes/{id}/restore:
     parameters: [{ $ref: '#/components/parameters/NoteId' }]
     post:
       summary: Восстановить заметку из архива
       operationId: postNotes_id_restore
       tags: [notes]
-      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Note' } } } }, '410': { description: Заметка purged — восстановить нельзя } }
+      description: ≥editor канваса либо автор заметки. 410 — заметка purged (tombstone); 404 — нет ни заметки, ни tombstone, либо канвас недоступен вызывающему.
+      responses: { '200': { description: Успешный ответ, content: { application/json: { schema: { $ref: '#/components/schemas/Note' } } } }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' }, '410': { description: Заметка purged — восстановить нельзя } }
   /notes/{id}/purge:
     parameters: [{ $ref: '#/components/parameters/NoteId' }]
     delete:
       summary: Стереть заметку навсегда с tombstone
       operationId: deleteNotes_id_purge
       tags: [notes]
-      description: Hard delete + tombstone, линки → «ссылка удалена».
-      responses: { '204': { description: Стирта навсегда }, '401': { $ref: '#/components/responses/Unauthorized' } }
+      description: Hard delete + tombstone, линки → «ссылка удалена». ≥editor канваса либо автор заметки; editor-инвайт самой заметки — 403.
+      responses: { '204': { description: Стирта навсегда }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
 
   /canvases/{id}/tags:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }]

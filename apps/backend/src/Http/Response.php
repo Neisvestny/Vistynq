@@ -35,11 +35,13 @@ final class Response
     }
 
     /**
+     * 204 No Content: без тела (docs/openapi.yaml: DELETE/PATCH → 204).
+     *
      * @param array<string, string> $headers
      */
     public static function noContent(array $headers = []): self
     {
-        return self::json(['ok' => true], 200, $headers);
+        return new self(204, $headers);
     }
 
     /**

@@ -60,20 +60,22 @@
 
 ```json
 {
-  "canvas": { "id": "...", "title": "Рабочее", "access": {"level":"private","myRole":"owner"} },
+  "canvas": { "id": "...", "title": "Рабочее", "ownerId": "...",
+              "access": {"level":"private","publicSlug":null,"myRole":"owner"},
+              "createdAt": "2026-11-02T10:00:00+00:00", "updatedAt": "2026-11-02T10:00:00+00:00" },
   "nodes": [
     { "id": "note-uuid", "title": "GPT vs LLama", "importance": 4, "isRelevant": true,
       "x": 120, "y": 80, "width": 220, "deletedAt": null, "tags": ["ml"], "authorId": "..." }
   ],
   "edges": [
-    { "id": "dl-uuid", "type": "direct",   "from": "a", "to": "b", "state": "ok" },
-    { "id": "il-uuid", "type": "indirect", "from": "a", "to": "c", "state": "removed" }
+    { "id": "dl-uuid", "type": "direct",   "from": "a", "to": "b", "state": "ok", "label": null },
+    { "id": "il-uuid", "type": "indirect", "from": "a", "to": "c", "state": "removed", "label": "[[c]]" }
   ],
   "tags": [ { "id": "...", "name": "ml", "color": "#7c3aed" } ]
 }
 ```
 
-`state`: `ok` | `removed` (tombstone «ссылка удалена», видно только имевшим доступ — таким зрителям приходит `to` = null и `label`). Узлы/рёбра без доступа к концу **исключаются из ответа** целиком. `isRelevant=false` ноды приходят, фронт скрывает их без фильтра.
+`state`: `ok` | `removed` (tombstone «ссылка удалена», видно только имевшим доступ — таким зрителям приходит `to` = null и `label` — исходный текст цели `[[target]]`; для `state: ok` — `label: null`). Узлы/рёбра без доступа к концу **исключаются из ответа** целиком. `isRelevant=false` ноды приходят, фронт скрывает их без фильтра.
 
 Позиции: `PATCH /canvases/{id}/nodes/{noteId}` `{x?, y?, width?}` (≥editor, дебаунс на клиенте).
 
@@ -81,14 +83,14 @@
 
 | Метод | Путь | Роль | Описание |
 |---|---|---|---|
-| POST | `/canvases/{id}/notes` | ≥editor | `{title?, x?, y?}` → 201 пустая заметка-нода |
+| POST | `/canvases/{id}/notes` | ≥editor | `{title?, x?, y?}` → 201 Note (полная сущность) |
 | POST | `/canvases/{id}/notes/from-text` | ≥editor | `{attachmentId, title?, x?, y?}` — импорт .md/.txt → 201 |
-| GET | `/notes/{id}` | ≥viewer | `{note (манифест+body), access}` |
-| PATCH | `/notes/{id}` | редактор* | манифест: `{title?, importance?, isRelevant?, tagIds?}`; при `isRelevant:false` без `deletedAt` — перемещение в архив «неактуально» |
-| PUT | `/notes/{id}/body` | редактор* | `{bodyMd}` → 200; сервер перепарсит `indirect_links` |
-| DELETE | `/notes/{id}` | редактор* | soft delete (`deletedAt`) |
-| POST | `/notes/{id}/restore` | ≥editor канваса | вернуть из «удалённых» (`deletedAt=null`) |
-| DELETE | `/notes/{id}/purge` | ≥editor канваса | hard delete + tombstone |
+| GET | `/notes/{id}` | ≥viewer | 200 NoteDetail — плоский объект: Note + `{bodyMd, myRole}` |
+| PATCH | `/notes/{id}` | редактор* | манифест: `{title?, importance?, isRelevant?, tagIds?}` → 200 NoteDetail; при `isRelevant:false` без `deletedAt` — перемещение в архив «неактуально»; `tagIds` — только теги этого канваса |
+| PUT | `/notes/{id}/body` | редактор* | `{bodyMd}` → 200 NoteDetail; сервер перепарсит `indirect_links` |
+| DELETE | `/notes/{id}` | редактор* | soft delete (`deletedAt`) → 204 |
+| POST | `/notes/{id}/restore` | ≥editor канваса либо автор | вернуть из «удалённых» (`deletedAt=null`) → 200 Note; purged → 410, нет заметки/tombstone либо канвас недоступен → 404 |
+| DELETE | `/notes/{id}/purge` | ≥editor канваса либо автор | hard delete + tombstone → 204; editor-инвайт самой заметки → 403 |
 
 \* редактор* = автор заметки ∪ editor канваса ∪ editor-инвайт самой заметки.
 

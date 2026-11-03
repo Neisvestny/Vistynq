@@ -7,18 +7,25 @@ namespace Vistynq\Controllers;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Middleware\AuthMiddleware;
+use Vistynq\Models\Canvas;
 use Vistynq\Repositories\CanvasRepository;
+use Vistynq\Repositories\DirectLinkRepository;
+use Vistynq\Repositories\IndirectLinkRepository;
+use Vistynq\Repositories\NoteRepository;
+use Vistynq\Repositories\TagRepository;
 use Vistynq\Services\AccessService;
 use Vistynq\Support\ApiException;
-use Vistynq\Support\Database;
 use Vistynq\Support\Validator;
 
 final class CanvasController
 {
     public function __construct(
         private readonly CanvasRepository $canvases,
+        private readonly NoteRepository $notes,
+        private readonly TagRepository $tags,
+        private readonly DirectLinkRepository $directLinks,
+        private readonly IndirectLinkRepository $indirectLinks,
         private readonly AccessService $access,
-        private readonly Database $db,
     ) {
     }
 
@@ -27,20 +34,12 @@ final class CanvasController
         $userId = AuthMiddleware::userId($request);
         $rows = $this->canvases->findForUser($userId);
 
-        $items = [];
-        foreach ($rows as $row) {
-            $items[] = [
-                'id' => $row['id'],
-                'title' => $row['title'],
-                'accessLevel' => $row['access_level'],
-                'ownerId' => $row['owner_id'],
-                'myRole' => $row['my_role'] ?? 'viewer',
-                'createdAt' => $row['created_at'],
-                'updatedAt' => $row['updated_at'],
-            ];
-        }
-
-        return Response::json(['items' => $items]);
+        return Response::json([
+            'items' => array_map(
+                static fn (array $row): array => Canvas::fromRow($row)->toArray(),
+                $rows,
+            ),
+        ]);
     }
 
     public function create(Request $request): Response
@@ -48,128 +47,96 @@ final class CanvasController
         $userId = AuthMiddleware::userId($request);
         $this->access->assertVerified($userId);
 
-        $data = $request->json();
-        Validator::assert($data, ['title' => 'required|string|minLength:1|maxLength:200']);
+        $title = self::readTitle($request->json(), required: true);
+        $row = $this->canvases->create($userId, $title);
 
-        $id = $this->canvases->create($userId, (string) $data['title']);
-
-        return Response::json(['id' => $id], 201);
+        return Response::json(Canvas::fromRow($row, 'owner')->toArray(), 201);
     }
 
+    /**
+     * GET /canvases/{id}/graph — узлы, рёбра, теги, права (docs/api.md).
+     *
+     * SQL живёт в репозиториях (docs/architecture.md §4): контроллер только
+     * сворачивает выборки в публикуемую форму.
+     */
     public function graph(Request $request): Response
     {
-        $userId = $this->optionalUserId($request);
+        $userId = AuthMiddleware::optionalUserId($request);
         $canvasId = (string) $request->routeParam('id');
 
         $ctx = $this->access->getCanvasContext($canvasId, $userId);
-        $canvas = $ctx['canvas'];
-        $myRole = $ctx['role'] ?? 'viewer';
+        $canvas = Canvas::fromRow($ctx['canvas'], $ctx['role']);
 
-        $pdo = $this->db->pdo();
+        $noteRows = $this->notes->findGraphNotes($canvasId, $userId);
 
-        // Notes visible to user: owner sees all, author sees own, canvas_access grants, public_link grants
-        $stmt = $pdo->prepare(
-            "SELECT n.id, n.title, n.importance, n.is_relevant, n.x, n.y, n.width, n.deleted_at, n.author_id
-             FROM notes n
-             WHERE n.canvas_id = :canvasId AND n.deleted_at IS NULL
-               AND (
-                 :userId IS NOT NULL AND EXISTS (SELECT 1 FROM canvases c WHERE c.id = n.canvas_id AND c.owner_id = :userId)
-                 OR (:userId IS NOT NULL AND EXISTS (SELECT 1 FROM canvas_access ca WHERE ca.canvas_id = n.canvas_id AND ca.user_id = :userId))
-                 OR (:userId IS NOT NULL AND n.author_id = :userId)
-                 OR (:userId IS NOT NULL AND EXISTS (SELECT 1 FROM note_access na WHERE na.note_id = n.id AND na.user_id = :userId))
-                 OR (SELECT c2.access_level FROM canvases c2 WHERE c2.id = n.canvas_id) = 'public_link'
-               )"
-        );
-        $stmt->execute(['canvasId' => $canvasId, 'userId' => $userId]);
-        $notes = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        $noteIds = [];
+        /** @var array<string, true> $visible */
+        $visible = [];
         $nodes = [];
-        foreach ($notes as $note) {
-            $noteIds[] = $note['id'];
+        foreach ($noteRows as $row) {
+            $id = (string) $row['id'];
+            $visible[$id] = true;
             $nodes[] = [
-                'id' => $note['id'],
-                'title' => $note['title'],
-                'importance' => (int) $note['importance'],
-                'isRelevant' => (bool) $note['is_relevant'],
-                'x' => (float) $note['x'],
-                'y' => (float) $note['y'],
-                'width' => (int) $note['width'],
-                'deletedAt' => $note['deleted_at'],
+                'id' => $id,
+                'title' => (string) $row['title'],
+                'importance' => (int) $row['importance'],
+                'isRelevant' => (bool) $row['is_relevant'],
+                'x' => (float) $row['x'],
+                'y' => (float) $row['y'],
+                'width' => (int) $row['width'],
+                'deletedAt' => null,
                 'tags' => [],
-                'authorId' => $note['author_id'],
+                'authorId' => (string) $row['author_id'],
             ];
         }
 
-        // Tags for canvas
-        $tagsStmt = $pdo->prepare('SELECT id, name, color FROM tags WHERE canvas_id = :canvasId ORDER BY name');
-        $tagsStmt->execute(['canvasId' => $canvasId]);
-        $tags = $tagsStmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        // note_tags
-        $tagsByNote = [];
-        if ($noteIds !== []) {
-            $in = implode(',', array_fill(0, count($noteIds), '?'));
-            $ntStmt = $pdo->prepare("SELECT nt.note_id, t.name FROM note_tags nt JOIN tags t ON t.id = nt.tag_id WHERE nt.note_id IN ($in)");
-            $ntStmt->execute($noteIds);
-            foreach ($ntStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
-                $tagsByNote[$row['note_id']][] = $row['name'];
-            }
-        }
-        foreach ($nodes as $idx => $node) {
-            $nodes[$idx]['tags'] = $tagsByNote[$node['id']] ?? [];
+        $noteIds = array_keys($visible);
+        $tagNamesByNote = $this->tags->findNoteTagNames($canvasId);
+        foreach ($nodes as $index => $node) {
+            $nodes[$index]['tags'] = $tagNamesByNote[$node['id']] ?? [];
         }
 
-        // Direct links - both ends must be visible
         $edges = [];
-        if ($noteIds !== []) {
-            $in = implode(',', array_fill(0, count($noteIds), '?'));
-            $dlStmt = $pdo->prepare("SELECT id, from_note_id, to_note_id FROM direct_links WHERE from_note_id IN ($in) AND to_note_id IN ($in)");
-            $dlStmt->execute($noteIds);
-            foreach ($dlStmt->fetchAll(\PDO::FETCH_ASSOC) as $dl) {
-                $edges[] = [
-                    'id' => $dl['id'],
-                    'type' => 'direct',
-                    'from' => $dl['from_note_id'],
-                    'to' => $dl['to_note_id'],
-                    'state' => 'ok',
-                ];
+        foreach ($this->directLinks->findEdgesBySource($noteIds) as $row) {
+            if ($row['to_note_id'] === null) {
+                continue;
             }
+            $to = (string) $row['to_note_id'];
+            // Оба конца должны быть видимы, иначе ребро исключается целиком
+            // (docs/api.md: «Узлы/рёбра без доступа к концу исключаются»).
+            if (!isset($visible[$to])) {
+                continue;
+            }
+            $edges[] = [
+                'id' => (string) $row['id'],
+                'type' => 'direct',
+                'from' => (string) $row['from_note_id'],
+                'to' => $to,
+                'state' => 'ok',
+                'label' => null,
+            ];
+        }
 
-            // Indirect links
-            $ilStmt = $pdo->prepare("SELECT id, from_note_id, to_note_id, resolved FROM indirect_links WHERE from_note_id IN ($in)");
-            $ilStmt->execute($noteIds);
-            $visibleSet = array_flip($noteIds);
-            foreach ($ilStmt->fetchAll(\PDO::FETCH_ASSOC) as $il) {
-                if ($il['to_note_id'] !== null && isset($visibleSet[$il['to_note_id']]) && $il['resolved']) {
-                    $edges[] = [
-                        'id' => $il['id'],
-                        'type' => 'indirect',
-                        'from' => $il['from_note_id'],
-                        'to' => $il['to_note_id'],
-                        'state' => 'ok',
-                    ];
-                } else {
-                    $edges[] = [
-                        'id' => $il['id'],
-                        'type' => 'indirect',
-                        'from' => $il['from_note_id'],
-                        'to' => null,
-                        'state' => 'removed',
-                    ];
-                }
+        foreach ($this->indirectLinks->findEdgesBySource($noteIds) as $row) {
+            $edge = $this->describeIndirectEdge($row, $canvasId, $visible);
+            if ($edge !== null) {
+                $edges[] = $edge;
             }
         }
+
+        $tags = array_map(
+            static fn (array $tag): array => [
+                'id' => (string) $tag['id'],
+                'name' => (string) $tag['name'],
+                'color' => (string) $tag['color'],
+            ],
+            $this->tags->findCanvasTags($canvasId),
+        );
 
         return Response::json([
-            'canvas' => [
-                'id' => $canvas['id'],
-                'title' => $canvas['title'],
-                'access' => ['level' => $canvas['access_level'], 'myRole' => $myRole],
-            ],
+            'canvas' => $canvas->toArray(),
             'nodes' => $nodes,
             'edges' => $edges,
-            'tags' => array_map(fn ($t) => ['id' => $t['id'], 'name' => $t['name'], 'color' => $t['color']], $tags),
+            'tags' => $tags,
         ]);
     }
 
@@ -177,37 +144,96 @@ final class CanvasController
     {
         $userId = AuthMiddleware::userId($request);
         $canvasId = (string) $request->routeParam('id');
-        $ctx = $this->access->getCanvasContext($canvasId, $userId);
-        if (!$this->access->canEditCanvas($ctx['role'])) {
-            throw ApiException::notFound();
-        }
+        $ctx = $this->access->requireCanvasEdit($canvasId, $userId);
 
         $data = $request->json();
-        $this->canvases->update($canvasId, $data);
+        if (array_key_exists('title', $data)) {
+            $this->canvases->update($canvasId, ['title' => self::readTitle($data, required: true)]);
+        }
 
-        return Response::json(['ok' => true]);
+        $row = $this->canvases->findById($canvasId);
+
+        return Response::json(Canvas::fromRow($row ?? $ctx['canvas'], $ctx['role'])->toArray());
     }
 
     public function delete(Request $request): Response
     {
         $userId = AuthMiddleware::userId($request);
         $canvasId = (string) $request->routeParam('id');
-        $ctx = $this->access->getCanvasContext($canvasId, $userId);
-        if (!$this->access->canManageCanvas($ctx['role'])) {
-            throw ApiException::notFound();
-        }
+        $this->access->requireCanvasManage($canvasId, $userId);
 
         $this->canvases->delete($canvasId);
 
-        return Response::json(['ok' => true]);
+        return Response::noContent();
     }
 
-    private function optionalUserId(Request $request): ?string
+    /**
+     * Одно правило для всех [[wikilinks]] исходной заметки:
+     *  - цель видима                                → ok;
+     *  - цель purged/не разрешилась (to IS NULL)    → «ссылка удалена» + label;
+     *  - цель soft-deleted в том же канвасе         → «ссылка удалена» + label
+     *    (маркер того, что замену можно вернуть);
+     *  - цель в другом канвасе / недоступна         → исключить целиком,
+     *    чтобы не раскрывать чужие заметки.
+     *
+     * @param array<string, mixed> $row
+     * @param array<string, true>  $visible
+     *
+     * @return array<string, mixed>|null
+     */
+    private function describeIndirectEdge(array $row, string $canvasId, array $visible): ?array
     {
-        try {
-            return AuthMiddleware::userId($request);
-        } catch (\Throwable) {
+        $from = (string) $row['from_note_id'];
+        $to = $row['to_note_id'] !== null ? (string) $row['to_note_id'] : null;
+        $rawTarget = (string) $row['raw_target'];
+        $resolved = (bool) $row['resolved'];
+
+        if ($to !== null && $resolved && isset($visible[$to])) {
+            return [
+                'id' => (string) $row['id'],
+                'type' => 'indirect',
+                'from' => $from,
+                'to' => $to,
+                'state' => 'ok',
+                'label' => null,
+            ];
+        }
+
+        $targetCanvasId = $row['target_canvas_id'] !== null ? (string) $row['target_canvas_id'] : null;
+        $targetDeleted = $row['target_deleted_at'] !== null;
+
+        if ($to !== null && $targetCanvasId !== null && $targetCanvasId !== $canvasId) {
             return null;
         }
+
+        if ($to !== null && $targetCanvasId === $canvasId && !$targetDeleted) {
+            // Нода существует в этом канвасе, живая, но не попала в видимое
+            // множество — скрываем существование целиком.
+            return null;
+        }
+
+        return [
+            'id' => (string) $row['id'],
+            'type' => 'indirect',
+            'from' => $from,
+            'to' => null,
+            'state' => 'removed',
+            'label' => $rawTarget,
+        ];
+    }
+
+    /**
+     * Заголовок канваса: непустая строка ≤200 симв. (docs/openapi.yaml).
+     */
+    private static function readTitle(array $data, bool $required): string
+    {
+        Validator::assert($data, ['title' => ($required ? 'required|' : '') . 'string|maxLength:200']);
+
+        $title = trim((string) $data['title']);
+        if ($title === '') {
+            throw ApiException::validation(['title' => ['обязательное поле']]);
+        }
+
+        return $title;
     }
 }

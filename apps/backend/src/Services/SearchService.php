@@ -4,50 +4,38 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
-use PDO;
-use Vistynq\Support\Database;
+use Vistynq\Models\Note;
+use Vistynq\Repositories\NoteRepository;
 
+/**
+ * Поиск по заголовкам и тегам внутри канваса (docs/api.md).
+ * Регистронезависимый LIKE с экранированием %/_ — литеральный ввод.
+ */
 final class SearchService
 {
     public function __construct(
+        private readonly NoteRepository $notes,
         private readonly AccessService $access,
-        private readonly Database $db,
     ) {
     }
 
     /**
-     * @return array<string,mixed>
+     * @return array<string, mixed>
      */
     public function search(string $canvasId, ?string $userId, string $q): array
     {
-        $ctx = $this->access->getCanvasContext($canvasId, $userId);
-        if (!$ctx['role']) {
-            throw \Vistynq\Support\ApiException::notFound();
-        }
+        $this->access->getCanvasContext($canvasId, $userId);
 
         $q = trim($q);
         if ($q === '') {
             return ['items' => []];
         }
 
-        $pdo = $this->db->pdo();
-        $stmt = $pdo->prepare(
-            "SELECT DISTINCT n.id, n.title 
-             FROM notes n
-             LEFT JOIN note_tags nt ON nt.note_id = n.id
-             LEFT JOIN tags t ON t.id = nt.tag_id
-             WHERE n.canvas_id = :canvasId AND n.deleted_at IS NULL
-               AND (
-                 lower(n.title) LIKE lower(:q)
-                 OR lower(COALESCE(t.name,'')) LIKE lower(:q)
-               )
-             ORDER BY n.updated_at DESC
-             LIMIT 50"
+        $items = array_map(
+            static fn (array $row): array => Note::fromRow($row)->toArray(),
+            $this->notes->search($canvasId, $q),
         );
-        $stmt->execute(['canvasId' => $canvasId, 'q' => '%' . $q . '%']);
 
-        $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        return ['items' => array_map(fn ($i) => ['id' => $i['id'], 'title' => $i['title']], $items)];
+        return ['items' => $items];
     }
 }

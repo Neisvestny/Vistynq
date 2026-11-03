@@ -51,28 +51,31 @@ final class AuthMiddleware implements MiddlewareInterface
             $optional = true;
         }
 
+        // Аноним доступен только при полном отсутствии заголовка: присланный,
+        // но невалидный/просроченный Bearer — это 401, а не «гость». Иначе
+        // клиент с протухшим access молча получает 404 на optional-маршрутах
+        // (graph/search/GET note) и ломает refresh-flow.
         $header = $request->header('Authorization', '');
-        if ($header === '' || !preg_match('/^Bearer\s+(\S+)$/i', $header, $matches)) {
+        if ($header === '') {
             if ($optional) {
                 return $next($request);
             }
+
+            throw ApiException::unauthorized();
+        }
+
+        if (!preg_match('/^Bearer\s+(\S+)$/i', $header, $matches)) {
             throw ApiException::unauthorized();
         }
 
         try {
             $claims = $this->jwt->verify($matches[1]);
         } catch (\Throwable) {
-            if ($optional) {
-                return $next($request);
-            }
             throw ApiException::unauthorized('TOKEN_EXPIRED', 'Токен истёк или недействителен');
         }
 
         $sub = $claims['sub'] ?? null;
         if (!is_string($sub) || $sub === '') {
-            if ($optional) {
-                return $next($request);
-            }
             throw ApiException::unauthorized();
         }
 
@@ -87,5 +90,16 @@ final class AuthMiddleware implements MiddlewareInterface
         }
 
         return $userId;
+    }
+
+    /**
+     * Пользователь авторизованного запроса либо null для анонимного.
+     * Для optional-маршрутов: невалидный токен сюда не доходит (см. process()).
+     */
+    public static function optionalUserId(Request $request): ?string
+    {
+        $userId = $request->attribute('authUserId');
+
+        return is_string($userId) && $userId !== '' ? $userId : null;
     }
 }
