@@ -61,15 +61,78 @@ final class JwtServiceTest extends TestCase
     public function testMissingSubRejected(): void
     {
         $jwt = $this->makeJwt();
-        $token = $jwt->sign('user-123', 'user@example.com');
 
-        // Manually craft a token without sub
-        $header = base64_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
-        $payload = base64_encode(json_encode(['email' => 'user@example.com', 'iat' => time(), 'exp' => time() + 900]));
-        $sig = base64_encode(hash_hmac('sha256', "$header.$payload", 'test-secret-key-that-is-long-enough-for-hs256', true));
-        $noSub = "$header.$payload.$sig";
+        $token = $this->craftToken(['email' => 'user@example.com', 'iat' => time(), 'exp' => time() + 900]);
 
-        $this->expectException(\Vistynq\Support\ApiException::class);
-        $jwt->verify($noSub);
+        $e = $this->captureApi(fn (): mixed => $jwt->verify($token));
+        $this->assertSame('UNAUTHORIZED', $e->errorCode());
+    }
+
+    public function testMissingEmailRejected(): void
+    {
+        // Раньше это падало с warning "Undefined property: stdClass::$sub"
+        // и отдавало 500 вместо 401 — фиксируем контракт 401.
+        $jwt = $this->makeJwt();
+
+        $token = $this->craftToken(['sub' => 'user-123', 'iat' => time(), 'exp' => time() + 900]);
+
+        $e = $this->captureApi(fn (): mixed => $jwt->verify($token));
+        $this->assertSame('UNAUTHORIZED', $e->errorCode());
+    }
+
+    public function testExpiredTokenRejectedWithTokenExpiredCode(): void
+    {
+        $jwt = $this->makeJwt();
+
+        $token = $this->craftToken([
+            'sub' => 'user-123',
+            'email' => 'user@example.com',
+            'iat' => time() - 1800,
+            'exp' => time() - 900,
+        ]);
+
+        $e = $this->captureApi(fn (): mixed => $jwt->verify($token));
+        $this->assertSame(401, $e->httpStatus());
+        $this->assertSame('TOKEN_EXPIRED', $e->errorCode());
+    }
+
+    public function testTokenSignedForAnotherSecretRejected(): void
+    {
+        // Подпись тем же секретом, но другой длины/значения — уже другая подпись.
+        $jwt = $this->makeJwt('test-secret-key-that-is-long-enough-for-hs256');
+
+        $token = $this->craftToken(
+            ['sub' => 'user-123', 'email' => 'user@example.com', 'iat' => time(), 'exp' => time() + 900],
+            'another-secret-key-that-is-long-enough-for-hs256',
+        );
+
+        $e = $this->captureApi(fn (): mixed => $jwt->verify($token));
+        $this->assertSame('UNAUTHORIZED', $e->errorCode());
+    }
+
+    /**
+     * Подписывает произвольный payloadHS256-секретом (для негативных кейсов).
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function craftToken(array $payload, ?string $secret = null): string
+    {
+        $secret ??= 'test-secret-key-that-is-long-enough-for-hs256';
+        $header = rtrim(strtr(base64_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        $body = rtrim(strtr(base64_encode(json_encode($payload)), '+/', '-_'), '=');
+        $sig = rtrim(strtr(base64_encode(hash_hmac('sha256', "$header.$body", $secret, true)), '+/', '-_'), '=');
+
+        return "$header.$body.$sig";
+    }
+
+    private function captureApi(callable $fn): \Vistynq\Support\ApiException
+    {
+        try {
+            $fn();
+        } catch (\Vistynq\Support\ApiException $e) {
+            return $e;
+        }
+
+        $this->fail('ожидалась ApiException');
     }
 }

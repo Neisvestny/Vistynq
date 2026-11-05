@@ -139,6 +139,11 @@ final class Validator
 
             case 'in':
                 $allowed = $arg === null ? [] : explode(',', $arg);
+                // Приведение массива/объекта к строке — PHP warning (в prod это
+                // 500). Такие значения просто не входят в список допустимых.
+                if (!is_scalar($value)) {
+                    return 'допустимые значения: ' . implode(', ', $allowed);
+                }
 
                 return in_array((string) $value, $allowed, true)
                     ? null

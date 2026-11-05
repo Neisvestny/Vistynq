@@ -7,7 +7,7 @@ namespace Vistynq\Repositories;
 use PDO;
 use Vistynq\Support\Database;
 
-final class NoteRepository
+final class NoteRepository implements NoteRepositoryInterface
 {
     private const TAG_IDS_AGG = "COALESCE(string_agg(nt.tag_id::text, ',' ORDER BY nt.tag_id), '') AS tag_ids";
 

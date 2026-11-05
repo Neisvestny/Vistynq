@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
-use Vistynq\Repositories\CanvasRepository;
-use Vistynq\Repositories\NoteRepository;
-use Vistynq\Repositories\UserRepository;
+use Vistynq\Repositories\CanvasRepositoryInterface;
+use Vistynq\Repositories\NoteRepositoryInterface;
+use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Support\ApiException;
 
 /**
@@ -23,9 +23,9 @@ use Vistynq\Support\ApiException;
 final class AccessService
 {
     public function __construct(
-        private readonly CanvasRepository $canvases,
-        private readonly NoteRepository $notes,
-        private readonly UserRepository $users,
+        private readonly CanvasRepositoryInterface $canvases,
+        private readonly NoteRepositoryInterface $notes,
+        private readonly UserRepositoryInterface $users,
     ) {
     }
 

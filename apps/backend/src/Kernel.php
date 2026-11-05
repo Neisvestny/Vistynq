@@ -17,6 +17,12 @@ use Vistynq\Middleware\ErrorHandlerMiddleware;
 use Vistynq\Middleware\JsonBodyMiddleware;
 use Vistynq\Middleware\MiddlewareInterface;
 use Vistynq\Middleware\RateLimitMiddleware;
+use Vistynq\Repositories\CanvasRepository;
+use Vistynq\Repositories\CanvasRepositoryInterface;
+use Vistynq\Repositories\NoteRepository;
+use Vistynq\Repositories\NoteRepositoryInterface;
+use Vistynq\Repositories\UserRepository;
+use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Services\JwtService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Container;
@@ -43,6 +49,11 @@ final class Kernel
         $container = new Container();
         $container->singleton(Config::class, static fn (): Config => $config);
         $container->singleton(Database::class, static fn (Container $c): Database => new Database($c->get(Config::class)));
+        // Интерфейсы репозиториев (R17): AccessService зависит от контрактов,
+        // unit-тесты подставляют фейки (R15).
+        $container->bind(CanvasRepositoryInterface::class, CanvasRepository::class);
+        $container->bind(NoteRepositoryInterface::class, NoteRepository::class);
+        $container->bind(UserRepositoryInterface::class, UserRepository::class);
         $container->singleton(Router::class, static function (): Router {
             $router = new Router();
             require __DIR__ . '/routes.php';

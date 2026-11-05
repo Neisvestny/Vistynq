@@ -67,6 +67,18 @@ docker compose exec backend php bin/migrate
 при недоступности — `503` с `reason` (`pdo_pgsql_missing` / `database_unreachable`),
 любой другой путь — `404 {"error":{...}}`.
 
+## Тесты
+
+PHPUnit (unit + интеграция) против изолированной test-postgres БД — см.
+[`docs/architecture.md#запуск-backend-тестов-r15`](docs/architecture.md):
+
+```bash
+docker compose up -d test-postgres                  # тестовая БД, порт 5433
+cd apps/backend
+DB_HOST=127.0.0.1 DB_PORT=5433 DB_NAME=vistynq_test php bin/migrate
+DB_HOST=127.0.0.1 DB_PORT=5433 DB_NAME=vistynq_test composer test
+```
+
 ## Документация
 
 - **Функциональные требования** — [`docs/requirements.md`](docs/requirements.md)

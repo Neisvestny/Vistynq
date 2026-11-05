@@ -186,3 +186,28 @@ flowchart TD
 - Backend: PHPUnit — unit (AccessService, JwtService, Validator, ErrorHandler, LinkParserService) + интеграционные тесты на переносной test-postgres БД (R15).
 - Frontend: Vitest на клиентской логике; e2e — Playwright против полного стека (R16, CI).
 - `vue-tsc` входит в `pnpm build` и CI.
+
+### Запуск backend-тестов (R15)
+
+Требования на хосте: PHP ≥ 8.2 с расширениями `pdo_pgsql` и `sodium`
+(Arch/CachyOS: `sudo pacman -S php-pgsql php-sodium`, `.ini` — в `/etc/php/conf.d/`).
+
+```bash
+# 1. Изолированная тестовая БД (не трогает dev-данные, порт 5433)
+docker compose up -d test-postgres
+
+# 2. Схема тестовой БД
+cd apps/backend
+DB_HOST=127.0.0.1 DB_PORT=5433 DB_NAME=vistynq_test php bin/migrate
+
+# 3. Тесты (process env перебивает phpunit.xml и .env)
+DB_HOST=127.0.0.1 DB_PORT=5433 DB_NAME=vistynq_test vendor/bin/phpunit
+# или: composer test | composer test:unit | composer test:integration
+```
+
+Без test-postgres интеграция упадёт на подключении; без `pdo_pgsql`/`sodium`
+юнит-тесты идут, интеграция скипается с сообщением.
+
+Интеграционный сценарий `tests/Integration/AuthFlowTest.php` покрывает
+register → login → refresh (ротация + reuse → 401) → logout → 401;
+остальные интеграционные тесты (канвасы/заметки/теги) идут на той же БД.

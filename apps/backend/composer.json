@@ -24,6 +24,9 @@
     },
     "scripts": {
         "lint": "php-cs-fixer check --diff",
-        "lint:fix": "php-cs-fixer fix"
+        "lint:fix": "php-cs-fixer fix",
+        "test": "phpunit",
+        "test:unit": "phpunit --testsuite unit",
+        "test:integration": "phpunit --testsuite integration"
     }
 }

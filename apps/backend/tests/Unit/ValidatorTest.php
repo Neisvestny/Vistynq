@@ -131,4 +131,77 @@ final class ValidatorTest extends TestCase
     {
         $this->assertNull(Validator::assert(['email' => 'a@b.com'], ['email' => 'required|email']));
     }
+
+    public function testAssertThrows422WithFieldDetails(): void
+    {
+        try {
+            Validator::assert(['email' => 'bad'], ['email' => 'required|email'], 'Проверьте форму');
+            $this->fail('ожидалась ApiException');
+        } catch (\Vistynq\Support\ApiException $e) {
+            $this->assertSame(422, $e->httpStatus());
+            $this->assertSame('VALIDATION_FAILED', $e->errorCode());
+            $this->assertSame('Проверьте форму', $e->getMessage());
+            $details = $e->toArray()['error']['details'];
+            $this->assertArrayHasKey('email', $details);
+            $this->assertContains('некорректный email', $details['email']);
+        }
+    }
+
+    public function testInRule(): void
+    {
+        $rules = ['status' => 'required|in:active,archived'];
+
+        $this->assertSame([], Validator::validate(['status' => 'active'], $rules));
+        $this->assertSame([], Validator::validate(['status' => 'archived'], $rules));
+
+        $errors = Validator::validate(['status' => 'deleted'], $rules);
+        $this->assertArrayHasKey('status', $errors);
+        $this->assertStringContainsString('active, archived', $errors['status'][0]);
+    }
+
+    public function testInRuleRejectsNonStringableArrayValue(): void
+    {
+        // Массив нельзя привести к строке стабильно — считаем нарушением.
+        $errors = Validator::validate(['status' => ['active']], ['status' => 'in:active']);
+
+        $this->assertArrayHasKey('status', $errors);
+    }
+
+    public function testMaxLength(): void
+    {
+        $rules = ['title' => 'string|maxLength:5'];
+
+        $this->assertSame([], Validator::validate(['title' => 'абвгд'], $rules));
+        $this->assertArrayHasKey('title', Validator::validate(['title' => 'абвгде'], $rules));
+        // длина в символах, а не в байтах (UTF-8)
+        $this->assertArrayHasKey('title', Validator::validate(['title' => 'abcdefghij'], $rules));
+    }
+
+    public function testMinMaxLengthRejectNonString(): void
+    {
+        $this->assertArrayHasKey('t', Validator::validate(['t' => 123], ['t' => 'minLength:1']));
+        $this->assertArrayHasKey('t', Validator::validate(['t' => 123], ['t' => 'maxLength:10']));
+    }
+
+    public function testEmptyStringTreatedAsAbsentForOptionalField(): void
+    {
+        // Пустая строка = поле не заполнено: без required — без ошибок.
+        $this->assertSame([], Validator::validate(['note' => ''], ['note' => 'string|maxLength:5']));
+        // с required — ошибка «обязательное поле», а не «должно быть строкой».
+        $errors = Validator::validate(['note' => ''], ['note' => 'required|string']);
+        $this->assertSame(['обязательное поле'], $errors['note']);
+    }
+
+    public function testOptionalFieldMissingIsFine(): void
+    {
+        $this->assertSame([], Validator::validate([], ['optional' => 'email']));
+    }
+
+    public function testSeveralRulesOnOneFieldCollectAllErrors(): void
+    {
+        $errors = Validator::validate(['age' => 'abc'], ['age' => 'required|int|min:1']);
+
+        $this->assertArrayHasKey('age', $errors);
+        $this->assertContains('должно быть целым числом', $errors['age']);
+    }
 }

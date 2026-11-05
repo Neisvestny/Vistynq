@@ -10,7 +10,11 @@ use Vistynq\Controllers\NoteController;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Repositories\CanvasRepository;
+use Vistynq\Repositories\CanvasRepositoryInterface;
+use Vistynq\Repositories\NoteRepository;
+use Vistynq\Repositories\NoteRepositoryInterface;
 use Vistynq\Repositories\UserRepository;
+use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Services\JwtService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Container;
@@ -54,6 +58,10 @@ abstract class IntegrationTestCase extends TestCase
         $this->container = new Container();
         $this->container->singleton(Config::class, fn (): Config => $this->config);
         $this->container->singleton(Database::class, fn (): Database => $this->db);
+        // Интерфейсы репозиториев (R17) — как в Kernel::boot().
+        $this->container->bind(CanvasRepositoryInterface::class, CanvasRepository::class);
+        $this->container->bind(NoteRepositoryInterface::class, NoteRepository::class);
+        $this->container->bind(UserRepositoryInterface::class, UserRepository::class);
 
         $this->jwt = new JwtService($this->config);
         $this->users = $this->container->get(UserRepository::class);
@@ -153,6 +161,7 @@ abstract class IntegrationTestCase extends TestCase
      * @param array<string, mixed> $routeParams
      * @param array<string, string> $query
      * @param array<string, string> $headers
+     * @param array<string, string> $cookies
      */
     protected function request(
         string $method,
@@ -162,6 +171,7 @@ abstract class IntegrationTestCase extends TestCase
         array $query = [],
         array $headers = [],
         ?string $authUserId = null,
+        array $cookies = [],
     ): Request {
         $attributes = [];
         if ($json !== null) {
@@ -171,7 +181,7 @@ abstract class IntegrationTestCase extends TestCase
             $attributes['authUserId'] = $authUserId;
         }
 
-        return new Request($method, $path, $query, $headers, '', [], $routeParams, $attributes);
+        return new Request($method, $path, $query, $headers, '', $cookies, $routeParams, $attributes);
     }
 
     /**
@@ -218,6 +228,15 @@ abstract class IntegrationTestCase extends TestCase
     protected function trackCanvasId(string $canvasId): void
     {
         $this->createdCanvasIds[] = $canvasId;
+    }
+
+    /**
+     * Пользователь, созданный вне createUser() (например, AuthController::register),
+     * тоже должен уйти в очистку tearDown.
+     */
+    protected function trackUserId(string $userId): void
+    {
+        $this->createdUserIds[] = $userId;
     }
 
     protected function assertIso8601(mixed $value, string $field): void

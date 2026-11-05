@@ -54,10 +54,13 @@ final class JwtService
             throw ApiException::unauthorized('UNAUTHORIZED', 'Некорректный токен');
         }
 
-        if (!is_string($claims->sub) || !is_string($claims->email ?? null)) {
+        // ?? null: у битого payload свойства может не быть — не шумим warning'ом.
+        $sub = $claims->sub ?? null;
+        $email = $claims->email ?? null;
+        if (!is_string($sub) || !is_string($email)) {
             throw ApiException::unauthorized('UNAUTHORIZED', 'Некорректный токен');
         }
 
-        return ['sub' => $claims->sub, 'email' => $claims->email];
+        return ['sub' => $sub, 'email' => $email];
     }
 }

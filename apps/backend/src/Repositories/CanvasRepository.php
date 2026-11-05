@@ -7,7 +7,7 @@ namespace Vistynq\Repositories;
 use PDO;
 use Vistynq\Support\Database;
 
-final class CanvasRepository
+final class CanvasRepository implements CanvasRepositoryInterface
 {
     public function __construct(private readonly Database $db)
     {

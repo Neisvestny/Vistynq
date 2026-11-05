@@ -10,7 +10,7 @@ use Vistynq\Support\Database;
 /**
  * users table (docs/data-model.md).
  */
-final class UserRepository
+final class UserRepository implements UserRepositoryInterface
 {
     public function __construct(private readonly Database $db)
     {
