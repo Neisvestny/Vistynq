@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   frontend:
-    name: frontend (eslint, vue-tsc, prettier)
+    name: frontend (eslint, vue-tsc, prettier, vitest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -28,6 +28,8 @@ jobs:
 
       - run: pnpm check
 
+      - run: pnpm test
+
   backend:
     name: backend (php-cs-fixer + PHPUnit)
     runs-on: ubuntu-latest
@@ -35,7 +37,8 @@ jobs:
       run:
         working-directory: apps/backend
     services:
-      postgres:
+      # Аналог compose-сервиса test-postgres (R15): изолированная БД тестов.
+      test-postgres:
         image: postgres:15-alpine
         env:
           POSTGRES_DB: vistynq_test
@@ -100,8 +103,8 @@ jobs:
 
       - run: vendor/bin/phpunit
 
-  openapi-lint:
-    name: openapi lint (redocly)
+  openapi-check:
+    name: openapi check (redocly)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -113,26 +116,26 @@ jobs:
       - run: npx --yes @redocly/cli@latest lint docs/openapi.yaml --config redocly.yaml
 
   secret-scan:
-    name: secret scan (truffleHog)
+    name: secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Run truffleHog secret scan
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: .
-          base: ${{ github.event.before || github.event.repository.default_branch }}
-          args: '--only-verified --fail'
+      # Персональный репозиторий — GITLEAKS_LICENSE не требуется (нужен только для организаций).
+      - name: Run gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   e2e:
     name: Playwright E2E
     needs: [frontend, backend]
     runs-on: ubuntu-latest
     services:
-      postgres:
+      # Изолированная БД для e2e — аналог compose-сервиса test-postgres (R15/R16).
+      test-postgres:
         image: postgres:15-alpine
         env:
           POSTGRES_DB: vistynq_test
@@ -213,6 +216,13 @@ jobs:
         run: pnpm run dev &
         working-directory: apps/frontend
 
+      # Без ожидания Playwright стартует до готовности серверов и падает на race.
+      - name: Wait for backend
+        run: timeout 30 bash -c 'until curl -sf http://127.0.0.1:8000/healthz; do sleep 1; done'
+
+      - name: Wait for frontend
+        run: timeout 60 bash -c 'until curl -sf http://127.0.0.1:5173/; do sleep 1; done'
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
         working-directory: apps/frontend
@@ -221,4 +231,5 @@ jobs:
         run: npx playwright test
         working-directory: apps/frontend
         env:
-          VITE_API_TARGET: http://localhost:8000/api/v1
+          # Target без пути: vite-прокси сам добавляет /api/... из запроса.
+          VITE_API_TARGET: http://localhost:8000

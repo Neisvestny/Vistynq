@@ -24,6 +24,7 @@
     "typecheck": {
       "dependsOn": ["^typecheck"]
     },
+    "test": {},
     "check": {
       "dependsOn": ["lint", "format:check", "typecheck"]
     }

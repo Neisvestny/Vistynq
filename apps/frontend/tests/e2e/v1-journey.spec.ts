@@ -1,16 +1,18 @@
 import { test, expect } from '@playwright/test'
+import type { BrowserContext } from '@playwright/test'
 
 /**
- * Черновик e2e-сценария v1 для R16 (docs/ROADMAP.md → R16):
- * register → canvas → note → link → public-link.
+ * E2E-сценарий v1 (docs/ROADMAP.md → R16, CI-2): register → canvas → note →
+ * link → public-link.
  *
- * Сейчас пропущен целиком: шаги «ссылка» и «публичная ссылка» ждут
- * эндпоинты, которых ещё нет в routes.php (/links/direct, /access-level),
- * а финальная проверка нод/рёбер — UI-редактора (R25–R27).
+ * Включён в R16: работающие шаги идут подряд (workers=1, fullyParallel=false —
+ * делят module-state accessToken/canvasId). Остаются пропущенными:
+ *   - «link» — POST /links/direct ещё нет в routes.php (R18/R29);
+ *   - «public-link» — PUT /canvases/{id}/access-level ещё нет (R31).
  *
- * Включение в R16: убрать test.skip в beforeEach и дописать недостающие
- * вызовы API. Формат шагов (API-шаги быстрые, UI — только там, где проверяем
- * пользовательский сценарий) согласован с tests/e2e/auth.spec.ts.
+ * Сессия для UI-шагов: API-логин через `context.request` — он шарит cookie-jar
+ * с браузерным контекстом, поэтому refresh-кука с /auth/login подхватывается
+ * restoreSession при первом переходе на /dashboard.
  */
 test.describe('v1 journey: register → canvas → note → link → public link', () => {
   const API_BASE = 'http://localhost:8000/api/v1'
@@ -22,13 +24,21 @@ test.describe('v1 journey: register → canvas → note → link → public link
   let accessToken: string | null = null
   let canvasId: string | null = null
 
-  test.beforeEach(() => {
-    // Для R16: удалить строку — заработает после /links/direct + /access-level + UI-редактора
-    test.skip(
-      true,
-      'Черновик R16: включить после реализации ссылок, доступов и редактора (R25–R31)'
-    )
-  })
+  /** API-логин в контексте браузера: cookie попадает в jar → UI-сессия есть. */
+  async function loginViaApi(context: BrowserContext): Promise<string> {
+    const res = await context.request.post(`${API_BASE}/auth/login`, {
+      data: { email: uniqueEmail, password },
+    })
+    expect(res.status()).toBe(200)
+    // Path=/api/v1/auth/refresh → фильтровать cookies по URL нельзя (путь не совпадёт),
+    // берём все куки контекста и проверяем по имени.
+    expect(
+      (await context.cookies()).some((c) => c.name === 'vistynq_refresh'),
+      'login должен выдать refresh-куку — без неё restoreSession в UI не восстановит сессию'
+    ).toBe(true)
+
+    return (await res.json()).accessToken as string
+  }
 
   test('register new user', async ({ request }) => {
     const res = await request.post(`${API_BASE}/auth/register`, {
@@ -47,13 +57,9 @@ test.describe('v1 journey: register → canvas → note → link → public link
     await expect(page.getByRole('heading', { name: /Привет/ })).toBeVisible()
   })
 
-  test('create a canvas through the UI', async ({ page, request }) => {
-    // фиксируем access-token для API-шагов ниже (без UI-логина)
-    const res = await request.post(`${API_BASE}/auth/login`, {
-      data: { email: uniqueEmail, password },
-    })
-    expect(res.status()).toBe(200)
-    accessToken = (await res.json()).accessToken
+  test('create a canvas through the UI', async ({ page, context }) => {
+    // фиксируем access-token для API-шагов ниже; cookie-jar браузера получает сессию
+    accessToken = await loginViaApi(context)
 
     await page.goto('/dashboard')
     await page.getByRole('button', { name: /Создать канвас/ }).click()
@@ -68,20 +74,22 @@ test.describe('v1 journey: register → canvas → note → link → public link
     await expect(page.getByText('Здесь пока нет заметок')).toBeVisible()
   })
 
-  test('canvas appears in the dashboard list with note count', async ({ page }) => {
+  test('canvas appears in the dashboard list with note count', async ({ page, context }) => {
     expect(canvasId).toBeTruthy()
+    await loginViaApi(context)
 
     await page.goto('/dashboard')
-    const card = page.getByRole('heading', { name: 'E2E Journey Canvas' })
-    await expect(card).toBeVisible()
-    await expect(
-      card.locator('xpath=ancestor::*[contains(@class,"dashboard__card")]')
-    ).toContainText('0 зам.')
+    await expect(page.getByRole('heading', { name: 'E2E Journey Canvas' })).toBeVisible()
+    // .dashboard__card, а не xpath-ancestor: внутри есть .dashboard__card-top,
+    // и contains(@class, ...) матчит его как подстроку.
+    const card = page.locator('.dashboard__card').filter({ hasText: 'E2E Journey Canvas' })
+    await expect(card).toHaveCount(1)
+    await expect(card).toContainText('0 зам.')
   })
 
-  test('create notes and a link (API)', async ({ request }) => {
-    // Для R16: POST /links/direct ещё не зарегистрирован в routes.php (R18/R29)
+  test('create notes (API)', async ({ request }) => {
     expect(accessToken).toBeTruthy()
+    expect(canvasId).toBeTruthy()
     const headers = { Authorization: `Bearer ${accessToken}` }
 
     const noteA = await request.post(`${API_BASE}/canvases/${canvasId}/notes`, {
@@ -95,24 +103,37 @@ test.describe('v1 journey: register → canvas → note → link → public link
       data: { title: 'Заметка B', x: 360, y: 40 },
     })
     expect(noteB.status()).toBe(201)
-
-    // Для R16: link = await request.post(`${API_BASE}/links/direct`, {
-    //   headers, data: { fromNoteId: (await noteA.json()).id, toNoteId: (await noteB.json()).id },
-    // })
   })
 
-  test('graph renders nodes and edges (R25 replaces read-only board)', async ({ page }) => {
+  // R18/R29: связь создаётся через wikilink-разметку в теле заметки —
+  // парсинг/POST /links/direct ещё не реализованы, шаг включим после них.
+  test.skip('create a link between notes (wikilink)', async () => {
+    expect(accessToken).toBeTruthy()
+    expect(canvasId).toBeTruthy()
+
+    // Для R18/R29 (включить вместо этого комментария):
+    //   1) POST /canvases/{id}/notes/{noteId}/body с wikilink `[[Заметка B]]`,
+    //   2) или POST /links/direct { fromNoteId, toNoteId } — когда появится в routes.php.
+    // Затем проверить, что ребро появилось в GET /canvases/{id}/graph.
+  })
+
+  test('graph renders nodes (R25 replaces read-only board)', async ({ page, context }) => {
+    expect(canvasId).toBeTruthy()
+    await loginViaApi(context)
+
     await page.goto(`/canvas/${canvasId}`)
     await expect(page.getByText('Заметка A')).toBeVisible()
     await expect(page.getByText('Заметка B')).toBeVisible()
-    // рёбра появятся в DOM после R25 (сейчас read-only борд рисует только ноды)
+    // рёбра появятся в DOM после R18/R25 (сейчас read-only борд рисует только ноды)
     // await expect(page.locator('.vue-flow__edge')).toHaveCount(1)
   })
 
-  test('public link opens shared view without login', async ({ context }) => {
+  // R31: PUT /canvases/{id}/access-level {level:'public_link'} ещё нет
+  // в routes.php, slug ниже — заглушка; включим после публичного доступа.
+  test.skip('public link opens shared view without login', async ({ browser }) => {
     expect(accessToken).toBeTruthy()
 
-    // Для R16: PUT /canvases/{id}/access-level {level:'public_link'} ещё не в routes.php (R31)
+    // Для R31:
     // const res = await request.put(`${API_BASE}/canvases/${canvasId}/access-level`, {
     //   headers: { Authorization: `Bearer ${accessToken}` },
     //   data: { level: 'public_link' },
@@ -121,9 +142,10 @@ test.describe('v1 journey: register → canvas → note → link → public link
     const slug = 'todo-public-slug'
 
     // чистый контекст без кук/токенов — анонимный доступ
-    const anonPage = await context.browser()!.newPage()
+    const anonContext = await browser.newContext()
+    const anonPage = await anonContext.newPage()
     await anonPage.goto(`http://localhost:5173/shared/canvas/${slug}`)
     await expect(anonPage.locator('.shared-banner')).toBeVisible()
-    await anonPage.close()
+    await anonContext.close()
   })
 })

@@ -14,6 +14,7 @@
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "db:migrate": "php apps/backend/bin/migrate",
     "docs:openapi": "npx --yes @redocly/cli@latest lint docs/openapi.yaml --config redocly.yaml",
     "commit": "cz",
