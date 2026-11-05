@@ -10,14 +10,11 @@ use Vistynq\Controllers\NoteController;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Repositories\CanvasRepository;
-use Vistynq\Repositories\CanvasRepositoryInterface;
-use Vistynq\Repositories\NoteRepository;
-use Vistynq\Repositories\NoteRepositoryInterface;
 use Vistynq\Repositories\UserRepository;
-use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Services\JwtService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Container;
+use Vistynq\Support\ContainerFactory;
 use Vistynq\Support\Database;
 
 /**
@@ -54,14 +51,11 @@ abstract class IntegrationTestCase extends TestCase
         EnvLoader::load(__DIR__ . '/../../.env');
 
         $this->config = new Config();
-        $this->db = new Database($this->config);
         $this->container = new Container();
-        $this->container->singleton(Config::class, fn (): Config => $this->config);
-        $this->container->singleton(Database::class, fn (): Database => $this->db);
-        // Интерфейсы репозиториев (R17) — как в Kernel::boot().
-        $this->container->bind(CanvasRepositoryInterface::class, CanvasRepository::class);
-        $this->container->bind(NoteRepositoryInterface::class, NoteRepository::class);
-        $this->container->bind(UserRepositoryInterface::class, UserRepository::class);
+        // Те же биндинги, что в Kernel::boot() (R17): единая конфигурация
+        // контейнера в ContainerFactory.
+        ContainerFactory::configure($this->container, $this->config);
+        $this->db = $this->container->get(Database::class);
 
         $this->jwt = new JwtService($this->config);
         $this->users = $this->container->get(UserRepository::class);

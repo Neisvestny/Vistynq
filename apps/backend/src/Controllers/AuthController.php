@@ -8,7 +8,7 @@ use Vistynq\Config\Config;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Middleware\AuthMiddleware;
-use Vistynq\Repositories\UserRepository;
+use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Services\AuthService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Validator;
@@ -17,7 +17,7 @@ final class AuthController
 {
     public function __construct(
         private readonly AuthService $auth,
-        private readonly UserRepository $users,
+        private readonly UserRepositoryInterface $users,
         private readonly Config $config,
     ) {
     }

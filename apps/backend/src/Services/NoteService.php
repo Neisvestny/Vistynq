@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
-use Throwable;
 use Vistynq\Models\Note;
-use Vistynq\Repositories\DeletedNoteRepository;
-use Vistynq\Repositories\NoteRepository;
-use Vistynq\Repositories\TagRepository;
+use Vistynq\Repositories\DeletedNoteRepositoryInterface;
+use Vistynq\Repositories\NoteRepositoryInterface;
+use Vistynq\Repositories\TagRepositoryInterface;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Database;
 use Vistynq\Support\Validator;
@@ -23,9 +22,9 @@ use Vistynq\Support\Validator;
 final class NoteService
 {
     public function __construct(
-        private readonly NoteRepository $notes,
-        private readonly DeletedNoteRepository $deletedNotes,
-        private readonly TagRepository $tags,
+        private readonly NoteRepositoryInterface $notes,
+        private readonly DeletedNoteRepositoryInterface $deletedNotes,
+        private readonly TagRepositoryInterface $tags,
         private readonly AccessService $access,
         private readonly LinkParser $parser,
         private readonly Database $db,
@@ -124,7 +123,7 @@ final class NoteService
             $tagIds = $this->assertCanvasTags($data['tagIds'], $canvasId);
         }
 
-        $this->transactional(function () use ($noteId, $update, $tagIds): void {
+        $this->db->transaction(function () use ($noteId, $update, $tagIds): void {
             if ($update !== []) {
                 $this->notes->update($noteId, $update);
             }
@@ -154,7 +153,7 @@ final class NoteService
         Validator::assert($data, ['bodyMd' => 'required|string']);
         $bodyMd = (string) $data['bodyMd'];
 
-        $this->transactional(function () use ($noteId, $canvasId, $bodyMd): void {
+        $this->db->transaction(function () use ($noteId, $canvasId, $bodyMd): void {
             $this->notes->updateBody($noteId, $bodyMd);
             $this->parser->parseAndStore($canvasId, $noteId, $bodyMd);
         });
@@ -250,7 +249,7 @@ final class NoteService
         $ctx = $this->access->requireNoteManage($noteId, $userId);
         $note = $ctx['note'];
 
-        $this->transactional(function () use ($noteId, $note, $userId): void {
+        $this->db->transaction(function () use ($noteId, $note, $userId): void {
             $this->deletedNotes->create(
                 $noteId,
                 (string) $note['canvas_id'],
@@ -321,32 +320,6 @@ final class NoteService
         }
 
         return $ids;
-    }
-
-    /**
-     * Выполняет $fn одной транзакцией: исключение откатывает все изменения.
-     *
-     * @param callable(): void $fn
-     */
-    private function transactional(callable $fn): void
-    {
-        $pdo = $this->db->pdo();
-        if ($pdo->inTransaction()) {
-            $fn();
-
-            return;
-        }
-
-        $pdo->beginTransaction();
-        try {
-            $fn();
-            $pdo->commit();
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $e;
-        }
     }
 
     private static function numericField(array $data, string $key): ?float

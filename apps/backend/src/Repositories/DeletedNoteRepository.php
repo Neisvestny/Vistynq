@@ -7,7 +7,7 @@ namespace Vistynq\Repositories;
 use PDO;
 use Vistynq\Support\Database;
 
-final class DeletedNoteRepository
+final class DeletedNoteRepository implements DeletedNoteRepositoryInterface
 {
     public function __construct(private readonly Database $db)
     {

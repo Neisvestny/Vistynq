@@ -7,7 +7,7 @@ namespace Vistynq\Repositories;
 use PDO;
 use Vistynq\Support\Database;
 
-final class DirectLinkRepository
+final class DirectLinkRepository implements DirectLinkRepositoryInterface
 {
     public function __construct(private readonly Database $db)
     {

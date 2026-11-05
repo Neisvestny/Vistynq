@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use PDO;
 use Vistynq\Support\Database;
 
-final class RefreshTokenRepository
+final class RefreshTokenRepository implements RefreshTokenRepositoryInterface
 {
     public function __construct(private readonly Database $db)
     {

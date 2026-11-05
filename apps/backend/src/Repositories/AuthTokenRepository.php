@@ -10,7 +10,7 @@ use Vistynq\Support\Database;
  * auth_tokens table: one-time tokens for email verification and password reset.
  * Only the sha256 hash of a token is stored (docs/data-model.md).
  */
-final class AuthTokenRepository
+final class AuthTokenRepository implements AuthTokenRepositoryInterface
 {
     public function __construct(private readonly Database $db)
     {

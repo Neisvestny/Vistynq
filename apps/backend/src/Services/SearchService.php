@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Vistynq\Services;
 
 use Vistynq\Models\Note;
-use Vistynq\Repositories\NoteRepository;
+use Vistynq\Repositories\NoteRepositoryInterface;
 
 /**
  * Поиск по заголовкам и тегам внутри канваса (docs/api.md).
@@ -14,7 +14,7 @@ use Vistynq\Repositories\NoteRepository;
 final class SearchService
 {
     public function __construct(
-        private readonly NoteRepository $notes,
+        private readonly NoteRepositoryInterface $notes,
         private readonly AccessService $access,
     ) {
     }

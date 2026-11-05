@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Vistynq\Services;
 
 use PDOException;
-use Vistynq\Repositories\TagRepository;
+use Vistynq\Repositories\TagRepositoryInterface;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Validator;
 
@@ -29,7 +29,7 @@ final class TagService
     private const COLOR_PATTERN = '/^#[0-9a-fA-F]{6}$/';
 
     public function __construct(
-        private readonly TagRepository $tags,
+        private readonly TagRepositoryInterface $tags,
         private readonly AccessService $access,
     ) {
     }

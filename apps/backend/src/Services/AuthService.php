@@ -7,8 +7,8 @@ namespace Vistynq\Services;
 use RuntimeException;
 use Vistynq\Config\Config;
 use Vistynq\Models\User;
-use Vistynq\Repositories\AuthTokenRepository;
-use Vistynq\Repositories\UserRepository;
+use Vistynq\Repositories\AuthTokenRepositoryInterface;
+use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Support\ApiException;
 
 final class AuthService
@@ -20,8 +20,8 @@ final class AuthService
     private const PURPOSE_PASSWORD_RESET = 'password_reset';
 
     public function __construct(
-        private readonly UserRepository $users,
-        private readonly AuthTokenRepository $authTokens,
+        private readonly UserRepositoryInterface $users,
+        private readonly AuthTokenRepositoryInterface $authTokens,
         private readonly JwtService $jwt,
         private readonly MailService $mail,
         private readonly RefreshTokenService $refreshTokens,

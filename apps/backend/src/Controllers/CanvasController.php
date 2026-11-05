@@ -8,24 +8,23 @@ use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Middleware\AuthMiddleware;
 use Vistynq\Models\Canvas;
-use Vistynq\Repositories\CanvasRepository;
-use Vistynq\Repositories\DirectLinkRepository;
-use Vistynq\Repositories\IndirectLinkRepository;
-use Vistynq\Repositories\NoteRepository;
-use Vistynq\Repositories\TagRepository;
+use Vistynq\Repositories\CanvasRepositoryInterface;
 use Vistynq\Services\AccessService;
+use Vistynq\Services\GraphService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Validator;
 
+/**
+ * Тонкий HTTP-слой над сервисами и репозиториями (roadmap R17):
+ * валидация входа, вызов сервисов, формирование Response. Сборка graph
+ * вынесена в GraphService, права — в AccessService.
+ */
 final class CanvasController
 {
     public function __construct(
-        private readonly CanvasRepository $canvases,
-        private readonly NoteRepository $notes,
-        private readonly TagRepository $tags,
-        private readonly DirectLinkRepository $directLinks,
-        private readonly IndirectLinkRepository $indirectLinks,
+        private readonly CanvasRepositoryInterface $canvases,
         private readonly AccessService $access,
+        private readonly GraphService $graph,
     ) {
     }
 
@@ -55,88 +54,23 @@ final class CanvasController
 
     /**
      * GET /canvases/{id}/graph — узлы, рёбра, теги, права (docs/api.md).
-     *
-     * SQL живёт в репозиториях (docs/architecture.md §4): контроллер только
-     * сворачивает выборки в публикуемую форму.
      */
     public function graph(Request $request): Response
     {
         $userId = AuthMiddleware::optionalUserId($request);
         $canvasId = (string) $request->routeParam('id');
 
+        // Права и 404/403 — AccessService; сборка payload'а — GraphService.
         $ctx = $this->access->getCanvasContext($canvasId, $userId);
         $canvas = Canvas::fromRow($ctx['canvas'], $ctx['role']);
 
-        $noteRows = $this->notes->findGraphNotes($canvasId, $userId);
-
-        /** @var array<string, true> $visible */
-        $visible = [];
-        $nodes = [];
-        foreach ($noteRows as $row) {
-            $id = (string) $row['id'];
-            $visible[$id] = true;
-            $nodes[] = [
-                'id' => $id,
-                'title' => (string) $row['title'],
-                'importance' => (int) $row['importance'],
-                'isRelevant' => (bool) $row['is_relevant'],
-                'x' => (float) $row['x'],
-                'y' => (float) $row['y'],
-                'width' => (int) $row['width'],
-                'deletedAt' => null,
-                'tags' => [],
-                'authorId' => (string) $row['author_id'],
-            ];
-        }
-
-        $noteIds = array_keys($visible);
-        $tagNamesByNote = $this->tags->findNoteTagNames($canvasId);
-        foreach ($nodes as $index => $node) {
-            $nodes[$index]['tags'] = $tagNamesByNote[$node['id']] ?? [];
-        }
-
-        $edges = [];
-        foreach ($this->directLinks->findEdgesBySource($noteIds) as $row) {
-            if ($row['to_note_id'] === null) {
-                continue;
-            }
-            $to = (string) $row['to_note_id'];
-            // Оба конца должны быть видимы, иначе ребро исключается целиком
-            // (docs/api.md: «Узлы/рёбра без доступа к концу исключаются»).
-            if (!isset($visible[$to])) {
-                continue;
-            }
-            $edges[] = [
-                'id' => (string) $row['id'],
-                'type' => 'direct',
-                'from' => (string) $row['from_note_id'],
-                'to' => $to,
-                'state' => 'ok',
-                'label' => null,
-            ];
-        }
-
-        foreach ($this->indirectLinks->findEdgesBySource($noteIds) as $row) {
-            $edge = $this->describeIndirectEdge($row, $canvasId, $visible);
-            if ($edge !== null) {
-                $edges[] = $edge;
-            }
-        }
-
-        $tags = array_map(
-            static fn (array $tag): array => [
-                'id' => (string) $tag['id'],
-                'name' => (string) $tag['name'],
-                'color' => (string) $tag['color'],
-            ],
-            $this->tags->findCanvasTags($canvasId),
-        );
+        $graph = $this->graph->build($canvasId, $userId);
 
         return Response::json([
             'canvas' => $canvas->toArray(),
-            'nodes' => $nodes,
-            'edges' => $edges,
-            'tags' => $tags,
+            'nodes' => $graph['nodes'],
+            'edges' => $graph['edges'],
+            'tags' => $graph['tags'],
         ]);
     }
 
@@ -165,61 +99,6 @@ final class CanvasController
         $this->canvases->delete($canvasId);
 
         return Response::noContent();
-    }
-
-    /**
-     * Одно правило для всех [[wikilinks]] исходной заметки:
-     *  - цель видима                                → ok;
-     *  - цель purged/не разрешилась (to IS NULL)    → «ссылка удалена» + label;
-     *  - цель soft-deleted в том же канвасе         → «ссылка удалена» + label
-     *    (маркер того, что замену можно вернуть);
-     *  - цель в другом канвасе / недоступна         → исключить целиком,
-     *    чтобы не раскрывать чужие заметки.
-     *
-     * @param array<string, mixed> $row
-     * @param array<string, true>  $visible
-     *
-     * @return array<string, mixed>|null
-     */
-    private function describeIndirectEdge(array $row, string $canvasId, array $visible): ?array
-    {
-        $from = (string) $row['from_note_id'];
-        $to = $row['to_note_id'] !== null ? (string) $row['to_note_id'] : null;
-        $rawTarget = (string) $row['raw_target'];
-        $resolved = (bool) $row['resolved'];
-
-        if ($to !== null && $resolved && isset($visible[$to])) {
-            return [
-                'id' => (string) $row['id'],
-                'type' => 'indirect',
-                'from' => $from,
-                'to' => $to,
-                'state' => 'ok',
-                'label' => null,
-            ];
-        }
-
-        $targetCanvasId = $row['target_canvas_id'] !== null ? (string) $row['target_canvas_id'] : null;
-        $targetDeleted = $row['target_deleted_at'] !== null;
-
-        if ($to !== null && $targetCanvasId !== null && $targetCanvasId !== $canvasId) {
-            return null;
-        }
-
-        if ($to !== null && $targetCanvasId === $canvasId && !$targetDeleted) {
-            // Нода существует в этом канвасе, живая, но не попала в видимое
-            // множество — скрываем существование целиком.
-            return null;
-        }
-
-        return [
-            'id' => (string) $row['id'],
-            'type' => 'indirect',
-            'from' => $from,
-            'to' => null,
-            'state' => 'removed',
-            'label' => $rawTarget,
-        ];
     }
 
     /**

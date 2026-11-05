@@ -36,6 +36,7 @@ flowchart LR
 
 - Фронт и бэк раздельные: SPA отдаётся с `http://localhost:5173` (dev) / статики за nginx (prod), API живёт на `http://localhost:8000`.
 - Бэкенд — stateless REST (кроме refresh-куки), вся бизнес-логика в Services, доступ к БД только через Repositories (PDO, подготовленные запросы).
+- Разделение слоёв (R17): сервисы и контроллеры зависят от интерфейсов репозиториев (`*Interface`), а не от реализаций; все биндинги регистрируются в одном месте — `Support/ContainerFactory` (Kernel и интеграционные тесты используют одну конфигурацию). Контроллеры тонкие: только Request → сервис → Response. PDO живёт исключительно в `Repositories/*` и `Support/Database`; сервисы работают через `Database::transaction()`, `/healthz` — через `Database::ping()`.
 
 ## Структура monorepo
 
@@ -53,12 +54,16 @@ flowchart LR
 │   │   │   ├── Controllers/        # Auth, Profile, Canvas, Note, Tag, Link,
 │   │   │   │                       # Access, Invitation, Attachment, Search, Shared
 │   │   │   ├── Services/           # AuthService, JwtService, MailService,
-│   │   │   │                       # StorageService (S3), LinkParserService,
+│   │   │   │                       # StorageService (S3), LinkParser,
 │   │   │   │                       # AccessService (единая проверка прав),
+│   │   │   │                       # GraphService (сборка /graph),
 │   │   │   │                       # ArchiveService, SearchService
-│   │   │   ├── Repositories/       # PDO-репозитории по таблицам
+│   │   │   ├── Repositories/       # PDO-репозитории по таблицам + *Interface
+│   │   │   │                       # (контракты для DI и фейков, R17)
 │   │   │   ├── Models/             # DTO-сущности
-│   │   │   └── Support/            # Validator, исключения (ApiException и др.)
+│   │   │   └── Support/            # Container + ContainerFactory (DI, R17),
+│   │   │                           # Database (PDO, транзакции, ping),
+│   │   │                           # Validator, исключения (ApiException и др.)
 │   │   ├── migrations/             # NNN_name.sql (applied через schema_migrations)
 │   │   ├── bin/migrate · bin/seed
 │   │   ├── composer.json

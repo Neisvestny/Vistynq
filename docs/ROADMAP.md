@@ -43,7 +43,7 @@
 | R14 | P1 | Frontend: auth-экраны, Dashboard, CanvasView (read-рендер графа), Profile | Пользовательские сценарии v1 | `views/auth/*`, `views/{Dashboard,CanvasView,Profile}.vue` | R04, R09, R11 | L |
 | R15 | P1 | Unit-тесты ядра + интеграция auth (PHPUnit, test-postgres) | Критичная логика без тестов | `apps/backend/tests/*`, composer `--dev phpunit` | R10, R17 | M |
 | R16 | P1 | CI-2: phpunit/vitest/playwright, secret-scan, openapi-check + e2e-сценарий | Защита продакшн-путей | `.github/workflows/ci.yml` | R15, R14 | L |
-| R17 | P1 | Архитектура: интерфейсы репозиториев, DI, тонкие контроллеры | Тестируемость, разделение слоёв | `src/Repositories/*Interface`, `src/Support/Container` | R03 | M |
+| R17 | P1 | Архитектура: интерфейсы репозиториев, DI, тонкие контроллеры | Тестируемость, разделение слоёв | `src/Repositories/*Interface`, `src/Support/{Container,ContainerFactory}`, `src/Services/GraphService` | R03 | M | 
 | R18 | P2 | LinkParserService: разбор `[[target|label]]`, пересоздание `indirect_links`, табличные unit-тесты | Косвенные связи — ключевая фича | `Services/LinkParserService`, `Controllers/Note(body)` | R12 | M |
 | R20 | P2 | Frontend-структура: composables (useDebounce/useContextMenu/useDropFiles/useGraph), типизированные api-модули | Меньше дублирования | `apps/frontend/src/composables`, `src/api/*` | R04, R14 | M |
 | R21 | P2 | Vitest + @vue/test-utils: парсер `[[...]]`, stores, guard-логика | Ключевая клиентская логика | `apps/frontend/src/**/__tests__`, `vitest.config.*` | R20 | S-M |

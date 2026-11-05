@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
-use Vistynq\Repositories\IndirectLinkRepository;
-use Vistynq\Repositories\NoteRepository;
+use Vistynq\Repositories\IndirectLinkRepositoryInterface;
+use Vistynq\Repositories\NoteRepositoryInterface;
 
 /**
  * Разбор [[wikilinks]] markdown-тела и пересоздание indirect_links
@@ -20,8 +20,8 @@ final class LinkParser
     private const UUID_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
 
     public function __construct(
-        private readonly NoteRepository $notes,
-        private readonly IndirectLinkRepository $indirectLinks,
+        private readonly NoteRepositoryInterface $notes,
+        private readonly IndirectLinkRepositoryInterface $indirectLinks,
     ) {
     }
 

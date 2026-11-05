@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Vistynq\Services;
 
 use Vistynq\Models\Note;
-use Vistynq\Repositories\DeletedNoteRepository;
-use Vistynq\Repositories\NoteRepository;
+use Vistynq\Repositories\DeletedNoteRepositoryInterface;
+use Vistynq\Repositories\NoteRepositoryInterface;
 
 /**
  * Архив канваса (docs/api.md §Канвасы, ROADMAP R12): «неактуально» — живые
@@ -17,8 +17,8 @@ use Vistynq\Repositories\NoteRepository;
 final class ArchiveService
 {
     public function __construct(
-        private readonly NoteRepository $notes,
-        private readonly DeletedNoteRepository $deletedNotes,
+        private readonly NoteRepositoryInterface $notes,
+        private readonly DeletedNoteRepositoryInterface $deletedNotes,
         private readonly AccessService $access,
     ) {
     }

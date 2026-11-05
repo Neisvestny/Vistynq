@@ -7,7 +7,7 @@ namespace Vistynq\Repositories;
 use PDO;
 use Vistynq\Support\Database;
 
-final class TagRepository
+final class TagRepository implements TagRepositoryInterface
 {
     public function __construct(private readonly Database $db)
     {

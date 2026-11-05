@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Vistynq\Services;
 
 use DateTimeImmutable;
-use Throwable;
 use Vistynq\Config\Config;
-use Vistynq\Repositories\RefreshTokenRepository;
-use Vistynq\Repositories\UserRepository;
+use Vistynq\Repositories\RefreshTokenRepositoryInterface;
+use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Database;
 
@@ -18,8 +17,8 @@ final class RefreshTokenService
 
     public function __construct(
         private readonly Config $config,
-        private readonly RefreshTokenRepository $refreshTokens,
-        private readonly UserRepository $users,
+        private readonly RefreshTokenRepositoryInterface $refreshTokens,
+        private readonly UserRepositoryInterface $users,
         private readonly JwtService $jwt,
         private readonly Database $db,
     ) {
@@ -52,36 +51,37 @@ final class RefreshTokenService
      */
     public function rotate(string $rawToken): array
     {
-        $pdo = $this->db->pdo();
-        $pdo->beginTransaction();
-        try {
+        // Вся работа — одной транзакцией (Database::transaction): при
+        // исключении всё откатывается. Ветки отказа не бросают исключение
+        // внутри транзакции, а возвращают abort-сигнал: revokeFamily должен
+        // успеть закоммититься до того, как вернётся 401.
+        $result = $this->db->transaction(function () use ($rawToken): array {
             $hash = hash('sha256', $rawToken);
             // Блокируем строку для сериализации конкурентных ротаций одного токена.
             $tokenRow = $this->refreshTokens->findByHashForUpdate($hash);
             if ($tokenRow === null) {
-                $pdo->rollBack();
-                throw ApiException::unauthorized();
+                return ['aborted' => true];
             }
 
             if ($tokenRow['revoked_at'] !== null || $tokenRow['replaced_by'] !== null) {
                 // reuse detected - revoke entire family and persist it
                 $this->refreshTokens->revokeFamily($tokenRow['family_id']);
-                $pdo->commit();
-                throw ApiException::unauthorized();
+
+                return ['aborted' => true];
             }
 
             $expiresAt = new DateTimeImmutable($tokenRow['expires_at']);
             if ($expiresAt < new DateTimeImmutable()) {
                 $this->refreshTokens->revokeFamily($tokenRow['family_id']);
-                $pdo->commit();
-                throw ApiException::unauthorized();
+
+                return ['aborted' => true];
             }
 
             $user = $this->users->findById($tokenRow['user_id']);
             if ($user === null) {
                 $this->refreshTokens->revokeFamily($tokenRow['family_id']);
-                $pdo->commit();
-                throw ApiException::unauthorized();
+
+                return ['aborted' => true];
             }
 
             $familyId = $tokenRow['family_id'];
@@ -90,24 +90,18 @@ final class RefreshTokenService
             $newId = $this->refreshTokens->create($user->id, $familyId, $hashNew, $this->config->refreshTtl());
             $this->refreshTokens->markReplaced($tokenRow['id'], $newId);
 
-            $pdo->commit();
+            return ['aborted' => false, 'user' => $user, 'rawNew' => $rawNew];
+        });
 
-            return [
-                'user' => $user,
-                'accessToken' => $this->jwt->sign($user->id, $user->email),
-                'cookie' => $this->buildCookie($rawNew, $this->config->refreshTtl()),
-            ];
-        } catch (ApiException $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $e;
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $e;
+        if ($result['aborted']) {
+            throw ApiException::unauthorized();
         }
+
+        return [
+            'user' => $result['user'],
+            'accessToken' => $this->jwt->sign($result['user']->id, $result['user']->email),
+            'cookie' => $this->buildCookie($result['rawNew'], $this->config->refreshTtl()),
+        ];
     }
 
     public function revokeByRaw(string $rawToken): void
