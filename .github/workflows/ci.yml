@@ -125,9 +125,9 @@ jobs:
 
       # Персональный репозиторий — GITLEAKS_LICENSE не требуется (нужен только для организаций).
       - name: Run gitleaks secret scan
-        uses: gitleaks/gitleaks-action@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: docker://zricethezav/gitleaks:latest
+        with:
+          args: git . --redact --verbose
 
   e2e:
     name: Playwright E2E

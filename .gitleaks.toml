@@ -1,0 +1,11 @@
+[extend]
+# Keep the built-in default ruleset; this file only adds allowlists on top.
+useDefault = true
+
+[allowlist]
+description = "Fake JWT secrets used in CI env and unit tests"
+regexes = [
+    '''test-secret-key-that-is-long-enough-for-hs256''',
+    '''ci-secret-key-that-is-long-enough-for-hs256''',
+    '''secret-key-[ab]-that-is-long-enough-for-hs256''',
+]
