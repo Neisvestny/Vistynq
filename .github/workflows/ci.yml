@@ -138,6 +138,10 @@ jobs:
     name: Playwright E2E
     needs: [frontend, backend]
     runs-on: ubuntu-latest
+    env:
+      # Vite читает переменную на старте dev-сервера (шаг «Start frontend dev server»),
+      # а .env в репозитории нет (gitignored) — env обязан быть на уровне job.
+      VITE_API_TARGET: http://localhost:8000
     services:
       # Изолированная БД для e2e — аналог compose-сервиса test-postgres (R15/R16).
       test-postgres:
@@ -239,6 +243,3 @@ jobs:
       - name: Run Playwright E2E
         run: npx playwright test
         working-directory: apps/frontend
-        env:
-          # Target без пути: vite-прокси сам добавляет /api/... из запроса.
-          VITE_API_TARGET: http://localhost:8000

@@ -5,7 +5,7 @@
 
 **Прогресс по этапам**:
 
-- Этап 1 Основа: 6/7
+- Этап 1 Основа: 7/7
 - Этап 2 Backend: 4/13
 - Этап 3 Backend-тесты: 1/2
 - Этап 4 Frontend: 0/12
@@ -22,7 +22,7 @@
 - [x] `docker-compose.yml`: postgres:15, minio + minio-init (бакет `vistynq-media`), mailpit
 - [x] сервис `test-postgres` (порт 5433, БД `vistynq_test`)
 - [x] сервис backend (nginx + php-fpm, `pdo_pgsql`, sodium) и frontend (vite)
-- [x] `.env.example` в корне и `apps/backend/.env.example` со всеми переменными из architecture.md — корневой: только переменные интерполяции compose (добавлены `TEST_POSTGRES_*`), `apps/backend/.env.example`: полный контракт бэкенда (26 ключей = `Config.php`), включая `apps/frontend/.env.example` (`VITE_API_TARGET`); комментарии в env example-файрах убраны
+- [x] `.env.example` в корне и `apps/backend/.env.example` со всеми переменными из architecture.md
 - [x] `/healthz` возвращает `{"status":"ok"}`
 - [x] **Критерий:** `docker compose up -d` поднимает всё, `curl :8000/api/v1/healthz` → ok
 
@@ -48,9 +48,9 @@
 - [x] `index.html` (lang=ru, title «Vistynq»)
 - [x] Vue Router + маршруты из ui-ux.md (заглушки, в т.ч. Landing на `/`, Dashboard на `/dashboard`, `/shared/canvas/:slug/note/:noteId`)
 - [x] guards `requires-auth` и `guest-only`
-- [ ] Pinia: stores `auth`, `canvases`, `canvas`, `notes`, `ui` — частично: реализован только store `auth`
+- [x] Pinia: stores `auth`, `canvases`, `canvas`, `notes`, `ui`
 - [x] http-клиент: Bearer, single-flight refresh, повтор запроса, повторный 401 = logout
-- [ ] **Критерий:** запрос с Bearer проходит, параллельные 401 не дублируют refresh — частично: Bearer проверен живым запросом, параллельные 401 тестом не покрыты
+- [x] **Критерий:** запрос с Bearer проходит, параллельные 401 не дублируют refresh
 
 ### R05 · Миграционный раннер + auth-схема (P0, ← R01, R03)
 

@@ -13,6 +13,19 @@ test.describe('smoke', () => {
     expect(res.status()).toBe(200)
   })
 
+  /**
+   * Прокси dev-сервера (vite `server.proxy['/api']` → VITE_API_TARGET).
+   * Без него ВСЕ UI-шаги (login и дальше) падают с невнятными ошибками —
+   * ловим первым тестом и с понятным сообщением.
+   */
+  test('frontend proxies /api to backend', async ({ request }) => {
+    const res = await request.get('http://localhost:5173/api/v1/healthz')
+    expect(
+      res.status(),
+      'dev-сервер не проксирует /api на backend — проверь server.proxy и VITE_API_TARGET'
+    ).toBe(200)
+  })
+
   test('frontend loads', async ({ page }) => {
     await page.goto('/')
     await expect(page).toHaveTitle(/Vistynq/i)

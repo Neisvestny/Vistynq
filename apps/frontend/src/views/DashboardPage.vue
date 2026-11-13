@@ -10,37 +10,22 @@ import UiCard from '@/components/ui/UiCard.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiDialog from '@/components/ui/UiDialog.vue'
 import UiInput from '@/components/ui/UiInput.vue'
-import { canvasApi } from '@/api/canvas'
 import { applyApiError } from '@/api/errors'
 import { notify } from '@/api/notify'
 import type { Canvas } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
+import { useCanvasesStore } from '@/stores/canvases'
 
 const router = useRouter()
 const auth = useAuthStore()
+const store = useCanvasesStore()
 
-const canvases = ref<Canvas[]>([])
-const loading = ref(true)
-const loadFailed = ref(false)
-
-const creating = ref(false)
+/** Локальное состояние формы диалога (не глобальное). */
 const createErrors = ref<Record<string, string>>({})
 const newTitle = ref('')
 
-async function loadCanvases() {
-  loading.value = true
-  loadFailed.value = false
-  try {
-    canvases.value = (await canvasApi.list()).items
-  } catch {
-    loadFailed.value = true
-  } finally {
-    loading.value = false
-  }
-}
-
 async function onCreateCanvas() {
-  if (creating.value) return
+  if (store.creating) return
 
   createErrors.value = {}
   const title = newTitle.value.trim()
@@ -49,14 +34,11 @@ async function onCreateCanvas() {
     return
   }
 
-  creating.value = true
   try {
-    const canvas = await canvasApi.create({ title })
+    const canvas = await store.create(title)
     await router.push({ name: 'canvas', params: { id: canvas.id } })
   } catch (error) {
     applyApiError(error, createErrors.value)
-  } finally {
-    creating.value = false
   }
 }
 
@@ -90,7 +72,7 @@ onMounted(async () => {
       notify({ title: 'Не удалось загрузить профиль', status: 'error' })
     }
   }
-  await loadCanvases()
+  await store.load()
 })
 </script>
 
@@ -112,32 +94,32 @@ onMounted(async () => {
             id="new-canvas-title"
             v-model="newTitle"
             placeholder="Например: Исследования"
-            :disabled="creating"
+            :disabled="store.creating"
           >
             Название
           </UiInput>
           <p v-if="createErrors.title" class="dashboard__error">{{ createErrors.title }}</p>
 
-          <UiButton type="submit" :disabled="creating">
-            {{ creating ? 'Создаём…' : 'Создать' }}
+          <UiButton type="submit" :disabled="store.creating">
+            {{ store.creating ? 'Создаём…' : 'Создать' }}
           </UiButton>
         </form>
       </UiDialog>
     </header>
 
     <!-- Загрузка -->
-    <div v-if="loading" class="dashboard__grid" aria-busy="true">
+    <div v-if="store.loading" class="dashboard__grid" aria-busy="true">
       <UiCard v-for="n in 3" :key="n" class="dashboard__skeleton" />
     </div>
 
     <!-- Ошибка загрузки -->
-    <UiCard v-else-if="loadFailed">
+    <UiCard v-else-if="store.loadFailed">
       <p class="dashboard__hint">Не удалось загрузить канвасы — проверьте соединение.</p>
-      <UiButton variant="ghost" size="sm" @click="loadCanvases">Повторить</UiButton>
+      <UiButton variant="ghost" size="sm" @click="store.load">Повторить</UiButton>
     </UiCard>
 
     <!-- Пусто -->
-    <UiCard v-else-if="canvases.length === 0">
+    <UiCard v-else-if="store.items.length === 0">
       <p class="dashboard__hint">
         Канвасов пока нет. Создайте первый — это пространство с заметками и связями.
       </p>
@@ -146,7 +128,7 @@ onMounted(async () => {
     <!-- Список -->
     <div v-else class="dashboard__grid">
       <UiCard
-        v-for="canvas in canvases"
+        v-for="canvas in store.items"
         :key="canvas.id"
         class="dashboard__card"
         @click="router.push({ name: 'canvas', params: { id: canvas.id } })"

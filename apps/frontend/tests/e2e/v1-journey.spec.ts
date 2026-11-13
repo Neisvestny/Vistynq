@@ -16,24 +16,100 @@ import type { APIRequestContext, BrowserContext } from '@playwright/test'
  * Сессия для UI-шагов: API-логин через `context.request` — он шарит cookie-jar
  * с браузерным контекстом, поэтому refresh-кука с /auth/login подхватывается
  * restoreSession при первом переходе на /dashboard.
+ *
+ * Рестарт воркера (важно для диагностики CI): Playwright останавливает процесс
+ * воркера после первого упавшего теста и перезапускает остаток файла + все
+ * ретраи в НОВОМ процессе. Модуль spec'а загружается заново → uniqueEmail
+ * новый (ещё не зарегистрирован), accessToken/canvasId снова null. Раньше это
+ * давало каскад: одно реальное падение превращалось в 4+ лишних с 401/NULL.
+ * Теперь module-state — только кэш: каждый шаг проходит bootstrap-хелперы
+ * (ensureRegistered / ensureVerified / loginViaApi / ensureCanvas / ensureNotes),
+ * которые досоздают недостающее для текущего воркера.
  */
 test.describe('v1 journey: register → verify → canvas → note → link → public link', () => {
   const API_BASE = 'http://localhost:8000/api/v1'
   const MAILPIT_API = 'http://127.0.0.1:8025'
 
-  const uniqueEmail = `e2e-journey-${Date.now()}@vistynq.test`
+  // + random: два воркера могут загрузить модуль почти одновременно — email
+  // обязан различаться, иначе register во втором воркере упадёт с 409.
+  const uniqueEmail = `e2e-journey-${Date.now()}-${Math.floor(Math.random() * 100000)}@vistynq.test`
   const password = 'e2e-password-12345'
   const displayName = 'E2E Journey'
 
+  const CANVAS_TITLE = 'E2E Journey Canvas'
+  const NOTES = [
+    { title: 'Заметка A', x: 40, y: 40 },
+    { title: 'Заметка B', x: 360, y: 40 },
+  ] as const
+
   let accessToken: string | null = null
   let canvasId: string | null = null
+  let notesCreated = false
+
+  function credentials(): { email: string; password: string } {
+    return { email: uniqueEmail, password }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Bootstrap-хелперы: недостающее состояние текущего воркера          */
+  /* ------------------------------------------------------------------ */
+
+  /** Регистрирует пользователя воркера, НЕ подтверждая email (нужно тесту verify). */
+  async function ensureRegistered(request: APIRequestContext): Promise<void> {
+    const status = (await request.post(`${API_BASE}/auth/login`, { data: credentials() })).status()
+
+    if (status === 401) {
+      // Рестарт воркера → новый uniqueEmail: пользователя ещё нет.
+      const reg = await request.post(`${API_BASE}/auth/register`, {
+        data: { ...credentials(), displayName },
+      })
+      expect([201, 409], `POST /auth/register → ${reg.status()}`).toContain(reg.status())
+
+      return
+    }
+
+    expect([200, 403], `POST /auth/login ${uniqueEmail} → ${status}`).toContain(status)
+  }
+
+  /** Регистрация (если нужно) + подтверждение email из Mailpit (если нужно). */
+  async function ensureVerified(request: APIRequestContext): Promise<void> {
+    await ensureRegistered(request)
+
+    const res = await request.post(`${API_BASE}/auth/login`, { data: credentials() })
+    if (res.status() === 403) {
+      expect((await res.json()).error.code).toBe('EMAIL_NOT_VERIFIED')
+
+      const token = await fetchVerifyToken(request)
+      const verified = await request.post(`${API_BASE}/auth/verify-email`, { data: { token } })
+      expect(verified.status(), 'POST /auth/verify-email').toBe(200)
+
+      return
+    }
+
+    expect(res.status(), `POST /auth/login ${uniqueEmail} → ${res.status()}`).toBe(200)
+  }
+
+  /** Access-token для API-шагов; bootstrap при отсутствии (новый воркер). */
+  async function ensureToken(request: APIRequestContext): Promise<string> {
+    if (accessToken !== null) {
+      return accessToken
+    }
+
+    await ensureVerified(request)
+    const res = await request.post(`${API_BASE}/auth/login`, { data: credentials() })
+    expect(res.status(), `POST /auth/login ${uniqueEmail} → ${res.status()}`).toBe(200)
+
+    accessToken = (await res.json()).accessToken as string
+
+    return accessToken
+  }
 
   /** API-логин в контексте браузера: cookie попадает в jar → UI-сессия есть. */
   async function loginViaApi(context: BrowserContext): Promise<string> {
-    const res = await context.request.post(`${API_BASE}/auth/login`, {
-      data: { email: uniqueEmail, password },
-    })
-    expect(res.status()).toBe(200)
+    await ensureVerified(context.request)
+
+    const res = await context.request.post(`${API_BASE}/auth/login`, { data: credentials() })
+    expect(res.status(), `POST /auth/login ${uniqueEmail} → ${res.status()}`).toBe(200)
     // Path=/api/v1/auth/refresh → фильтровать cookies по URL нельзя (путь не совпадёт),
     // берём все куки контекста и проверяем по имени.
     expect(
@@ -41,30 +117,50 @@ test.describe('v1 journey: register → verify → canvas → note → link → 
       'login должен выдать refresh-куку — без неё restoreSession в UI не восстановит сессию'
     ).toBe(true)
 
-    return (await res.json()).accessToken as string
+    accessToken = (await res.json()).accessToken as string
+
+    return accessToken
   }
 
-  test('register new user', async ({ request }) => {
-    const res = await request.post(`${API_BASE}/auth/register`, {
-      data: { email: uniqueEmail, password, displayName },
-    })
-    expect(res.status()).toBe(201)
-  })
+  /** Канвас воркера: создаётся через API, если UI-шаг его не создал. */
+  async function ensureCanvas(request: APIRequestContext): Promise<string> {
+    if (canvasId !== null) {
+      return canvasId
+    }
 
-  test('verify email via Mailpit before login', async ({ request }) => {
-    // Login до подтверждения обязан падать с 403 EMAIL_NOT_VERIFIED (R21).
-    const before = await request.post(`${API_BASE}/auth/login`, {
-      data: { email: uniqueEmail, password },
+    const token = await ensureToken(request)
+    const res = await request.post(`${API_BASE}/canvases`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { title: CANVAS_TITLE },
     })
-    expect(before.status()).toBe(403)
-    expect((await before.json()).error.code).toBe('EMAIL_NOT_VERIFIED')
+    expect(res.status(), `POST /canvases → ${res.status()}`).toBe(201)
 
-    const token = await fetchVerifyToken(request)
-    const res = await request.post(`${API_BASE}/auth/verify-email`, {
-      data: { token },
-    })
-    expect(res.status()).toBe(200)
-  })
+    canvasId = ((await res.json()).id as string) ?? null
+    expect(canvasId, 'POST /canvases вернул канвас без id').toBeTruthy()
+
+    return canvasId as string
+  }
+
+  /** Обе заметки канваса: создание идемпотентно в рамках воркера (флаг notesCreated). */
+  async function ensureNotes(request: APIRequestContext): Promise<void> {
+    if (notesCreated) {
+      return
+    }
+
+    const canvas = await ensureCanvas(request)
+    const token = await ensureToken(request)
+    const headers = { Authorization: `Bearer ${token}` }
+
+    for (const note of NOTES) {
+      const res = await request.post(`${API_BASE}/canvases/${canvas}/notes`, {
+        headers,
+        data: note,
+      })
+      expect(res.status(), `POST /canvases/…/notes (${note.title}) → ${res.status()}`).toBe(201)
+    }
+
+    notesCreated = true
+  }
 
   /** Токен подтверждения — из письма в Mailpit (SMTP-приёмник dev/CI, :8025). */
   async function fetchVerifyToken(request: APIRequestContext): Promise<string> {
@@ -85,7 +181,39 @@ test.describe('v1 journey: register → verify → canvas → note → link → 
     return match![1]
   }
 
-  test('login through the UI', async ({ page }) => {
+  /* ------------------------------------------------------------------ */
+  /* Шаги сценария                                                       */
+  /* ------------------------------------------------------------------ */
+
+  test('register new user', async ({ request }) => {
+    const res = await request.post(`${API_BASE}/auth/register`, {
+      data: { ...credentials(), displayName },
+    })
+    expect(res.status()).toBe(201)
+  })
+
+  test('verify email via Mailpit before login', async ({ request }) => {
+    // Ретрай/новый воркер мог перезагрузить модуль → сначала гарантируем
+    // регистрацию текущего uniqueEmail, но БЕЗ подтверждения: дальше проверяем
+    // именно «login до подтверждения обязан падать с 403 EMAIL_NOT_VERIFIED» (R21).
+    await ensureRegistered(request)
+
+    const before = await request.post(`${API_BASE}/auth/login`, { data: credentials() })
+    expect(before.status()).toBe(403)
+    expect((await before.json()).error.code).toBe('EMAIL_NOT_VERIFIED')
+
+    const token = await fetchVerifyToken(request)
+    const res = await request.post(`${API_BASE}/auth/verify-email`, {
+      data: { token },
+    })
+    expect(res.status()).toBe(200)
+  })
+
+  test('login through the UI', async ({ page, request }) => {
+    // Bootstrap через отдельный `request`-fixture: его cookie-jar НЕ связан с
+    // браузерным контекстом, поэтому UI-логин остаётся настоящим входом с формы.
+    await ensureVerified(request)
+
     await page.goto('/login')
     await page.getByLabel('Email').fill(uniqueEmail)
     await page.getByLabel('Пароль').fill(password)
@@ -97,11 +225,11 @@ test.describe('v1 journey: register → verify → canvas → note → link → 
 
   test('create a canvas through the UI', async ({ page, context }) => {
     // фиксируем access-token для API-шагов ниже; cookie-jar браузера получает сессию
-    accessToken = await loginViaApi(context)
+    await loginViaApi(context)
 
     await page.goto('/dashboard')
     await page.getByRole('button', { name: /Создать канвас/ }).click()
-    await page.getByLabel('Название').fill('E2E Journey Canvas')
+    await page.getByLabel('Название').fill(CANVAS_TITLE)
     await page.getByRole('button', { name: 'Создать', exact: true }).click()
 
     await expect(page).toHaveURL(/\/canvas\/[0-9a-f-]+$/)
@@ -113,34 +241,22 @@ test.describe('v1 journey: register → verify → canvas → note → link → 
   })
 
   test('canvas appears in the dashboard list with note count', async ({ page, context }) => {
-    expect(canvasId).toBeTruthy()
     await loginViaApi(context)
+    // Канвас мог остаться в предыдущем (упавшем) воркере — создаём для текущего.
+    await ensureCanvas(context.request)
 
     await page.goto('/dashboard')
-    await expect(page.getByRole('heading', { name: 'E2E Journey Canvas' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: CANVAS_TITLE })).toBeVisible()
     // .dashboard__card, а не xpath-ancestor: внутри есть .dashboard__card-top,
     // и contains(@class, ...) матчит его как подстроку.
-    const card = page.locator('.dashboard__card').filter({ hasText: 'E2E Journey Canvas' })
+    const card = page.locator('.dashboard__card').filter({ hasText: CANVAS_TITLE })
     await expect(card).toHaveCount(1)
     await expect(card).toContainText('0 зам.')
   })
 
   test('create notes (API)', async ({ request }) => {
-    expect(accessToken).toBeTruthy()
-    expect(canvasId).toBeTruthy()
-    const headers = { Authorization: `Bearer ${accessToken}` }
-
-    const noteA = await request.post(`${API_BASE}/canvases/${canvasId}/notes`, {
-      headers,
-      data: { title: 'Заметка A', x: 40, y: 40 },
-    })
-    expect(noteA.status()).toBe(201)
-
-    const noteB = await request.post(`${API_BASE}/canvases/${canvasId}/notes`, {
-      headers,
-      data: { title: 'Заметка B', x: 360, y: 40 },
-    })
-    expect(noteB.status()).toBe(201)
+    // 201 на каждую заметку проверяется внутри ensureNotes.
+    await ensureNotes(request)
   })
 
   // R18/R29: связь создаётся через wikilink-разметку в теле заметки —
@@ -156,8 +272,9 @@ test.describe('v1 journey: register → verify → canvas → note → link → 
   })
 
   test('graph renders nodes (R25 replaces read-only board)', async ({ page, context }) => {
-    expect(canvasId).toBeTruthy()
     await loginViaApi(context)
+    await ensureCanvas(context.request)
+    await ensureNotes(context.request)
 
     await page.goto(`/canvas/${canvasId}`)
     await expect(page.getByText('Заметка A')).toBeVisible()

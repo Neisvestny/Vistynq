@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { Menu as MenuIcon } from 'lucide-vue-next'
 import UiButton from './ui/UiButton.vue'
 import UiSheet from './ui/UiSheet.vue'
+import { useUiStore } from '@/stores/ui'
 
 const navLinks = [
   { label: 'Главная', href: '#top' },
@@ -10,10 +10,10 @@ const navLinks = [
   { label: 'Как это работает', href: '#how' },
 ]
 
-const sheetOpen = ref(false)
+const ui = useUiStore()
 
 function closeSheet() {
-  sheetOpen.value = false
+  ui.closeMenu()
 }
 </script>
 
@@ -52,7 +52,7 @@ function closeSheet() {
         <UiButton to="/register">Начать</UiButton>
       </div>
 
-      <UiSheet v-model:open="sheetOpen" class="site-header__sheet" side="right">
+      <UiSheet v-model:open="ui.mobileMenuOpen" class="site-header__sheet" side="right">
         <template #title>Меню</template>
 
         <nav class="site-sheet__nav" aria-label="Мобильная навигация">
@@ -71,8 +71,8 @@ function closeSheet() {
         class="site-header__burger"
         type="button"
         aria-label="Открыть меню"
-        :aria-expanded="sheetOpen"
-        @click="sheetOpen = !sheetOpen"
+        :aria-expanded="ui.mobileMenuOpen"
+        @click="ui.toggleMenu()"
       >
         <MenuIcon :size="22" aria-hidden="true" />
       </button>
