@@ -17,6 +17,7 @@ use Vistynq\Middleware\ErrorHandlerMiddleware;
 use Vistynq\Middleware\JsonBodyMiddleware;
 use Vistynq\Middleware\MiddlewareInterface;
 use Vistynq\Middleware\RateLimitMiddleware;
+use Vistynq\Middleware\RequestIdMiddleware;
 use Vistynq\Services\JwtService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Container;
@@ -76,6 +77,7 @@ final class Kernel
     {
         /** @var list<MiddlewareInterface> $middleware */
         $middleware = [
+            new RequestIdMiddleware(),
             new ErrorHandlerMiddleware($this->config),
             new CorsMiddleware($this->config),
             new RateLimitMiddleware($this->config),

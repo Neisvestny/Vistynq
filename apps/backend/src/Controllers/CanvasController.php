@@ -78,7 +78,7 @@ final class CanvasController
     {
         $userId = AuthMiddleware::userId($request);
         $canvasId = (string) $request->routeParam('id');
-        $ctx = $this->access->requireCanvasEdit($canvasId, $userId);
+        $ctx = $this->access->requireCanvasManage($canvasId, $userId);
 
         $data = $request->json();
         if (array_key_exists('title', $data)) {

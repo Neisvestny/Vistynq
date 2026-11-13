@@ -152,7 +152,7 @@ final class CanvasCrudTest extends IntegrationTestCase
         $this->assertArrayNotHasKey('noteCount', $created, 'POST /canvases не считает заметки');
     }
 
-    public function testUpdateTitleByEditorReturnsCanvas(): void
+    public function testUpdateTitleByOwnerReturnsCanvas(): void
     {
         $response = $this->canvasController->update($this->request(
             'PATCH',
@@ -161,15 +161,29 @@ final class CanvasCrudTest extends IntegrationTestCase
             ['title' => 'Переименованный'],
             [],
             [],
-            $this->editorId,
+            $this->ownerId,
         ));
 
         $this->assertSame(200, $response->status());
         $data = $this->json($response);
         $this->assertSame($this->canvasId, $data['id']);
         $this->assertSame('Переименованный', $data['title']);
-        $this->assertSame('editor', $data['access']['myRole']);
+        $this->assertSame('owner', $data['access']['myRole']);
         $this->assertSame($this->ownerId, $data['ownerId']);
+    }
+
+    public function testUpdateTitleByEditorIs403(): void
+    {
+        // docs/api.md: PATCH /canvases/{id} — только владелец.
+        $this->assertApiStatus(403, fn (): Response => $this->canvasController->update($this->request(
+            'PATCH',
+            "/api/v1/canvases/{$this->canvasId}",
+            ['id' => $this->canvasId],
+            ['title' => 'Переименованный'],
+            [],
+            [],
+            $this->editorId,
+        )));
     }
 
     public function testUpdateWithoutTitleIsNoOp(): void

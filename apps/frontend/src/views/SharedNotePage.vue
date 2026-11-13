@@ -18,7 +18,8 @@ const route = useRoute()
 
       <UiCard>
         <p class="stub-hint">
-          Заметка <code>{{ route.params.slug }}</code> с рендером markdown появится после R11/R23.
+          Заметка <code>{{ route.params.noteId }}</code> канваса
+          <code>{{ route.params.slug }}</code> с рендером markdown появится после R11/R23.
         </p>
       </UiCard>
     </div>

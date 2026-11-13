@@ -79,7 +79,7 @@ export const router = createRouter({
       component: () => import('@/views/SharedCanvasPage.vue'),
     },
     {
-      path: '/shared/note/:slug',
+      path: '/shared/canvas/:slug/note/:noteId',
       name: 'shared-note',
       component: () => import('@/views/SharedNotePage.vue'),
     },
