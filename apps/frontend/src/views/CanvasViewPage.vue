@@ -4,7 +4,7 @@
  * GET /canvases/{id}/graph (R14). Ноды/рёбра маппятся в Vue Flow:
  * интерактив (drag/resize/контекст-меню/фильтры) — R25–R27.
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MarkerType, VueFlow } from '@vue-flow/core'
 import type { Edge, Node } from '@vue-flow/core'
@@ -17,30 +17,29 @@ import NoteNode from '@/components/canvas/NoteNode.vue'
 import type { NoteNodeData } from '@/components/canvas/NoteNode.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
-import { canvasApi } from '@/api/canvas'
-import { ApiError } from '@/api/http'
-import type { GraphResponse } from '@/api/types'
+import { useCanvasStore } from '@/stores/canvas'
+import { useNotesStore } from '@/stores/notes'
 
 const route = useRoute()
 const router = useRouter()
 
-const graph = ref<GraphResponse | null>(null)
-const loading = ref(true)
-const error = ref<ApiError | null>(null)
+const store = useCanvasStore()
+const notes = useNotesStore()
+
+/** Псевдонимы store для шаблона (v-if сузит тип, как с локальными ref). */
+const graph = computed(() => store.canvas)
+const loading = computed(() => store.loading)
+const error = computed(() => store.error)
 
 const tagColors = computed<Record<string, string>>(() =>
-  Object.fromEntries((graph.value?.tags ?? []).map((tag) => [tag.name, tag.color]))
+  Object.fromEntries(store.tags.map((tag) => [tag.name, tag.color]))
 )
 
-/** Без isRelevant=false — скрыто до включения фильтра (R27). */
-const visibleNodes = computed(() => (graph.value?.nodes ?? []).filter((node) => node.isRelevant))
-
-const visibleNodeIds = computed(() => new Set(visibleNodes.value.map((node) => node.id)))
+const visibleNodes = computed(() => notes.visibleNodes)
+const visibleNodeIds = computed(() => notes.visibleNodeIds)
 
 /** Рёбра, ведущие в удалённые заметки (state=removed, to=null) — линии нет, считаем для заголовка. */
-const brokenEdges = computed(
-  () => (graph.value?.edges ?? []).filter((edge) => edge.state === 'removed').length
-)
+const brokenEdges = computed(() => store.edges.filter((edge) => edge.state === 'removed').length)
 
 const flowNodes = computed<Node<NoteNodeData>[]>(() =>
   visibleNodes.value.map((node) => ({
@@ -60,7 +59,7 @@ const flowNodes = computed<Node<NoteNodeData>[]>(() =>
 )
 
 const flowEdges = computed<Edge[]>(() =>
-  (graph.value?.edges ?? [])
+  store.edges
     // to=null (ссылка удалена) и концы без доступа/фильтра — не рисуем
     .filter(
       (edge) =>
@@ -86,7 +85,7 @@ const flowEdges = computed<Edge[]>(() =>
 )
 
 const roleLabel = computed(() => {
-  switch (graph.value?.canvas.access.myRole) {
+  switch (store.canvas?.access.myRole) {
     case 'owner':
       return 'Владелец'
     case 'editor':
@@ -98,24 +97,9 @@ const roleLabel = computed(() => {
   }
 })
 
-async function loadGraph() {
+function loadGraph() {
   const id = route.params.id
-  if (typeof id !== 'string' || id === '') {
-    error.value = new ApiError(404, 'NOT_FOUND', 'Канвас не найден')
-    loading.value = false
-    return
-  }
-
-  loading.value = true
-  error.value = null
-  try {
-    graph.value = await canvasApi.graph(id)
-  } catch (e) {
-    error.value = e instanceof ApiError ? e : ApiError.network()
-    graph.value = null
-  } finally {
-    loading.value = false
-  }
+  void store.load(typeof id === 'string' ? id : '')
 }
 
 onMounted(loadGraph)
@@ -123,7 +107,7 @@ onMounted(loadGraph)
 watch(
   () => route.params.id,
   (id, prev) => {
-    if (id !== prev) void loadGraph()
+    if (id !== prev) loadGraph()
   }
 )
 </script>
@@ -133,9 +117,9 @@ watch(
     <!-- Шапка канваса -->
     <header v-if="graph && !error" class="canvas-view__header">
       <div class="canvas-view__heading">
-        <h1 class="canvas-view__title">{{ graph.canvas.title }}</h1>
+        <h1 class="canvas-view__title">{{ graph.title }}</h1>
         <UiBadge v-if="roleLabel">{{ roleLabel }}</UiBadge>
-        <UiBadge v-if="graph.canvas.access.publicSlug" tone="accent">Публичный</UiBadge>
+        <UiBadge v-if="graph.access.publicSlug" tone="accent">Публичный</UiBadge>
       </div>
 
       <div class="canvas-view__meta">
