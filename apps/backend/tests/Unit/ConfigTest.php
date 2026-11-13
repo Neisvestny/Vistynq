@@ -12,7 +12,7 @@ final class ConfigTest extends TestCase
 
     protected function setUp(): void
     {
-        foreach (['APP_ENV', 'APP_URL', 'FRONTEND_URL', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'JWT_SECRET', 'ACCESS_TTL', 'REFRESH_TTL', 'TRUSTED_PROXIES', 'COOKIE_SECURE', 'CORS_ORIGINS'] as $key) {
+        foreach (['APP_ENV', 'APP_URL', 'FRONTEND_URL', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'JWT_SECRET', 'ACCESS_TTL', 'REFRESH_TTL', 'TRUSTED_PROXIES', 'COOKIE_SECURE', 'CORS_ORIGINS', 'SMTP_HOST', 'SMTP_PORT'] as $key) {
             $this->savedEnv[$key] = getenv($key);
             putenv($key);
         }

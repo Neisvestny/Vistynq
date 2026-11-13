@@ -1,21 +1,25 @@
 import { test, expect } from '@playwright/test'
-import type { BrowserContext } from '@playwright/test'
+import type { APIRequestContext, BrowserContext } from '@playwright/test'
 
 /**
- * E2E-сценарий v1 (docs/ROADMAP.md → R16, CI-2): register → canvas → note →
- * link → public-link.
+ * E2E-сценарий v1 (docs/ROADMAP.md → R16, CI-2): register → verify → canvas →
+ * note → link → public-link.
  *
  * Включён в R16: работающие шаги идут подряд (workers=1, fullyParallel=false —
  * делят module-state accessToken/canvasId). Остаются пропущенными:
  *   - «link» — POST /links/direct ещё нет в routes.php (R18/R29);
  *   - «public-link» — PUT /canvases/{id}/access-level ещё нет (R31).
  *
+ * Verify: без подтверждённого email login отвечает 403 EMAIL_NOT_VERIFIED
+ * (R21/R35) — токен берётся из письма в Mailpit API (:8025).
+ *
  * Сессия для UI-шагов: API-логин через `context.request` — он шарит cookie-jar
  * с браузерным контекстом, поэтому refresh-кука с /auth/login подхватывается
  * restoreSession при первом переходе на /dashboard.
  */
-test.describe('v1 journey: register → canvas → note → link → public link', () => {
+test.describe('v1 journey: register → verify → canvas → note → link → public link', () => {
   const API_BASE = 'http://localhost:8000/api/v1'
+  const MAILPIT_API = 'http://127.0.0.1:8025'
 
   const uniqueEmail = `e2e-journey-${Date.now()}@vistynq.test`
   const password = 'e2e-password-12345'
@@ -46,6 +50,40 @@ test.describe('v1 journey: register → canvas → note → link → public link
     })
     expect(res.status()).toBe(201)
   })
+
+  test('verify email via Mailpit before login', async ({ request }) => {
+    // Login до подтверждения обязан падать с 403 EMAIL_NOT_VERIFIED (R21).
+    const before = await request.post(`${API_BASE}/auth/login`, {
+      data: { email: uniqueEmail, password },
+    })
+    expect(before.status()).toBe(403)
+    expect((await before.json()).error.code).toBe('EMAIL_NOT_VERIFIED')
+
+    const token = await fetchVerifyToken(request)
+    const res = await request.post(`${API_BASE}/auth/verify-email`, {
+      data: { token },
+    })
+    expect(res.status()).toBe(200)
+  })
+
+  /** Токен подтверждения — из письма в Mailpit (SMTP-приёмник dev/CI, :8025). */
+  async function fetchVerifyToken(request: APIRequestContext): Promise<string> {
+    const search = await request.get(
+      `${MAILPIT_API}/api/v1/search?query=${encodeURIComponent(`to:${uniqueEmail}`)}&limit=10`
+    )
+    expect(search.ok(), 'Mailpit API должен отвечать на :8025').toBe(true)
+    const messages = ((await search.json()).messages ?? []) as Array<{ ID: string }>
+    expect(messages.length, 'письмо с подтверждением должно быть в Mailpit').toBeGreaterThan(0)
+
+    const message = await request.get(`${MAILPIT_API}/api/v1/message/${messages[0].ID}`)
+    expect(message.ok()).toBe(true)
+    const text = (((await message.json()).Text ?? '') as string) ?? ''
+
+    const match = text.match(/verify-email\?token=([0-9a-f]{64})/)
+    expect(match, 'в тексте письма нет ссылки /verify-email?token=…').not.toBeNull()
+
+    return match![1]
+  }
 
   test('login through the UI', async ({ page }) => {
     await page.goto('/login')
@@ -128,7 +166,7 @@ test.describe('v1 journey: register → canvas → note → link → public link
     // await expect(page.locator('.vue-flow__edge')).toHaveCount(1)
   })
 
-  // R31: PUT /canvases/{id}/access-level {level:'public_link'} ещё нет
+  // R31: PUT /canvases/{id}/access-level {level:'public'} ещё нет
   // в routes.php, slug ниже — заглушка; включим после публичного доступа.
   test.skip('public link opens shared view without login', async ({ browser }) => {
     expect(accessToken).toBeTruthy()
@@ -136,7 +174,7 @@ test.describe('v1 journey: register → canvas → note → link → public link
     // Для R31:
     // const res = await request.put(`${API_BASE}/canvases/${canvasId}/access-level`, {
     //   headers: { Authorization: `Bearer ${accessToken}` },
-    //   data: { level: 'public_link' },
+    //   data: { level: 'public' },
     // })
     // const slug = (await res.json()).publicSlug
     const slug = 'todo-public-slug'

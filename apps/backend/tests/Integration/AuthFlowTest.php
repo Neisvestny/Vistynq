@@ -6,7 +6,9 @@ use Vistynq\Controllers\AuthController;
 use Vistynq\Http\Request;
 
 /**
- * R15 · интеграция auth на test-postgres: register → login → refresh → logout.
+ * R15/R21 · интеграция auth на test-postgres: register → verify (письмо из
+ * Mailpit) → login → refresh → logout. Login до verify обязан отвечать 403
+ * EMAIL_NOT_VERIFIED — скипа «dev сразу verified» больше нет.
  *
  * Контроллеры вызываются напрямую (паттерн остальных интеграционных тестов),
  * контракт проверяется на статусах/телах Response и Set-Cookie.
@@ -45,7 +47,18 @@ final class AuthFlowTest extends IntegrationTestCase
         $this->assertNotNull($userId, 'юзер должен быть создан в БД');
         $this->trackUserId($userId);
 
-        // 2. login → 200: accessToken + refresh-кука
+        // 2. login до подтверждения → 403 EMAIL_NOT_VERIFIED: скипа для dev
+        // больше нет, «войти без подтверждённого email нельзя» (R21).
+        $e = $this->assertApiStatus(403, fn (): mixed => $this->auth->login($this->jsonRequest([
+            'email' => $this->email,
+            'password' => $this->password,
+        ])), 'login до verify');
+        $this->assertSame('EMAIL_NOT_VERIFIED', $e->errorCode());
+
+        // 3. токен подтверждения — из письма в Mailpit, verify → 200
+        $this->verifyEmailViaMailpit();
+
+        // 4. login → 200: accessToken + refresh-кука
         $login = $this->auth->login($this->jsonRequest([
             'email' => $this->email,
             'password' => $this->password,
@@ -71,7 +84,7 @@ final class AuthFlowTest extends IntegrationTestCase
         $rawCookie = $this->refreshCookieValue($cookieHeader);
         $this->assertNotSame('', $rawCookie);
 
-        // 3. refresh → 200: новая кука (ротация), старый токен отзывается
+        // 5. refresh → 200: новая кука (ротация), старый токен отзывается
         $refresh = $this->auth->refresh($this->cookieRequest($rawCookie));
         $this->assertSame(200, $refresh->status());
 
@@ -88,7 +101,7 @@ final class AuthFlowTest extends IntegrationTestCase
         // повторный refresh старым токеном = reuse → 401 (R10)
         $reuse = $this->assertApiStatus(401, fn (): mixed => $this->auth->refresh($this->cookieRequest($rawCookie)));
 
-        // 4. logout с актуальной кукой → 200 + очистка куки
+        // 6. logout с актуальной кукой → 200 + очистка куки
         $logout = $this->auth->logout($this->cookieRequest($newRaw));
         $this->assertSame(200, $logout->status());
         $this->assertSame(['ok' => true], $this->json($logout));
@@ -129,6 +142,23 @@ final class AuthFlowTest extends IntegrationTestCase
         $this->assertSame($this->email, $body['email']);
         $this->assertArrayNotHasKey('passwordHash', $body, 'хеш пароля не должен утекать');
         $this->assertArrayNotHasKey('password_hash', $body);
+    }
+
+    public function testLoginWithoutEmailVerificationIs403(): void
+    {
+        // R21/docs: «войти без подтверждённого email нельзя» — без скипа для dev.
+        $this->auth->register($this->jsonRequest([
+            'email' => $this->email,
+            'password' => $this->password,
+            'displayName' => 'R15 Test',
+        ]));
+
+        $e = $this->assertApiStatus(403, fn (): mixed => $this->auth->login($this->jsonRequest([
+            'email' => $this->email,
+            'password' => $this->password,
+        ])), 'login без verify');
+
+        $this->assertSame('EMAIL_NOT_VERIFIED', $e->errorCode());
     }
 
     // --- Негативы ---
@@ -231,6 +261,65 @@ final class AuthFlowTest extends IntegrationTestCase
         $userId = $this->userIdByEmail($this->email);
         $this->assertNotNull($userId);
         $this->trackUserId($userId);
+
+        // Без verify login падает с 403 — подтверждаем через письмо в Mailpit.
+        $this->verifyEmailViaMailpit();
+    }
+
+    /**
+     * register → verify-email токеном из письма → 200 (R21, docs/ROADMAP.md).
+     */
+    private function verifyEmailViaMailpit(): void
+    {
+        $token = $this->fetchVerifyTokenFromMailpit();
+
+        $response = $this->auth->verifyEmail($this->request(
+            'POST',
+            '/api/v1/auth/verify-email',
+            [],
+            ['token' => $token],
+        ));
+
+        $this->assertSame(200, $response->status());
+        $this->assertSame(['ok' => true], $this->json($response));
+    }
+
+    /**
+     * Ищет письмо «Подтвердите email» в Mailpit (SMTP-приёмник dev/CI) и
+     * достаёт из него 64-символьный токен ссылки /verify-email?token=….
+     */
+    private function fetchVerifyTokenFromMailpit(): string
+    {
+        $api = rtrim((string) (getenv('MAILPIT_API') ?: 'http://127.0.0.1:8025'), '/');
+
+        $search = @file_get_contents(
+            $api . '/api/v1/search?query=' . rawurlencode('to:' . $this->email) . '&limit=10',
+        );
+        $this->assertIsString(
+            $search,
+            'Mailpit API недоступен на ' . $api . ' — нужен сервис mailpit (docker compose up -d mailpit)',
+        );
+
+        $decoded = json_decode($search, true);
+        $messages = is_array($decoded) ? ($decoded['messages'] ?? []) : [];
+        $this->assertNotSame([], $messages, 'письмо с подтверждением не найдено в Mailpit для ' . $this->email);
+
+        $id = (string) ($messages[0]['ID'] ?? '');
+        $this->assertNotSame('', $id, 'у письма из Mailpit нет ID');
+
+        $raw = @file_get_contents($api . '/api/v1/message/' . rawurlencode($id));
+        $this->assertIsString($raw, 'не удалось получить письмо ' . $id . ' из Mailpit');
+
+        $message = json_decode($raw, true);
+        $body = is_array($message) ? (string) ($message['Text'] ?? '') : '';
+        $this->assertMatchesRegularExpression(
+            '~verify-email\?token=([0-9a-f]{64})~',
+            $body,
+            'в тексте письма нет ссылки /verify-email?token=…',
+        );
+        preg_match('~verify-email\?token=([0-9a-f]{64})~', $body, $matches);
+
+        return $matches[1];
     }
 
     private function loginAndGetToken(): string

@@ -25,5 +25,8 @@
         <env name="JWT_SECRET" value="test-secret-key-that-is-long-enough-for-hs256-ci"/>
         <env name="ACCESS_TTL" value="900"/>
         <env name="REFRESH_TTL" value="2592000"/>
+        <!-- verify-email ходит письмом в Mailpit (см. tests/Integration/AuthFlowTest) -->
+        <env name="SMTP_HOST" value="127.0.0.1"/>
+        <env name="SMTP_PORT" value="1025"/>
     </php>
 </phpunit>

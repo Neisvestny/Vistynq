@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Vistynq\Services;
 
 use RuntimeException;
-use Vistynq\Config\Config;
 use Vistynq\Models\User;
 use Vistynq\Repositories\AuthTokenRepositoryInterface;
 use Vistynq\Repositories\UserRepositoryInterface;
@@ -25,7 +24,6 @@ final class AuthService
         private readonly JwtService $jwt,
         private readonly MailService $mail,
         private readonly RefreshTokenService $refreshTokens,
-        private readonly Config $config,
     ) {
         if (!extension_loaded('sodium')) {
             throw new RuntimeException('ext-sodium is required for argon2id password hashing');
@@ -53,11 +51,8 @@ final class AuthService
 
         $user = $this->users->insert($email, self::hashPassword($password), $displayName);
 
-        if ($this->config->isDev()) {
-            $this->users->markEmailVerified($user->id);
-            return;
-        }
-
+        // docs/ROADMAP.md: «войти без подтверждённого email нельзя» — скипа
+        // для dev нет, письмо уходит всегда (dev/test читают его из Mailpit).
         $this->sendVerification($user->id, $user->email);
     }
 

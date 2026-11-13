@@ -50,6 +50,11 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # SMTP-приёмник для verify-email (R21): AuthFlowTest забирает токен
+      # из Mailpit API на :8025, письма уходят на SMTP :1025.
+      mailpit:
+        image: axllent/mailpit:latest
+        ports: ['1025:1025', '8025:8025']
     steps:
       - uses: actions/checkout@v6
 
@@ -147,6 +152,10 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      # E2E регистрирует пользователя и подтверждает email через Mailpit (R35).
+      mailpit:
+        image: axllent/mailpit:latest
+        ports: ['1025:1025', '8025:8025']
     steps:
       - uses: actions/checkout@v6
 
