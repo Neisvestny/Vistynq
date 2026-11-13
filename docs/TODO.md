@@ -5,7 +5,7 @@
 
 **Прогресс по этапам**:
 
-- Этап 1 Основа: 4/7
+- Этап 1 Основа: 6/7
 - Этап 2 Backend: 4/13
 - Этап 3 Backend-тесты: 1/2
 - Этап 4 Frontend: 0/12
@@ -22,14 +22,14 @@
 - [x] `docker-compose.yml`: postgres:15, minio + minio-init (бакет `vistynq-media`), mailpit
 - [x] сервис `test-postgres` (порт 5433, БД `vistynq_test`)
 - [x] сервис backend (nginx + php-fpm, `pdo_pgsql`, sodium) и frontend (vite)
-- [ ] `.env.example` в корне и `apps/backend/.env.example` со всеми переменными из architecture.md — частично: `apps/backend/.env.example` полон, в корневом только compose-переменные (нет APP_ENV, DB__, TTL, SMTP__, COOKIE_*)
+- [x] `.env.example` в корне и `apps/backend/.env.example` со всеми переменными из architecture.md — корневой: только переменные интерполяции compose (добавлены `TEST_POSTGRES_*`), `apps/backend/.env.example`: полный контракт бэкенда (26 ключей = `Config.php`), включая `apps/frontend/.env.example` (`VITE_API_TARGET`); комментарии в env example-файрах убраны
 - [x] `/healthz` возвращает `{"status":"ok"}`
 - [x] **Критерий:** `docker compose up -d` поднимает всё, `curl :8000/api/v1/healthz` → ok
 
 ### R02 · Lefthook (P0)
 
 - [x] исправить путь на `apps/backend/vendor/bin/php-cs-fixer` с `--config`
-- [ ] **Критерий:** стейдж `.php` не роняет хук — частично: конфиг валиден и php-cs-fixer работает, но `lefthook run format-php` отвечает «hook format-php doesn't exist in the config», фактический прогон хука не подтверждён
+- [x] **Критерий:** стейдж `.php` не роняет хук — прогон подтверждён: `lefthook run pre-commit --commands format-php` (или `--files <файл>`) exit 0;
 
 ### R03 · PHP-скелет (P0, ← R01)
 
