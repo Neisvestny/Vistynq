@@ -92,27 +92,15 @@ final class CanvasRepository implements CanvasRepositoryInterface
      * Hard delete with cascade (docs/ROADMAP.md R11, docs/data-model.md).
      *
      * Everything reachable through an FK goes with the DELETE (notes, tags,
-     * note_tags, canvas_access, note_access, direct/indirect links). Rows
-     * referencing a canvas polymorphically — invitations (resource_id has no
-     * FK by design) and deleted_notes tombstones (canvas_id is a plain uuid
-     * so a tombstone can outlive its note) — are removed explicitly, in the
-     * same transaction, so no orphaned record can survive the canvas.
+     * note_tags, canvas_access, note_access, direct/indirect links,
+     * invitations и tombstone'ы deleted_notes — их FK на канвас, ON DELETE
+     * CASCADE, добавлены миграцией 0004).
      */
     public function delete(string $id): void
     {
         $pdo = $this->db->pdo();
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare(
-                'DELETE FROM invitations
-                 WHERE (resource_type = \'canvas\' AND resource_id = :id)
-                    OR (resource_type = \'note\' AND resource_id IN (SELECT id FROM notes WHERE canvas_id = :id))'
-            );
-            $stmt->execute(['id' => $id]);
-
-            $stmt = $pdo->prepare('DELETE FROM deleted_notes WHERE canvas_id = :id');
-            $stmt->execute(['id' => $id]);
-
             $stmt = $pdo->prepare('DELETE FROM canvases WHERE id = :id');
             $stmt->execute(['id' => $id]);
 

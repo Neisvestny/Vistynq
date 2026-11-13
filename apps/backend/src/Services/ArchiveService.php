@@ -33,11 +33,11 @@ final class ArchiveService
 
         $notRelevant = array_map(
             static fn (array $row): array => Note::fromRow($row)->toArray(),
-            $this->notes->findNotRelevant($canvasId),
+            $this->notes->findNotRelevant($canvasId, $userId),
         );
 
         $deleted = [];
-        foreach ($this->notes->findDeleted($canvasId) as $row) {
+        foreach ($this->notes->findDeleted($canvasId, $userId) as $row) {
             $deleted[] = Note::fromRow($row)->toArray();
         }
         foreach ($this->deletedNotes->findByCanvas($canvasId) as $row) {

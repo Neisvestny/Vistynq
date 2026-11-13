@@ -93,7 +93,7 @@ final class AccessService
                 return $accessRole;
             }
         }
-        if ($canvas['access_level'] === 'public_link') {
+        if ($canvas['access_level'] === 'public') {
             return 'viewer';
         }
 
@@ -243,6 +243,11 @@ final class AccessService
      *     noteRole:string|null
      * }
      */
+    /**
+     * docs/data-model.md §notes: private-заметка — только автор, владелец
+     * канваса и обладатели note_access; права канваса (viewer/editor) на неё
+     * не распространяются. Публичная — как раньше: доступ к канвасу.
+     */
     private function buildNoteContext(string $noteId, ?string $userId): array
     {
         $note = $this->notes->findById($noteId);
@@ -259,7 +264,9 @@ final class AccessService
         $noteRole = $userId !== null ? $this->notes->findNoteAccess($noteId, $userId) : null;
         $isAuthor = $userId !== null && $note['author_id'] === $userId;
 
-        $effectiveView = $this->canViewCanvas($canvas, $canvasRole) || $noteRole !== null || $isAuthor;
+        $effectiveView = ((string) ($note['visibility'] ?? 'public')) === 'private'
+            ? ($isAuthor || $canvasRole === 'owner' || $noteRole !== null)
+            : ($this->canViewCanvas($canvas, $canvasRole) || $noteRole !== null || $isAuthor);
         $effectiveEdit = $this->canEditCanvas($canvasRole) || $isAuthor || $noteRole === 'editor';
 
         return [

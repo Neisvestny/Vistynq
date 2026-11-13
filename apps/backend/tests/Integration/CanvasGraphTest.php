@@ -174,12 +174,34 @@ final class CanvasGraphTest extends IntegrationTestCase
 
     public function testAnonymousOnPublicLinkCanvasGetsViewerGraph(): void
     {
-        $this->setCanvasAccessLevel($this->canvasId, 'public_link');
+        $this->setCanvasAccessLevel($this->canvasId, 'public');
 
         $data = $this->graphAs(null);
 
         $this->assertSame('viewer', $data['canvas']['access']['myRole']);
         $this->assertCount(2, $data['nodes']);
+    }
+
+    public function testPrivateNoteVisibleOnlyToAuthorOwnerAndNoteAccess(): void
+    {
+        $private = $this->createNote($this->canvasId, $this->ownerId, 'Приватная');
+        $this->db->pdo()->prepare("UPDATE notes SET visibility = 'private' WHERE id = :id")
+            ->execute(['id' => $private]);
+
+        // Автор (owner канваса) видит
+        $this->assertContains($private, array_column($this->graphAs($this->ownerId)['nodes'], 'id'));
+
+        // Editor канваса без note_access — не видит (docs/api.md: права канваса
+        // на private-заметку не распространяются)
+        $this->assertNotContains($private, array_column($this->graphAs($this->editorId)['nodes'], 'id'));
+
+        // Выданный note_access добавляет private к правам канваса
+        $this->grantNoteAccess($private, $this->editorId, 'viewer');
+        $this->assertContains($private, array_column($this->graphAs($this->editorId)['nodes'], 'id'));
+
+        // Аноним на публичном канвасе — только public-заметки
+        $this->setCanvasAccessLevel($this->canvasId, 'public');
+        $this->assertNotContains($private, array_column($this->graphAs(null)['nodes'], 'id'));
     }
 
     public function testInvalidBearerOnOptionalRouteIs401NotAnonym(): void

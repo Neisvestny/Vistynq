@@ -10,6 +10,5 @@ namespace Vistynq\Models\Enums;
 enum AccessLevel: string
 {
     case Private = 'private';
-    case Specific = 'specific';
-    case PublicLink = 'public_link';
+    case Public = 'public';
 }

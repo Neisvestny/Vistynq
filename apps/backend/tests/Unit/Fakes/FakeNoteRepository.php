@@ -99,7 +99,10 @@ final class FakeNoteRepository implements NoteRepositoryInterface
     {
         $rows = [];
         foreach ($this->notes as $note) {
-            if ($note['canvas_id'] === $canvasId && ($note['deleted_at'] ?? null) === null) {
+            if ($note['canvas_id'] === $canvasId
+                && ($note['deleted_at'] ?? null) === null
+                && $this->canSee($note, $userId)
+            ) {
                 $rows[] = $note;
             }
         }
@@ -107,34 +110,57 @@ final class FakeNoteRepository implements NoteRepositoryInterface
         return $rows;
     }
 
-    public function findNotRelevant(string $canvasId): array
+    public function findNotRelevant(string $canvasId, string $userId): array
     {
         return array_values(array_filter(
             $this->notes,
-            static fn (array $n): bool => $n['canvas_id'] === $canvasId
+            fn (array $n): bool => $n['canvas_id'] === $canvasId
                 && ($n['deleted_at'] ?? null) === null
-                && empty($n['is_relevant']),
+                && empty($n['is_relevant'])
+                && $this->canSee($n, $userId),
         ));
     }
 
-    public function findDeleted(string $canvasId): array
+    public function findDeleted(string $canvasId, string $userId): array
     {
         return array_values(array_filter(
             $this->notes,
-            static fn (array $n): bool => $n['canvas_id'] === $canvasId && ($n['deleted_at'] ?? null) !== null,
+            fn (array $n): bool => $n['canvas_id'] === $canvasId
+                && ($n['deleted_at'] ?? null) !== null
+                && $this->canSee($n, $userId),
         ));
     }
 
-    public function search(string $canvasId, string $q): array
+    public function search(string $canvasId, ?string $userId, string $q): array
     {
         $q = mb_strtolower($q);
 
         return array_values(array_filter(
             $this->notes,
-            static fn (array $n): bool => $n['canvas_id'] === $canvasId
+            fn (array $n): bool => $n['canvas_id'] === $canvasId
                 && ($n['deleted_at'] ?? null) === null
+                && $this->canSee($n, $userId)
                 && str_contains(mb_strtolower((string) $n['title']), $q),
         ));
+    }
+
+    /**
+     * docs/data-model.md §notes: private — только автор, владелец канваса
+     * (владелец в фейке не моделируется — канваса здесь нет) и обладатели
+     * note_access; аноним — только public. Строки без ключа visibility
+     * (существующие юнит-фикстуры) считаются public.
+     */
+    private function canSee(array $note, ?string $userId): bool
+    {
+        if (($note['visibility'] ?? 'public') !== 'private') {
+            return true;
+        }
+        if ($userId === null) {
+            return false;
+        }
+
+        return ($note['author_id'] ?? null) === $userId
+            || $this->findNoteAccess((string) $note['id'], $userId) !== null;
     }
 
     public function findVisibleIdsInCanvas(string $canvasId, array $ids): array

@@ -33,7 +33,7 @@ final class SearchService
 
         $items = array_map(
             static fn (array $row): array => Note::fromRow($row)->toArray(),
-            $this->notes->search($canvasId, $q),
+            $this->notes->search($canvasId, $userId, $q),
         );
 
         return ['items' => $items];

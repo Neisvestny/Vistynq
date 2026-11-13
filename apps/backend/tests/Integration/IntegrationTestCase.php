@@ -147,8 +147,19 @@ abstract class IntegrationTestCase extends TestCase
 
     protected function setCanvasAccessLevel(string $canvasId, string $level): void
     {
-        $this->db->pdo()->prepare('UPDATE canvases SET access_level = :level WHERE id = :id')
-            ->execute(['level' => $level, 'id' => $canvasId]);
+        // CHECK canvases_public_slug_check (0004): public ↔ slug, private ↔ NULL.
+        $this->db->pdo()->prepare(
+            "UPDATE canvases
+                SET access_level = :level,
+                    public_slug = CASE WHEN :level = 'public'
+                                       THEN COALESCE(public_slug, :slug)
+                                       ELSE NULL END
+              WHERE id = :id"
+        )->execute([
+            'level' => $level,
+            'slug' => 'slug-' . str_replace('-', '', $canvasId),
+            'id' => $canvasId,
+        ]);
     }
 
     /**

@@ -28,7 +28,7 @@ export interface AccessTokenResponse {
   accessTokenExpiresIn: number
 }
 
-export type AccessLevel = 'private' | 'specific' | 'public_link'
+export type AccessLevel = 'private' | 'public'
 export type AccessRole = 'owner' | 'editor' | 'viewer' | 'none'
 
 /** docs/openapi.yaml → Canvas */

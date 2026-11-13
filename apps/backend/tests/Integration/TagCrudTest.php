@@ -79,7 +79,7 @@ final class TagCrudTest extends IntegrationTestCase
         $this->assertApiStatus(404, fn (): array => $this->listAs($this->strangerId));
         $this->assertApiStatus(404, fn (): array => $this->listAs(null));
 
-        $this->setCanvasAccessLevel($this->canvasId, 'public_link');
+        $this->setCanvasAccessLevel($this->canvasId, 'public');
         $this->assertCount(1, $this->listAs(null), 'аноним на публичном канвасе видит теги');
     }
 

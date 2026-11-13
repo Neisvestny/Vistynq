@@ -126,8 +126,12 @@ final class NoteRepository implements NoteRepositoryInterface
         $select = 'SELECT n.id, n.title, n.importance, n.is_relevant, n.x, n.y, n.width, n.deleted_at, n.author_id'
             . ' FROM notes n WHERE n.canvas_id = :canvasId AND n.deleted_at IS NULL';
 
+        [$visible, $visParams] = $this->visibilityCondition($userId);
+
         if ($userId === null) {
-            $sql = $select . " AND (SELECT c.access_level FROM canvases c WHERE c.id = n.canvas_id) = 'public_link'";
+            $sql = $select
+                . " AND (SELECT c.access_level FROM canvases c WHERE c.id = n.canvas_id) = 'public'"
+                . ' AND ' . $visible;
             $params = ['canvasId' => $canvasId];
         } else {
             $sql = $select
@@ -136,15 +140,39 @@ final class NoteRepository implements NoteRepositoryInterface
                 . ' OR (SELECT c.owner_id FROM canvases c WHERE c.id = n.canvas_id) = :userId'
                 . ' OR EXISTS (SELECT 1 FROM canvas_access ca WHERE ca.canvas_id = n.canvas_id AND ca.user_id = :userId)'
                 . ' OR EXISTS (SELECT 1 FROM note_access na WHERE na.note_id = n.id AND na.user_id = :userId)'
-                . " OR (SELECT c.access_level FROM canvases c WHERE c.id = n.canvas_id) = 'public_link'"
-                . ')';
-            $params = ['canvasId' => $canvasId, 'userId' => $userId];
+                . " OR (SELECT c.access_level FROM canvases c WHERE c.id = n.canvas_id) = 'public'"
+                . ')'
+                . ' AND ' . $visible;
+            $params = ['canvasId' => $canvasId, 'userId' => $userId] + $visParams;
         }
 
         $stmt = $this->db->pdo()->prepare($sql);
         $stmt->execute($params);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * docs/data-model.md §notes: заметка `public` видна всем, у кого есть
+     * доступ к канвасу; `private` — только автор, владелец канваса и те,
+     * кому выдан доступ именно на заметку (права editor/viewer канваса
+     * на неё не распространяются). Аноним получает только `public`.
+     *
+     * @return array{string, array<string, string>} SQL-фрагмент и его параметры
+     */
+    private function visibilityCondition(?string $userId): array
+    {
+        if ($userId === null) {
+            return ["n.visibility = 'public'", []];
+        }
+
+        return [
+            "(n.visibility = 'public'"
+            . ' OR n.author_id = :userId'
+            . ' OR (SELECT c.owner_id FROM canvases c WHERE c.id = n.canvas_id) = :userId'
+            . ' OR EXISTS (SELECT 1 FROM note_access na WHERE na.note_id = n.id AND na.user_id = :userId))',
+            ['userId' => $userId],
+        ];
     }
 
     /**
@@ -173,11 +201,13 @@ final class NoteRepository implements NoteRepositoryInterface
      *
      * @return list<array<string,mixed>>
      */
-    public function findNotRelevant(string $canvasId): array
+    public function findNotRelevant(string $canvasId, string $userId): array
     {
+        [$visible, $visParams] = $this->visibilityCondition($userId);
+
         return $this->findNotesBy(
-            'n.canvas_id = :canvasId AND n.deleted_at IS NULL AND n.is_relevant = false',
-            ['canvasId' => $canvasId],
+            'n.canvas_id = :canvasId AND n.deleted_at IS NULL AND n.is_relevant = false AND ' . $visible,
+            array_merge(['canvasId' => $canvasId], $visParams),
             'n.updated_at DESC',
         );
     }
@@ -188,11 +218,13 @@ final class NoteRepository implements NoteRepositoryInterface
      *
      * @return list<array<string,mixed>>
      */
-    public function findDeleted(string $canvasId): array
+    public function findDeleted(string $canvasId, string $userId): array
     {
+        [$visible, $visParams] = $this->visibilityCondition($userId);
+
         return $this->findNotesBy(
-            'n.canvas_id = :canvasId AND n.deleted_at IS NOT NULL',
-            ['canvasId' => $canvasId],
+            'n.canvas_id = :canvasId AND n.deleted_at IS NOT NULL AND ' . $visible,
+            array_merge(['canvasId' => $canvasId], $visParams),
             'n.deleted_at DESC',
         );
     }
@@ -204,9 +236,10 @@ final class NoteRepository implements NoteRepositoryInterface
      *
      * @return list<array<string,mixed>>
      */
-    public function search(string $canvasId, string $q): array
+    public function search(string $canvasId, ?string $userId, string $q): array
     {
         $like = '%' . self::escapeLike($q) . '%';
+        [$visible, $visParams] = $this->visibilityCondition($userId);
 
         $sql = 'SELECT n.*, ' . self::TAG_IDS_AGG
             . ' FROM notes n'
@@ -215,12 +248,13 @@ final class NoteRepository implements NoteRepositoryInterface
             . " AND (lower(n.title) LIKE lower(:q) ESCAPE '\\'"
             . ' OR EXISTS (SELECT 1 FROM note_tags x JOIN tags t ON t.id = x.tag_id'
             . " WHERE x.note_id = n.id AND lower(t.name) LIKE lower(:q) ESCAPE '\\'))"
+            . ' AND ' . $visible
             . ' GROUP BY n.id'
             . ' ORDER BY n.updated_at DESC'
             . ' LIMIT 50';
 
         $stmt = $this->db->pdo()->prepare($sql);
-        $stmt->execute(['canvasId' => $canvasId, 'q' => $like]);
+        $stmt->execute(['canvasId' => $canvasId, 'q' => $like] + $visParams);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

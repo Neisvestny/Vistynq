@@ -293,21 +293,19 @@ final class CanvasCrudTest extends IntegrationTestCase
         $this->assertNotNull($this->canvasRow($this->canvasId), 'неудачное удаление не должно трогать канвас');
     }
 
-    public function testDeleteCascadesAndRemovesPolymorphicOrphans(): void
+    public function testDeleteCascadesAndRemovesInvitationsAndTombstones(): void
     {
         $noteA = $this->createNote($this->canvasId, $this->ownerId, 'Первая');
         $noteB = $this->createNote($this->canvasId, $this->ownerId, 'Вторая');
         $this->createTag($this->canvasId, 'тег');
 
         $pdo = $this->db->pdo();
-        // инвайты: один на канвас, один на его заметку (полиморфный resource_id без FK)
+        // инвайты: один на канвас, один на его заметку (FK CASCADE, 0004)
         $pdo->prepare(
-            'INSERT INTO invitations (resource_type, resource_id, email, role)
-             VALUES (\'canvas\', :rid, \'a@example.local\', \'editor\')'
+            'INSERT INTO invitations (canvas_id, email, role) VALUES (:rid, \'a@example.local\', \'editor\')'
         )->execute(['rid' => $this->canvasId]);
         $pdo->prepare(
-            'INSERT INTO invitations (resource_type, resource_id, email, role)
-             VALUES (\'note\', :rid, \'b@example.local\', \'viewer\')'
+            'INSERT INTO invitations (note_id, email, role) VALUES (:rid, \'b@example.local\', \'viewer\')'
         )->execute(['rid' => $noteA]);
 
         // tombstone переживает заметку по построению (deleted_notes без FK на notes)
@@ -335,9 +333,8 @@ final class CanvasCrudTest extends IntegrationTestCase
         $this->assertSame(
             0,
             $this->countRows(
-                'SELECT count(*) FROM invitations WHERE resource_type = \'canvas\' AND resource_id = :id'
-                . ' OR (resource_type = \'note\' AND resource_id IN (SELECT id FROM notes WHERE canvas_id = :id))',
-                ['id' => $this->canvasId],
+                'SELECT count(*) FROM invitations WHERE canvas_id = :cid OR note_id IN (:noteA, :noteB)',
+                ['cid' => $this->canvasId, 'noteA' => $noteA, 'noteB' => $noteB],
             ),
             'инвайты канваса и его заметок не должны осиротеть',
         );

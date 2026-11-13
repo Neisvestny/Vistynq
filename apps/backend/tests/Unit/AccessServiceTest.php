@@ -90,7 +90,7 @@ final class AccessServiceTest extends TestCase
         $this->canvases->add([
             'id' => 'canvas-public',
             'owner_id' => self::OWNER,
-            'access_level' => 'public_link',
+            'access_level' => 'public',
         ]);
 
         $ctx = $this->service->getCanvasContext('canvas-public', self::STRANGER);
@@ -103,7 +103,7 @@ final class AccessServiceTest extends TestCase
         $this->canvases->add([
             'id' => 'canvas-public',
             'owner_id' => self::OWNER,
-            'access_level' => 'public_link',
+            'access_level' => 'public',
         ]);
         $this->canvases->grant('canvas-public', self::INVITED, 'editor');
 
@@ -229,6 +229,67 @@ final class AccessServiceTest extends TestCase
         $this->assertTrue($ctx['effectiveEdit']);
     }
 
+    // --- visibility: private-заметка (docs/data-model.md §notes) ---
+
+    public function testPrivateNoteIs404ForCanvasEditor(): void
+    {
+        // Права editor/viewer канваса на private-заметку не распространяются.
+        $this->addPrivateNote('note-private');
+        $this->canvases->grant(self::CANVAS, self::STRANGER, 'editor');
+
+        $this->expectExceptionApi(404, fn (): mixed => $this->service->getNoteContext('note-private', self::STRANGER));
+    }
+
+    public function testPrivateNoteVisibleToCanvasOwner(): void
+    {
+        // Владелец канваса имеет полные права и на заметки своего канваса.
+        $this->addPrivateNote('note-private');
+
+        $ctx = $this->service->getNoteContext('note-private', self::OWNER);
+
+        $this->assertTrue($ctx['effectiveView']);
+        $this->assertTrue($ctx['effectiveEdit']);
+    }
+
+    public function testPrivateNoteVisibleWithNoteAccessGrant(): void
+    {
+        $this->addPrivateNote('note-private');
+        $this->notes->grant('note-private', self::STRANGER, 'viewer');
+
+        $ctx = $this->service->getNoteContext('note-private', self::STRANGER);
+
+        $this->assertTrue($ctx['effectiveView'], 'выданный note_access открывает private-заметку');
+        $this->assertFalse($ctx['effectiveEdit']);
+    }
+
+    public function testPrivateNoteOnPublicCanvasHiddenFromAnonymous(): void
+    {
+        // Публичный канвас делает публичными только public-заметки.
+        $this->canvases->add([
+            'id' => 'canvas-public',
+            'owner_id' => self::OWNER,
+            'access_level' => 'public',
+        ]);
+        $this->notes->add([
+            'id' => 'note-private',
+            'canvas_id' => 'canvas-public',
+            'author_id' => self::OWNER,
+            'visibility' => 'private',
+        ]);
+
+        $this->expectExceptionApi(404, fn (): mixed => $this->service->getNoteContext('note-private', null));
+    }
+
+    public function testAuthorKeepsViewOfOwnPrivateNote(): void
+    {
+        $this->addPrivateNote('note-private');
+
+        $ctx = $this->service->getNoteContext('note-private', self::INVITED);
+
+        $this->assertTrue($ctx['isAuthor']);
+        $this->assertTrue($ctx['effectiveView']);
+    }
+
     // --- requireNoteManage: restore/purge — только ≥editor канваса или автор ---
 
     public function testNoteEditorCannotManageNote(): void
@@ -307,6 +368,16 @@ final class AccessServiceTest extends TestCase
     }
 
     // --- хелперы ---
+
+    private function addPrivateNote(string $id): void
+    {
+        $this->notes->add([
+            'id' => $id,
+            'canvas_id' => self::CANVAS,
+            'author_id' => self::INVITED,
+            'visibility' => 'private',
+        ]);
+    }
 
     /**
      * @param callable(): mixed $fn

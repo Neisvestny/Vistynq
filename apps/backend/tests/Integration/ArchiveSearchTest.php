@@ -19,6 +19,7 @@ final class ArchiveSearchTest extends IntegrationTestCase
 {
     private string $ownerId;
     private string $viewerId;
+    private string $editorId;
     private string $strangerId;
     private string $canvasId;
     private string $notRelevantId;
@@ -31,10 +32,12 @@ final class ArchiveSearchTest extends IntegrationTestCase
 
         $this->ownerId = $this->createUser();
         $this->viewerId = $this->createUser();
+        $this->editorId = $this->createUser();
         $this->strangerId = $this->createUser();
 
         $this->canvasId = $this->createCanvas($this->ownerId, 'Архив и поиск');
         $this->grantCanvasAccess($this->canvasId, $this->viewerId, 'viewer');
+        $this->grantCanvasAccess($this->canvasId, $this->editorId, 'editor');
 
         $pdo = $this->db->pdo();
 
@@ -160,12 +163,46 @@ final class ArchiveSearchTest extends IntegrationTestCase
 
     public function testSearchOnPublicLinkCanvasWorksAnonymously(): void
     {
-        $this->setCanvasAccessLevel($this->canvasId, 'public_link');
+        $this->setCanvasAccessLevel($this->canvasId, 'public');
 
         $found = $this->searchAs('план', null);
 
         $this->assertCount(1, $found);
         $this->assertSame('Антикризисный план', $found[0]['title']);
+    }
+
+    public function testPrivateNoteHiddenFromCanvasRightsInArchiveAndSearch(): void
+    {
+        $privateId = $this->createNote($this->canvasId, $this->ownerId, 'Секретный отчёт');
+        $this->db->pdo()
+            ->prepare("UPDATE notes SET is_relevant = false, visibility = 'private' WHERE id = :id")
+            ->execute(['id' => $privateId]);
+
+        // Автор (owner) видит приватную заметку и в архиве, и в поиске
+        $this->assertContains(
+            $privateId,
+            array_column($this->archiveAs($this->ownerId)['notRelevant'], 'id'),
+        );
+        $this->assertNotSame([], $this->searchAs('секретный', $this->ownerId));
+
+        // Editor канваса без note_access — не видит нигде (docs/api.md)
+        $this->assertNotContains(
+            $privateId,
+            array_column($this->archiveAs($this->editorId)['notRelevant'], 'id'),
+        );
+        $this->assertSame([], $this->searchAs('секретный', $this->editorId));
+
+        // Выданный note_access открывает и архив, и поиск
+        $this->grantNoteAccess($privateId, $this->editorId, 'viewer');
+        $this->assertContains(
+            $privateId,
+            array_column($this->archiveAs($this->editorId)['notRelevant'], 'id'),
+        );
+        $this->assertNotSame([], $this->searchAs('секретный', $this->editorId));
+
+        // Аноним на публичном канвасе — только public
+        $this->setCanvasAccessLevel($this->canvasId, 'public');
+        $this->assertSame([], $this->searchAs('секретный', null));
     }
 
     public function testInvalidBearerOnSearchIs401(): void
