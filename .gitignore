@@ -34,6 +34,13 @@ Thumbs.db
 .phpunit.cache/
 *.tsbuildinfo
 
+# graphify: knowledge graph (build output; переустановка хуков — graphify hook install)
+graphify-out/
+.githooks/post-checkout
+.githooks/post-commit
+.githooks/post-merge
+.githooks/post-rewrite
+
 # Kilo
 .kilo/
 
