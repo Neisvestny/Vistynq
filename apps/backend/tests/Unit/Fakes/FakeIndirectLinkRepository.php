@@ -37,9 +37,22 @@ final class FakeIndirectLinkRepository implements IndirectLinkRepositoryInterfac
             'to_note_id' => $toNoteId,
             'raw_target' => $rawTarget,
             'resolved' => $resolved,
+            'deleted_target_id' => null,
             'target_canvas_id' => null,
             'target_deleted_at' => null,
         ];
+    }
+
+    public function unlinkTarget(string $toNoteId): void
+    {
+        foreach ($this->edges as &$edge) {
+            if ($edge['to_note_id'] === $toNoteId) {
+                $edge['to_note_id'] = null;
+                $edge['deleted_target_id'] = $toNoteId;
+                $edge['resolved'] = false;
+            }
+        }
+        unset($edge);
     }
 
     public function findEdgesBySource(array $fromNoteIds): array

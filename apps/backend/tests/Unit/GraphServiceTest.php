@@ -67,7 +67,7 @@ final class GraphServiceTest extends TestCase
 
     public function testBuildsNodesWithCastedFields(): void
     {
-        $graph = $this->service->build(self::CANVAS, 'user-1');
+        $graph = $this->service->build(self::CANVAS, 'user-1', 'owner');
 
         $this->assertCount(2, $graph['nodes']);
         $node = $graph['nodes'][0];
@@ -85,7 +85,7 @@ final class GraphServiceTest extends TestCase
     {
         $this->tags->setNoteTagNames('note-1', ['важное', 'idea']);
 
-        $graph = $this->service->build(self::CANVAS, 'user-1');
+        $graph = $this->service->build(self::CANVAS, 'user-1', 'owner');
 
         $this->assertSame(['важное', 'idea'], $graph['nodes'][0]['tags']);
         $this->assertSame([], $graph['nodes'][1]['tags']);
@@ -95,7 +95,7 @@ final class GraphServiceTest extends TestCase
     {
         $this->tags->add(['id' => 'tag-1', 'canvas_id' => self::CANVAS, 'name' => 'idea', 'color' => '#ff0000']);
 
-        $graph = $this->service->build(self::CANVAS, 'user-1');
+        $graph = $this->service->build(self::CANVAS, 'user-1', 'owner');
 
         $this->assertSame(
             [['id' => 'tag-1', 'name' => 'idea', 'color' => '#ff0000']],
@@ -105,11 +105,23 @@ final class GraphServiceTest extends TestCase
 
     public function testDirectEdgeKeepsOnlyVisibleTargets(): void
     {
-        $this->directLinks->add(['id' => 'edge-ok', 'from_note_id' => 'note-1', 'to_note_id' => 'note-2']);
-        // цель не в видимом множестве (другой канвас) — ребро исключается
-        $this->directLinks->add(['id' => 'edge-drop', 'from_note_id' => 'note-1', 'to_note_id' => 'note-foreign']);
+        $this->directLinks->add([
+            'id' => 'edge-ok',
+            'from_note_id' => 'note-1',
+            'to_note_id' => 'note-2',
+            'target_canvas_id' => self::CANVAS,
+            'target_deleted_at' => null,
+        ]);
+        // цель в другом канвасе — ребро исключается целиком
+        $this->directLinks->add([
+            'id' => 'edge-drop',
+            'from_note_id' => 'note-1',
+            'to_note_id' => 'note-foreign',
+            'target_canvas_id' => self::OTHER_CANVAS,
+            'target_deleted_at' => null,
+        ]);
 
-        $graph = $this->service->build(self::CANVAS, 'user-1');
+        $graph = $this->service->build(self::CANVAS, 'user-1', 'owner');
 
         $this->assertSame(
             [[
@@ -136,7 +148,7 @@ final class GraphServiceTest extends TestCase
             'target_deleted_at' => null,
         ]);
 
-        $graph = $this->service->build(self::CANVAS, 'user-1');
+        $graph = $this->service->build(self::CANVAS, 'user-1', 'owner');
 
         $this->assertSame('ok', $graph['edges'][0]['state']);
         $this->assertSame('note-2', $graph['edges'][0]['to']);
@@ -151,15 +163,38 @@ final class GraphServiceTest extends TestCase
             'to_note_id' => null,
             'raw_target' => '[[потерянная]]',
             'resolved' => false,
+            'deleted_target_id' => 'purged-note',
             'target_canvas_id' => null,
             'target_deleted_at' => null,
         ]);
 
-        $graph = $this->service->build(self::CANVAS, 'user-1');
+        $graph = $this->service->build(self::CANVAS, 'user-1', 'owner');
 
         $this->assertSame('removed', $graph['edges'][0]['state']);
         $this->assertNull($graph['edges'][0]['to']);
         $this->assertSame('[[потерянная]]', $graph['edges'][0]['label']);
+    }
+
+    public function testUnresolvedTypoLinkProducesNoEdgeAtAll(): void
+    {
+        // Опечатка/переименование: цель не найдена и не стиралась
+        // (deleted_target_id IS NULL) — ребра нет (data-model.md:147).
+        $this->indirectLinks->add([
+            'id' => 'il-typo',
+            'from_note_id' => 'note-1',
+            'to_note_id' => null,
+            'raw_target' => '[[Опечатка]]',
+            'resolved' => false,
+            'deleted_target_id' => null,
+            'target_canvas_id' => null,
+            'target_deleted_at' => null,
+        ]);
+
+        foreach (['owner', 'editor', 'viewer', 'none'] as $role) {
+            $graph = $this->service->build(self::CANVAS, 'user-1', $role);
+
+            $this->assertSame([], $graph['edges'], 'роль ' . $role . ' не должна получать ребро на опечатку');
+        }
     }
 
     public function testIndirectEdgeAcrossCanvasesIsDroppedEntirely(): void
@@ -174,15 +209,106 @@ final class GraphServiceTest extends TestCase
             'target_deleted_at' => null,
         ]);
 
-        $graph = $this->service->build(self::CANVAS, 'user-1');
+        $graph = $this->service->build(self::CANVAS, 'user-1', 'owner');
 
         $this->assertSame([], $graph['edges']);
     }
 
     public function testEmptyCanvasProducesEmptyPayload(): void
     {
-        $graph = $this->service->build('no-such-canvas', null);
+        $graph = $this->service->build('no-such-canvas', null, 'viewer');
 
         $this->assertSame(['nodes' => [], 'edges' => [], 'tags' => []], $graph);
+    }
+
+    // --- R12: состояния removed ---
+
+    public function testIndirectEdgeToSoftDeletedTargetKeepsTargetIdForEditor(): void
+    {
+        $this->notes->softDelete('note-2');
+        $this->indirectLinks->add([
+            'id' => 'il-soft',
+            'from_note_id' => 'note-1',
+            'to_note_id' => 'note-2',
+            'raw_target' => '[[note-2]]',
+            'resolved' => true,
+            'target_canvas_id' => self::CANVAS,
+            'target_deleted_at' => '2026-11-16 00:00:00+00',
+        ]);
+
+        foreach (['owner', 'editor'] as $role) {
+            $graph = $this->service->build(self::CANVAS, 'user-1', $role);
+
+            $this->assertCount(1, $graph['edges'], 'role=' . $role);
+            $this->assertSame('removed', $graph['edges'][0]['state']);
+            $this->assertSame('note-2', $graph['edges'][0]['to'], 'to = id soft-deleted цели');
+            $this->assertSame('[[note-2]]', $graph['edges'][0]['label']);
+        }
+    }
+
+    public function testIndirectEdgeToSoftDeletedTargetIsDroppedBelowEditor(): void
+    {
+        $this->notes->softDelete('note-2');
+        $this->indirectLinks->add([
+            'id' => 'il-soft',
+            'from_note_id' => 'note-1',
+            'to_note_id' => 'note-2',
+            'raw_target' => '[[note-2]]',
+            'resolved' => true,
+            'target_canvas_id' => self::CANVAS,
+            'target_deleted_at' => '2026-11-16 00:00:00+00',
+        ]);
+
+        foreach (['viewer', 'none'] as $role) {
+            $graph = $this->service->build(self::CANVAS, 'user-1', $role);
+
+            $this->assertSame([], $graph['edges'], 'soft-deleted маркер не показывается роли ' . $role);
+        }
+    }
+
+    public function testDirectEdgeToSoftDeletedTargetIsRemovedOnlyForEditor(): void
+    {
+        $this->notes->softDelete('note-2');
+        $this->directLinks->add([
+            'id' => 'edge-soft',
+            'from_note_id' => 'note-1',
+            'to_note_id' => 'note-2',
+            'target_canvas_id' => self::CANVAS,
+            'target_deleted_at' => '2026-11-16 00:00:00+00',
+        ]);
+
+        $editor = $this->service->build(self::CANVAS, 'user-1', 'editor');
+        $this->assertCount(1, $editor['edges']);
+        $this->assertSame('removed', $editor['edges'][0]['state']);
+        $this->assertSame('note-2', $editor['edges'][0]['to']);
+        $this->assertNull($editor['edges'][0]['label'], 'у прямой ссылки нет исходного текста');
+
+        $viewer = $this->service->build(self::CANVAS, 'user-1', 'viewer');
+        $this->assertSame([], $viewer['edges']);
+    }
+
+    public function testRemovedMarkersAreHiddenFromAnonymousButShownToAnyAuthorizedRole(): void
+    {
+        $purged = [
+            'id' => 'il-purged',
+            'from_note_id' => 'note-1',
+            'to_note_id' => null,
+            'raw_target' => '[[потерянная]]',
+            'resolved' => false,
+            'deleted_target_id' => 'purged-note',
+            'target_canvas_id' => null,
+            'target_deleted_at' => null,
+        ];
+        $this->indirectLinks->add($purged);
+
+        $anonymous = $this->service->build(self::CANVAS, null, 'viewer');
+        $this->assertSame([], $anonymous['edges'], 'анониму пометки «ссылка удалена» не показываются');
+
+        // purged-пометка положена любому авторизованному, включая роль none
+        $none = $this->service->build(self::CANVAS, 'user-1', 'none');
+        $this->assertCount(1, $none['edges']);
+        $this->assertSame('removed', $none['edges'][0]['state']);
+        $this->assertNull($none['edges'][0]['to']);
+        $this->assertSame('[[потерянная]]', $none['edges'][0]['label']);
     }
 }

@@ -32,13 +32,24 @@ final class IndirectLinkRepository implements IndirectLinkRepositoryInterface
         ]);
     }
 
+    public function unlinkTarget(string $toNoteId): void
+    {
+        // docs/data-model.md:148 — точный SQL контракта purge.
+        $stmt = $this->db->pdo()->prepare(
+            'UPDATE indirect_links SET to_note_id = NULL, deleted_target_id = :id, resolved = false'
+            . ' WHERE to_note_id = :id'
+        );
+        $stmt->execute(['id' => $toNoteId]);
+    }
+
     /**
      * Outgoing wikilinks of the given source notes, with the target's canvas
      * and deletion state so the caller can tell apart:
-     *  - target missing (purged / never resolved)  → «ссылка удалена»
-     *  - target visible                             → edge ok
-     *  - target soft-deleted in the same canvas     → «ссылка удалена» (restore marker)
-     *  - target in another canvas                   → edge dropped entirely
+     *  - target missing (purged, deleted_target_id set) → «ссылка удалена»
+     *  - target missing (never resolved, typo)          → no edge at all
+     *  - target visible                                 → edge ok
+     *  - target soft-deleted in the same canvas         → «ссылка удалена» (restore marker)
+     *  - target in another canvas                       → edge dropped entirely
      *
      * @param list<string> $fromNoteIds
      * @return list<array<string,mixed>>
@@ -52,6 +63,7 @@ final class IndirectLinkRepository implements IndirectLinkRepositoryInterface
         $in = implode(',', array_fill(0, count($fromNoteIds), '?'));
         $stmt = $this->db->pdo()->prepare(
             'SELECT il.id, il.from_note_id, il.to_note_id, il.raw_target, il.resolved,'
+            . ' il.deleted_target_id,'
             . ' t.canvas_id AS target_canvas_id, t.deleted_at AS target_deleted_at'
             . ' FROM indirect_links il LEFT JOIN notes t ON t.id = il.to_note_id'
             . " WHERE il.from_note_id IN ($in)"

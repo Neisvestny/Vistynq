@@ -414,6 +414,12 @@ final class NoteLifecycleTest extends IntegrationTestCase
         $targetId = $this->createNote($this->canvasId, $this->ownerId, 'Цель purge');
         $sourceId = $this->createNote($this->canvasId, $this->ownerId, 'Источник');
         $linkId = $this->insertIndirectLink($sourceId, $targetId, '[[Цель purge]]', true);
+        // Прямая ссылка на ту же цель: каскад FK ON DELETE CASCADE (0002)
+        $directId = $this->insertDirectLink($sourceId, $targetId, $this->ownerId);
+        // Опечатка: не разрешалась и не стиралась — purge её не трогает
+        $typoId = $this->insertIndirectLink($sourceId, $targetId, '[[Опечатка]]', false);
+        $this->db->pdo()->prepare('UPDATE indirect_links SET to_note_id = NULL WHERE id = :id')
+            ->execute(['id' => $typoId]);
 
         $purge = $this->noteController->purge($this->request(
             'DELETE',
@@ -434,10 +440,25 @@ final class NoteLifecycleTest extends IntegrationTestCase
         $this->assertSame('Цель purge', $tombstone[0]['title_snapshot']);
         $this->assertSame($this->canvasId, $tombstone[0]['canvas_id']);
 
-        $this->assertNull(
-            $this->rows('SELECT to_note_id FROM indirect_links WHERE id = :id', ['id' => $linkId])[0]['to_note_id'],
-            'после purge ссылка становится «ссылка удалена» (FK ON DELETE SET NULL)',
+        // docs/data-model.md:148 — косвенная ссылка отвязана и помечена
+        $indirect = $this->rows('SELECT * FROM indirect_links WHERE id = :id', ['id' => $linkId]);
+        $this->assertCount(1, $indirect, 'строка косвенной ссылки сохраняется');
+        $this->assertNull($indirect[0]['to_note_id'], 'to_note_id = NULL после purge');
+        $this->assertSame($targetId, $indirect[0]['deleted_target_id'], 'deleted_target_id указывает на стёртую цель');
+        $this->assertFalse($this->pdoBool($indirect[0]['resolved']), 'resolved = false после purge');
+
+        // Прямая ссылка уходит каскадом вместе с заметкой
+        $this->assertSame(
+            0,
+            $this->countRows('SELECT count(*) FROM direct_links WHERE id = :id', ['id' => $directId]),
+            'прямая ссылка удаляется каскадом FK ON DELETE CASCADE',
         );
+
+        // Опечатка не получает deleted_target_id: у неё ребра на графе не будет
+        $typo = $this->rows('SELECT * FROM indirect_links WHERE id = :id', ['id' => $typoId]);
+        $this->assertCount(1, $typo);
+        $this->assertNull($typo[0]['deleted_target_id'], 'purge не помечает неразрешённые ссылки');
+        $this->assertFalse($this->pdoBool($typo[0]['resolved']));
 
         $e = $this->assertApiStatus(410, fn (): Response => $this->restoreNote($targetId, $this->ownerId));
         $this->assertSame('GONE', $e->errorCode());
@@ -548,9 +569,38 @@ final class NoteLifecycleTest extends IntegrationTestCase
             'INSERT INTO indirect_links (from_note_id, to_note_id, raw_target, resolved)
              VALUES (:from, :to, :raw, :resolved) RETURNING id'
         );
-        $stmt->execute(['from' => $from, 'to' => $to, 'raw' => $rawTarget, 'resolved' => $resolved]);
+        // PDO приводит false к '' — Postgres для boolean ждёт 'true'/'false'
+        $stmt->execute([
+            'from' => $from,
+            'to' => $to,
+            'raw' => $rawTarget,
+            'resolved' => $resolved ? 'true' : 'false',
+        ]);
 
         return (string) $stmt->fetchColumn();
+    }
+
+    private function insertDirectLink(string $from, string $to, string $createdBy): string
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'INSERT INTO direct_links (from_note_id, to_note_id, created_by)
+             VALUES (:from, :to, :by) RETURNING id'
+        );
+        $stmt->execute(['from' => $from, 'to' => $to, 'by' => $createdBy]);
+
+        return (string) $stmt->fetchColumn();
+    }
+
+    /**
+     * Postgres отдаёт boolean как 't'/'f' в строковом режиме — приводим к PHP bool.
+     */
+    private function pdoBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return in_array($value, [true, 't', 'true', '1', 1], true);
     }
 
     /**

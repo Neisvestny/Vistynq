@@ -138,20 +138,85 @@ final class CanvasGraphTest extends IntegrationTestCase
 
         $removed = array_values(array_filter($indirect, static fn (array $e): bool => $e['state'] === 'removed'));
         $this->assertCount(2, $removed, 'soft-deleted цель и purged цель — «ссылка удалена»');
+
+        // Owner ≥editor: soft-deleted цель приходит с to = id (чтобы предложить
+        // «восстановить»), purged — с to = null (docs/api.md §graph, R12).
+        $byTo = [];
         foreach ($removed as $edge) {
-            $this->assertNull($edge['to']);
             $this->assertIsString($edge['label']);
             $this->assertStringStartsWith('[[', $edge['label']);
+            $byTo[$edge['to'] ?? 'null'] = $edge;
         }
-
-        $labels = array_column($removed, 'label');
-        sort($labels);
-        $this->assertSame(['[[Заметка С]]', '[[Стираемая]]'], $labels);
+        $this->assertArrayHasKey($this->noteC, $byTo, 'soft-deleted цель должна прийти с to = id');
+        $this->assertSame('[[Заметка С]]', $byTo[$this->noteC]['label']);
+        $this->assertArrayHasKey('null', $byTo, 'purged цель приходит с to = null');
+        $this->assertSame('[[Стираемая]]', $byTo['null']['label']);
 
         foreach ($indirect as $edge) {
             $this->assertNotSame($this->foreignNote, $edge['to'], 'чужая заметка не должна утекать в граф');
-            $this->assertNotSame($this->noteC, $edge['to'], 'soft-deleted цель не должна быть нодой');
         }
+    }
+
+    public function testViewerDoesNotSeeSoftDeletedMarkersButSeesPurgedOnes(): void
+    {
+        $viewerId = $this->createUser();
+        $this->grantCanvasAccess($this->canvasId, $viewerId, 'viewer');
+
+        $data = $this->graphAs($viewerId);
+        $indirect = array_values(array_filter($data['edges'], static fn (array $e): bool => $e['type'] === 'indirect'));
+
+        $removed = array_values(array_filter($indirect, static fn (array $e): bool => $e['state'] === 'removed'));
+        $this->assertCount(1, $removed, 'зритель видит только purged-пометку (to = null)');
+        $this->assertNull($removed[0]['to']);
+        $this->assertSame('[[Стираемая]]', $removed[0]['label']);
+
+        foreach ($indirect as $edge) {
+            $this->assertNotSame($this->noteC, $edge['to'], 'soft-deleted цель не показывается <editor');
+        }
+    }
+
+    public function testEditorSeesDirectEdgeToSoftDeletedTargetAsRemoved(): void
+    {
+        $this->insertDirectLink($this->noteA, $this->noteC, $this->ownerId);
+
+        $data = $this->graphAs($this->editorId);
+        $direct = array_values(array_filter($data['edges'], static fn (array $e): bool => $e['type'] === 'direct'));
+
+        $removed = array_values(array_filter($direct, static fn (array $e): bool => $e['state'] === 'removed'));
+        $this->assertCount(1, $removed, 'editor видит прямую на soft-deleted цель как removed');
+        $this->assertSame($this->noteC, $removed[0]['to'], 'to = id цели, чтобы предложить «восстановить»');
+        $this->assertNull($removed[0]['label'], 'у прямой ссылки нет исходного текста');
+
+        $ok = array_values(array_filter($direct, static fn (array $e): bool => $e['state'] === 'ok'));
+        $this->assertCount(1, $ok);
+        $this->assertSame($this->noteB, $ok[0]['to']);
+    }
+
+    public function testViewerDoesNotSeeDirectEdgeToSoftDeletedTarget(): void
+    {
+        $viewerId = $this->createUser();
+        $this->grantCanvasAccess($this->canvasId, $viewerId, 'viewer');
+        $this->insertDirectLink($this->noteA, $this->noteC, $this->ownerId);
+
+        $data = $this->graphAs($viewerId);
+        $direct = array_values(array_filter($data['edges'], static fn (array $e): bool => $e['type'] === 'direct'));
+
+        $this->assertCount(1, $direct, 'зритель не видит пометок о soft-deleted цели');
+        $this->assertSame('ok', $direct[0]['state']);
+        $this->assertSame($this->noteB, $direct[0]['to']);
+    }
+
+    public function testAnonymousSeesNoRemovedMarkersOnPublicCanvas(): void
+    {
+        $this->setCanvasAccessLevel($this->canvasId, 'public');
+
+        $data = $this->graphAs(null);
+        $removed = array_values(array_filter($data['edges'], static fn (array $e): bool => $e['state'] === 'removed'));
+
+        $this->assertSame([], $removed, 'пометки «ссылка удалена» — только авторизованным (architecture §5)');
+
+        $ok = array_values(array_filter($data['edges'], static fn (array $e): bool => $e['state'] === 'ok'));
+        $this->assertCount(2, $ok, 'ok-рёбра живой пары A→B (direct + indirect) остаются');
     }
 
     public function testEditorSeesGraphWithEditorRole(): void

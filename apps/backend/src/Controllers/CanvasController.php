@@ -60,11 +60,12 @@ final class CanvasController
         $userId = AuthMiddleware::optionalUserId($request);
         $canvasId = (string) $request->routeParam('id');
 
-        // Права и 404/403 — AccessService; сборка payload'а — GraphService.
+        // Права и 404/403 — AccessService; сборка payload'а — GraphService
+        // (роль нужна ему для маркеров soft-deleted целей, R12).
         $ctx = $this->access->getCanvasContext($canvasId, $userId);
         $canvas = Canvas::fromRow($ctx['canvas'], $ctx['role']);
 
-        $graph = $this->graph->build($canvasId, $userId);
+        $graph = $this->graph->build($canvasId, $userId, $ctx['role']);
 
         return Response::json([
             'canvas' => $canvas->toArray(),

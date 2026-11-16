@@ -6,6 +6,7 @@ namespace Vistynq\Services;
 
 use Vistynq\Models\Note;
 use Vistynq\Repositories\DeletedNoteRepositoryInterface;
+use Vistynq\Repositories\IndirectLinkRepositoryInterface;
 use Vistynq\Repositories\NoteRepositoryInterface;
 use Vistynq\Repositories\TagRepositoryInterface;
 use Vistynq\Support\ApiException;
@@ -25,6 +26,7 @@ final class NoteService
         private readonly NoteRepositoryInterface $notes,
         private readonly DeletedNoteRepositoryInterface $deletedNotes,
         private readonly TagRepositoryInterface $tags,
+        private readonly IndirectLinkRepositoryInterface $indirectLinks,
         private readonly AccessService $access,
         private readonly LinkParser $parser,
         private readonly Database $db,
@@ -256,6 +258,10 @@ final class NoteService
                 (string) $note['title'],
                 $userId,
             );
+            // До hardDelete: косвенные ссылки отвязываются и получают
+            // deleted_target_id (docs/data-model.md:148); прямые уйдут
+            // каскадом FK ON DELETE CASCADE.
+            $this->indirectLinks->unlinkTarget($noteId);
             $this->notes->hardDelete($noteId);
         });
     }

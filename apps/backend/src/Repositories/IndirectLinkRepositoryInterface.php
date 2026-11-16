@@ -15,6 +15,13 @@ interface IndirectLinkRepositoryInterface
     public function insert(string $fromNoteId, ?string $toNoteId, string $rawTarget, bool $resolved): void;
 
     /**
+     * Purge цели: в той же транзакции косвенные ссылки на стираемую заметку
+     * отвязываются и получают deleted_target_id (docs/data-model.md:148).
+     * Вызывать ДО hardDelete: иначе FK ON DELETE CASCADE удалит строки.
+     */
+    public function unlinkTarget(string $toNoteId): void;
+
+    /**
      * Outgoing wikilinks of the given source notes, with the target's canvas
      * and deletion state so the caller can tell apart:
      *  - target missing (purged / never resolved)  → «ссылка удалена»
