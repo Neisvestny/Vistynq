@@ -10,10 +10,12 @@ use Vistynq\Middleware\AuthMiddleware;
 use Vistynq\Services\NoteService;
 
 /**
- * Архив канваса и поиск (docs/ROADMAP.md R12, docs/api.md §Канвасы).
- * Архив: «неактуально» = живые is_relevant=false; «удалённые» = soft-deleted
- * плюс tombstone'ы purge. Поиск: регистронезависимый, по заголовкам и тегам,
- * без удалённых, с литеральным вводом %/_.
+ * Архив канваса и поиск (docs/ROADMAP.md R13, docs/api.md §Канвасы).
+ * Архив: обязательный ?section=, {items}: notRelevant = живые
+ * is_relevant=false, deleted = только soft-deleted (tombstone'ы purge сюда
+ * не попадают). Поиск: регистронезависимый, по заголовкам и тегам, без
+ * удалённых, с литеральным вводом %/_; ответ — SearchHit
+ * {id, title, importance, matchedTag} (docs/openapi.yaml).
  */
 final class ArchiveSearchTest extends IntegrationTestCase
 {
@@ -68,33 +70,66 @@ final class ArchiveSearchTest extends IntegrationTestCase
 
     public function testArchiveSplitsNotRelevantAndDeleted(): void
     {
-        $data = $this->archiveAs($this->ownerId);
-
-        $notRelevantIds = array_column($data['notRelevant'], 'id');
+        $notRelevant = $this->archiveAs($this->ownerId, 'notRelevant')['items'];
+        $notRelevantIds = array_column($notRelevant, 'id');
         $this->assertSame([$this->notRelevantId], $notRelevantIds, 'в «неактуально» — только живые is_relevant=false');
 
-        $deletedIds = array_column($data['deleted'], 'id');
-        $this->assertCount(2, $deletedIds, 'в «удалённые» — soft-deleted и tombstone');
-        $this->assertSame([$this->purgedId, $this->softDeletedId], $deletedIds, 'сортировка по deleted_at DESC');
-
-        // tombstone пережил purge: частичная сущность, но обязательные поля есть
-        $tombstone = $data['deleted'][0];
-        $this->assertSame('Стираемая', $tombstone['title']);
-        $this->assertSame($this->canvasId, $tombstone['canvasId']);
-        $this->assertIso8601($tombstone['deletedAt'], 'tombstone.deletedAt');
+        $deleted = $this->archiveAs($this->ownerId, 'deleted')['items'];
+        $deletedIds = array_column($deleted, 'id');
+        $this->assertSame([$this->softDeletedId], $deletedIds, 'в «удалённые» — только soft-deleted, по deleted_at DESC');
 
         // soft-deleted заметка остаётся полноценной сущностью Note
-        $softDeleted = $data['deleted'][1];
+        $softDeleted = $deleted[0];
         $this->assertSame('Удаляемая', $softDeleted['title']);
         $this->assertIso8601($softDeleted['deletedAt'], 'softDeleted.deletedAt');
         $this->assertArrayHasKey('importance', $softDeleted);
         $this->assertArrayHasKey('tagIds', $softDeleted);
     }
 
+    public function testArchiveDeletedSectionExcludesPurgedTombstones(): void
+    {
+        // Контракт (docs/api.md §archive): стёртые навсегда не показываются —
+        // tombstone переживает purge, но в выдачу не попадает.
+        $this->assertNotEmpty(
+            $this->rows('SELECT note_id FROM deleted_notes WHERE note_id = :id', ['id' => $this->purgedId]),
+            'предусловие: tombstone purge создан',
+        );
+
+        $ids = array_column($this->archiveAs($this->ownerId, 'deleted')['items'], 'id');
+        $this->assertNotContains($this->purgedId, $ids, 'tombstone не должен попадать в section=deleted');
+    }
+
+    public function testArchiveSectionIsRequiredAndValidated(): void
+    {
+        // Без section — 422 (docs/openapi.yaml: section required)
+        $this->assertApiStatus(422, fn (): Response => $this->noteController->archive($this->request(
+            'GET',
+            "/api/v1/canvases/{$this->canvasId}/archive",
+            ['id' => $this->canvasId],
+            null,
+            [],
+            [],
+            $this->ownerId,
+        )));
+
+        // Чужое значение — тоже 422, а не пустой 200
+        $this->assertApiStatus(422, fn (): Response => $this->noteController->archive($this->request(
+            'GET',
+            "/api/v1/canvases/{$this->canvasId}/archive",
+            ['id' => $this->canvasId],
+            null,
+            ['section' => 'everything'],
+            [],
+            $this->ownerId,
+        )));
+    }
+
     public function testArchiveExcludesLiveRelevantNotes(): void
     {
-        $data = $this->archiveAs($this->ownerId);
-        $ids = array_merge(array_column($data['notRelevant'], 'id'), array_column($data['deleted'], 'id'));
+        $ids = array_merge(
+            array_column($this->archiveAs($this->ownerId, 'notRelevant')['items'], 'id'),
+            array_column($this->archiveAs($this->ownerId, 'deleted')['items'], 'id'),
+        );
 
         $liveRelevant = $this->rows(
             'SELECT id FROM notes WHERE canvas_id = :c AND deleted_at IS NULL AND is_relevant = true',
@@ -107,8 +142,8 @@ final class ArchiveSearchTest extends IntegrationTestCase
 
     public function testArchiveRequiresEditor(): void
     {
-        $this->assertApiStatus(403, fn (): Response => $this->archiveAs($this->viewerId));
-        $this->assertApiStatus(404, fn (): Response => $this->archiveAs($this->strangerId));
+        $this->assertApiStatus(403, fn (): Response => $this->archiveAs($this->viewerId, 'deleted'));
+        $this->assertApiStatus(404, fn (): Response => $this->archiveAs($this->strangerId, 'deleted'));
     }
 
     public function testSearchMatchesTitleCaseInsensitively(): void
@@ -116,6 +151,7 @@ final class ArchiveSearchTest extends IntegrationTestCase
         $found = $this->searchAs('антикризис', $this->ownerId);
         $this->assertCount(1, $found);
         $this->assertSame('Антикризисный план', $found[0]['title']);
+        $this->assertNull($found[0]['matchedTag'], 'совпал заголовок → matchedTag = null');
 
         $upper = $this->searchAs('АНТИКРИЗИС', $this->ownerId);
         $this->assertCount(1, $upper, 'регистр не важен');
@@ -127,9 +163,22 @@ final class ArchiveSearchTest extends IntegrationTestCase
 
         $this->assertCount(1, $found);
         $this->assertSame('Проект X', $found[0]['title']);
-        $this->assertSame($this->canvasId, $found[0]['canvasId']);
-        $this->assertArrayHasKey('tagIds', $found[0], 'результат поиска — полная сущность Note');
-        $this->assertArrayHasKey('importance', $found[0]);
+        $this->assertSame('машинное обучение', $found[0]['matchedTag'], 'совпал тег → его имя');
+    }
+
+    public function testSearchReturnsSearchHitShapeOnly(): void
+    {
+        $hit = $this->searchAs('проект', $this->ownerId)[0];
+
+        $this->assertSame(
+            ['id', 'title', 'importance', 'matchedTag'],
+            array_keys($hit),
+            'SearchHit — ровно четыре поля (docs/openapi.yaml)',
+        );
+        $this->assertIsString($hit['id']);
+        $this->assertIsInt($hit['importance']);
+        $this->assertArrayNotHasKey('canvasId', $hit, 'полная Note не отдаётся');
+        $this->assertArrayNotHasKey('tagIds', $hit, 'полная Note не отдаётся');
     }
 
     public function testSearchExcludesDeletedAndPurged(): void
@@ -181,14 +230,14 @@ final class ArchiveSearchTest extends IntegrationTestCase
         // Автор (owner) видит приватную заметку и в архиве, и в поиске
         $this->assertContains(
             $privateId,
-            array_column($this->archiveAs($this->ownerId)['notRelevant'], 'id'),
+            array_column($this->archiveAs($this->ownerId, 'notRelevant')['items'], 'id'),
         );
         $this->assertNotSame([], $this->searchAs('секретный', $this->ownerId));
 
         // Editor канваса без note_access — не видит нигде (docs/api.md)
         $this->assertNotContains(
             $privateId,
-            array_column($this->archiveAs($this->editorId)['notRelevant'], 'id'),
+            array_column($this->archiveAs($this->editorId, 'notRelevant')['items'], 'id'),
         );
         $this->assertSame([], $this->searchAs('секретный', $this->editorId));
 
@@ -196,7 +245,7 @@ final class ArchiveSearchTest extends IntegrationTestCase
         $this->grantNoteAccess($privateId, $this->editorId, 'viewer');
         $this->assertContains(
             $privateId,
-            array_column($this->archiveAs($this->editorId)['notRelevant'], 'id'),
+            array_column($this->archiveAs($this->editorId, 'notRelevant')['items'], 'id'),
         );
         $this->assertNotSame([], $this->searchAs('секретный', $this->editorId));
 
@@ -226,14 +275,14 @@ final class ArchiveSearchTest extends IntegrationTestCase
     /**
      * @return array<string, mixed>
      */
-    private function archiveAs(string $userId): array
+    private function archiveAs(string $userId, string $section): array
     {
         $response = $this->noteController->archive($this->request(
             'GET',
             "/api/v1/canvases/{$this->canvasId}/archive",
             ['id' => $this->canvasId],
             null,
-            [],
+            ['section' => $section],
             [],
             $userId,
         ));

@@ -34,6 +34,21 @@ final class NoteController
         return Response::json($note, 201);
     }
 
+    public function fromText(Request $request): Response
+    {
+        $userId = AuthMiddleware::userId($request);
+        $canvasId = (string) $request->routeParam('id');
+
+        $note = $this->notes->createFromText(
+            $canvasId,
+            $userId,
+            $request->multipartFields(),
+            $request->multipartFile('file'),
+        );
+
+        return Response::json($note, 201);
+    }
+
     public function show(Request $request): Response
     {
         $userId = AuthMiddleware::optionalUserId($request);
@@ -101,8 +116,9 @@ final class NoteController
     {
         $userId = AuthMiddleware::userId($request);
         $canvasId = (string) $request->routeParam('id');
+        $section = (string) $request->query('section', '');
 
-        return Response::json($this->archive->get($canvasId, $userId));
+        return Response::json($this->archive->get($canvasId, $userId, $section));
     }
 
     public function search(Request $request): Response

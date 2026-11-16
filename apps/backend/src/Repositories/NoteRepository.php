@@ -249,6 +249,9 @@ final class NoteRepository implements NoteRepositoryInterface
      * Регистр не важен, Unicode — обычный LIKE по text; %/_ в запросе
      * экранируются, чтобы поиск был литеральным.
      *
+     * matched_tag: null, если совпал заголовок, иначе имя первого
+     * совпавшего тега (SearchHit, docs/openapi.yaml).
+     *
      * @return list<array<string,mixed>>
      */
     public function search(string $canvasId, ?string $userId, string $q): array
@@ -257,6 +260,10 @@ final class NoteRepository implements NoteRepositoryInterface
         [$visible, $visParams] = $this->visibilityCondition($userId);
 
         $sql = 'SELECT n.*, ' . self::TAG_IDS_AGG
+            . ', CASE WHEN lower(n.title) LIKE lower(:q) ESCAPE \'\\\' THEN NULL ELSE ('
+            . 'SELECT t.name FROM note_tags x JOIN tags t ON t.id = x.tag_id'
+            . " WHERE x.note_id = n.id AND lower(t.name) LIKE lower(:q) ESCAPE '\\'"
+            . ' ORDER BY t.name LIMIT 1) END AS matched_tag'
             . ' FROM notes n'
             . ' LEFT JOIN note_tags nt ON nt.note_id = n.id'
             . ' WHERE n.canvas_id = :canvasId AND n.deleted_at IS NULL'

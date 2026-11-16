@@ -62,7 +62,18 @@ final class Request
 
         $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? null;
 
-        return new self($method, $path, $_GET, $headers, $rawBody === false ? '' : $rawBody, $cookies, [], [], $remoteAddr);
+        // multipart/form-data: PHP сам разбирает тело в $_POST/$_FILES
+        // (php://input для multipart недоступен) — прокидуем в атрибуты.
+        $attributes = [];
+        $contentType = $headers['content-type'] ?? '';
+        if (stripos($contentType, 'multipart/form-data') === 0) {
+            $attributes['multipart'] = [
+                'fields' => $_POST,
+                'files' => $_FILES,
+            ];
+        }
+
+        return new self($method, $path, $_GET, $headers, $rawBody === false ? '' : $rawBody, $cookies, [], $attributes, $remoteAddr);
     }
 
     public function method(): string
@@ -115,6 +126,49 @@ final class Request
     public function jsonScalar(string $name): mixed
     {
         return $this->json()[$name] ?? null;
+    }
+
+    /**
+     * Поля multipart/form-data (только для запросов с таким Content-Type).
+     *
+     * @return array<string, mixed>
+     */
+    public function multipartFields(): array
+    {
+        $multipart = $this->attributes['multipart'] ?? null;
+        if (!is_array($multipart) || !is_array($multipart['fields'] ?? null)) {
+            return [];
+        }
+
+        return $multipart['fields'];
+    }
+
+    /**
+     * Одно поле multipart как строка (нестроковые значения игнорируются).
+     */
+    public function multipartField(string $name): ?string
+    {
+        $value = $this->multipartFields()[$name] ?? null;
+
+        return is_string($value) ? $value : null;
+    }
+
+    /**
+     * Одна загруженная файловая часть $_FILES или null, если её нет.
+     * Ключи как в суперглобале: name, type, tmp_name, error, size.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function multipartFile(string $name): ?array
+    {
+        $multipart = $this->attributes['multipart'] ?? null;
+        if (!is_array($multipart) || !is_array($multipart['files'] ?? null)) {
+            return null;
+        }
+
+        $file = $multipart['files'][$name] ?? null;
+
+        return is_array($file) ? $file : null;
     }
 
     /**

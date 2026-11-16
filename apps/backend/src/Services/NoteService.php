@@ -71,6 +71,62 @@ final class NoteService
     }
 
     /**
+     * POST /canvases/{id}/notes/from-text: импорт .md/.txt (docs/api.md).
+     * Порядок: права (403/404/403), затем файл (422/415/413); тело файла
+     * становится bodyMd и парсится на wikilinks той же транзакцией, что и
+     * запись тела, чтобы не остались ни заметка без линков, ни линки без
+     * тела.
+     *
+     * @param array<string, mixed> $fields поля title?, x?, y? из multipart
+     * @param array<string, mixed>|null $file $_FILES['file']
+     *
+     * @return array<string, mixed> Note (docs/openapi.yaml)
+     */
+    public function createFromText(string $canvasId, string $userId, array $fields, ?array $file): array
+    {
+        $this->access->assertVerified($userId);
+        $this->access->requireCanvasEdit($canvasId, $userId);
+
+        // 422 нет файла → 415 не .md/.txt → 413 больше 1 МБ
+        $extension = self::importExtension($file);
+        if (!in_array($extension, ['md', 'txt'], true)) {
+            throw ApiException::make(
+                415,
+                'UNSUPPORTED_MEDIA_TYPE',
+                'Поддерживаются только файлы .md и .txt',
+            );
+        }
+        $bodyMd = self::importBody($file);
+
+        Validator::assert($fields, [
+            'title' => 'string|maxLength:200',
+            'x' => 'numeric',
+            'y' => 'numeric',
+        ]);
+
+        $title = self::importTitle($fields, (string) ($file['name'] ?? ''));
+        $id = $this->notes->create(
+            $canvasId,
+            $userId,
+            $title,
+            self::numericField($fields, 'x') ?? 0.0,
+            self::numericField($fields, 'y') ?? 0.0,
+        );
+
+        $this->db->transaction(function () use ($id, $canvasId, $bodyMd): void {
+            $this->notes->updateBody($id, $bodyMd);
+            $this->parser->parseAndStore($canvasId, $id, $bodyMd);
+        });
+
+        $row = $this->notes->findById($id);
+        if ($row === null) {
+            throw ApiException::notFound();
+        }
+
+        return Note::fromRow($row, [])->toArray();
+    }
+
+    /**
      * @return array<string, mixed> NoteDetail (docs/openapi.yaml)
      */
     public function get(string $noteId, ?string $userId): array
@@ -343,5 +399,78 @@ final class NoteService
         }
 
         return is_string($value) && preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : null;
+    }
+    /** Лимит импорта из файла: 1 МБ (docs/api.md §from-text). */
+    private const MAX_IMPORT_BYTES = 1_048_576;
+
+    /**
+     * Расширение импортируемого файла в нижнем регистре.
+     * 422 — файла нет; 413 — PHP отверг по size-лимиту.
+     *
+     * @param array<string, mixed>|null $file
+     */
+    private static function importExtension(?array $file): string
+    {
+        if ($file === null) {
+            throw ApiException::validation(['file' => ['обязателен файл .md или .txt']], 'Не передан файл');
+        }
+
+        $error = is_int($file['error'] ?? null) ? $file['error'] : UPLOAD_ERR_OK;
+        if (in_array($error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+            throw ApiException::make(413, 'PAYLOAD_TOO_LARGE', 'Файл больше 1 МБ');
+        }
+
+        $name = is_string($file['name'] ?? null) ? $file['name'] : '';
+        $tmpName = is_string($file['tmp_name'] ?? null) ? $file['tmp_name'] : '';
+        if ($error !== UPLOAD_ERR_OK || $tmpName === '' || $name === '') {
+            throw ApiException::validation(['file' => ['обязателен файл .md или .txt']], 'Не передан файл');
+        }
+
+        return strtolower(pathinfo($name, PATHINFO_EXTENSION));
+    }
+
+    /**
+     * Содержимое файла — будущее bodyMd. 413 — больше 1 МБ; 422 — прочитать
+     * не удалось (файл исчез/битый tmp_name).
+     *
+     * @param array<string, mixed> $file
+     */
+    private static function importBody(array $file): string
+    {
+        $size = is_numeric($file['size'] ?? null) ? (int) $file['size'] : 0;
+        if ($size > self::MAX_IMPORT_BYTES) {
+            throw ApiException::make(413, 'PAYLOAD_TOO_LARGE', 'Файл больше 1 МБ');
+        }
+
+        $contents = @file_get_contents((string) $file['tmp_name']);
+        if ($contents === false) {
+            throw ApiException::validation(['file' => ['не удалось прочитать файл']], 'Не удалось прочитать файл');
+        }
+        if (strlen($contents) > self::MAX_IMPORT_BYTES) {
+            throw ApiException::make(413, 'PAYLOAD_TOO_LARGE', 'Файл больше 1 МБ');
+        }
+
+        return $contents;
+    }
+
+    /**
+     * Заголовок: поле title, иначе имя файла без расширения
+     * (docs/api.md §from-text).
+     *
+     * @param array<string, mixed> $fields
+     */
+    private static function importTitle(array $fields, string $fileName): string
+    {
+        $title = is_string($fields['title'] ?? null) ? trim($fields['title']) : '';
+        if ($title !== '') {
+            return $title;
+        }
+
+        $fromName = trim(pathinfo($fileName, PATHINFO_FILENAME));
+        if ($fromName !== '') {
+            return mb_substr($fromName, 0, 200);
+        }
+
+        return 'Без названия';
     }
 }

@@ -35,6 +35,7 @@ $router->add('GET', '/api/v1/canvases/{id}/archive', [NoteController::class, 'ar
 $router->add('GET', '/api/v1/canvases/{id}/search', [NoteController::class, 'search']);
 
 $router->add('POST', '/api/v1/canvases/{id}/notes', [NoteController::class, 'create']);
+$router->add('POST', '/api/v1/canvases/{id}/notes/from-text', [NoteController::class, 'fromText']);
 $router->add('PATCH', '/api/v1/canvases/{id}/nodes/{noteId}', [NoteController::class, 'updatePosition']);
 
 $router->add('GET', '/api/v1/notes/{id}', [NoteController::class, 'show']);
