@@ -54,13 +54,13 @@
 | Метод | Путь | Доступ | Описание |
 |---|---|---|---|
 | POST | `/auth/register` | все | `{email, password, displayName}` → 201; письмо верификации; refresh-кука **не** выдаётся. 409 — email занят |
-| POST | `/auth/verify-email` | все | `{token}` → 204. Подтверждает и регистрацию, и смену email; 410 если токен протух. После подтверждения `pending`-инвайты на этот email превращаются в доступы |
+| POST | `/auth/verify-email` | все | `{token}` → 200 `{ok:true}`. Подтверждает и регистрацию, и смену email; 410 если токен протух. После подтверждения `pending`-инвайты на этот email превращаются в доступы |
 | POST | `/auth/resend-verification` | все | `{email}` → всегда 202 |
 | POST | `/auth/login` | все | `{email, password}` → 200 `{user, accessToken, accessTokenExpiresIn}` + Set-Cookie refresh; 401 — неверные данные; 403 `EMAIL_NOT_VERIFIED` (UI предлагает «письмо не пришло?» → resend) |
 | POST | `/auth/refresh` | cookie | Ротация: `{user, accessToken, accessTokenExpiresIn}` + новая кука; reuse → отзыв всей family (401) |
-| POST | `/auth/logout` | auth | отзывает refresh-семью, сбрасывает куку → 204 |
+| POST | `/auth/logout` | auth | отзывает refresh-семью, сбрасывает куку → 200 `{ok:true}` |
 | POST | `/auth/forgot-password` | все | `{email}` → всегда 202; письмо со ссылкой на клиентский роут `/reset-password?token=` |
-| POST | `/auth/reset-password` | все | `{token, password}` → 204, отзывает все refresh; 410 если токен протух |
+| POST | `/auth/reset-password` | все | `{token, password}` → 200 `{ok:true}`, отзывает все refresh; 410 если токен протух |
 | GET | `/auth/me` | auth | текущий пользователь |
 | PATCH | `/profile` | auth | `{displayName?, email?}` → 200 User. Смена email: письмо на **новый** адрес, в ответе `pendingEmail`; `email` меняется после подтверждения; 409 — адрес занят |
 | POST | `/profile/avatar` | auth | multipart `file` (image ≤5 МБ) → 201 `{avatarUrl}` |

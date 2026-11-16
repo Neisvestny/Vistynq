@@ -154,8 +154,8 @@ components:
         type: { type: string, enum: [direct, indirect] }
         from: { type: string, format: uuid }
         to: { type: [string, "null"], format: uuid, description: "null — цель стёрта навсегда" }
-        state: { type: string, enum: [ok, removed], description: "removed — «ссылка удалена»: цель стёрта (to=null, только косвенные ссылки) либо в soft-delete (to=id, только ≥editor)" }
-        label: { type: [string, "null"], description: "Для state=removed — исходный текст ссылки, например [[Заметка Б]]; для state=ok — null", example: "[[Заметка Б]]" }
+        state: { type: string, enum: [ok, removed], description: "removed — «ссылка удалена»: цель стёрта (to=null, только косвенные ссылки, только авторизованным) либо в soft-delete (to=id, только ≥editor)" }
+        label: { type: [string, "null"], description: "Для state=removed косвенной ссылки — исходный текст, например [[Заметка Б]]; для прямых ссылок и state=ok — null", example: "[[Заметка Б]]" }
     Canvas:
       type: object
       properties:
@@ -272,7 +272,9 @@ paths:
         required: true
         content: { application/json: { schema: { type: object, required: [token], properties: { token: { type: string } } } } }
       responses:
-        '204': { description: Email подтверждён }
+        '200':
+          description: Email подтверждён
+          content: { application/json: { schema: { type: object, properties: { ok: { type: boolean, example: true } } } } }
         '410': { $ref: '#/components/responses/Gone' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /auth/resend-verification:
@@ -333,7 +335,9 @@ paths:
       operationId: postAuth_logout
       tags: [auth]
       responses:
-        '204': { description: "Refresh отозван, кука сброшена" }
+        '200':
+          description: "Refresh отозван, кука сброшена"
+          content: { application/json: { schema: { type: object, properties: { ok: { type: boolean, example: true } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /auth/forgot-password:
     post:
@@ -358,7 +362,9 @@ paths:
         required: true
         content: { application/json: { schema: { type: object, required: [token, password], properties: { token: { type: string }, password: { type: string, minLength: 8 } } } } }
       responses:
-        '204': { description: "Пароль сброшен, все refresh отозваны" }
+        '200':
+          description: "Пароль сброшен, все refresh отозваны"
+          content: { application/json: { schema: { type: object, properties: { ok: { type: boolean, example: true } } } } }
         '410': { $ref: '#/components/responses/Gone' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -579,6 +585,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '413': { description: "Файл больше 1 МБ", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '415': { description: "Не .md/.txt", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { $ref: '#/components/responses/ValidationError' }
   /canvases/{id}/notes/derive:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }]
     post:

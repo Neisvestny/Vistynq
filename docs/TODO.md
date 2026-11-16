@@ -6,7 +6,7 @@
 **Прогресс по этапам**:
 
 - Этап 1 Основа: 7/7
-- Этап 2 Backend: 4/13
+- Этап 2 Backend: 8/13
 - Этап 3 Backend-тесты: 1/2
 - Этап 4 Frontend: 0/12
 - Этап 5 Качество: 0/1
@@ -99,11 +99,11 @@
 ### R10 · Auth 1 (P1, ← R03, R05, R08, R09)
 
 - [x] `POST /auth/register` (письмо верификации через PHPMailer → Mailpit)
-- [ ] `POST /auth/verify-email` (регистрация и смена email) — частично: подтверждение регистрации работает (в dev скип `isDev()` убран — письмо всегда, токен читается из Mailpit), смена email (`email_change`) не реализована
+- [x] `POST /auth/verify-email` (регистрация и смена email)
 - [x] `POST /auth/resend-verification` (всегда 202)
 - [x] `POST /auth/login` (argon2id; 403 `EMAIL_NOT_VERIFIED`; access-JWT HS256, TTL 900 с)
 - [x] `GET /auth/me`
-- [ ] `PATCH /profile` (имя; email → `pendingEmail` + письмо на новый адрес) — частично: маршрут и контроллер отсутствуют, `pendingEmail` не реализован
+- [x] `PATCH /profile`
 
 ### R11 · Auth 2 (P1, ← R10)
 
@@ -119,23 +119,23 @@
 
 - [x] `AccessService`: owner / editor / viewer, `visibility`, public-канвас — `visibility` учитывается в graph/archive/search и `GET /notes/{id}` (private: author/owner/note_access)
 - [x] политика: нет доступа → 404, мало прав → 403
-- [ ] `POST/GET /canvases` (включая выданные, `myRole: none` для доступа только к заметкам) — частично: `myRole: none` недостижим
+- [x] `POST/GET /canvases` (включая выданные, `myRole: none` для доступа только к заметкам): канвасы с одним `note_access`/авторством появляются в выдаче с `myRole: none` и открываются в graph (мутации → 403); `noteCount` — только видимые мне живые заметки, `updatedAt` отдаётся
 - [x] `PATCH /canvases/{id}` и `DELETE` — только owner, hard delete каскадом (инвайты и tombstone'ы — через FK CASCADE из `0004`)
 - [x] `GraphService`: один запрос без N+1, фильтрация недоступного
-- [ ] состояния `removed` (стёртая цель — `to = null`; soft-delete — `to = id`, только ≥editor) — частично: при soft-delete цели в ребре `to = null` вместо `to = id`
+- [x] состояния `removed` (стёртая цель — `to = null`, авторизованным; soft-delete — `to = id`, только ≥editor; у прямых — тоже, `label = null`; анониму пометки не показываются)
 - [x] **Критерий:** viewer не видит чужую приватную ноду и ребро к ней
 
 ### R13 · Заметки (P1, ← R12)
 
 - [x] `POST /canvases/{id}/notes`
-- [ ] `POST /canvases/{id}/notes/from-text` (multipart `.md/.txt` ≤1 МБ) — частично: маршрут отсутствует
+- [x] `POST /canvases/{id}/notes/from-text` (multipart `.md/.txt` ≤1 МБ): поле `file` + `title?`/`x?`/`y?`, тело → `bodyMd` + парсинг ссылок, 422 без файла / 415 чужое расширение / 413 >1 МБ
 - [x] `GET /notes/{id}`, `PATCH /notes/{id}` (манифест, `isRelevant` туда-обратно)
 - [x] `PUT /notes/{id}/body`
 - [x] `PATCH /canvases/{id}/nodes/{noteId}` (x, y, width 120–800)
 - [x] `DELETE /notes/{id}` (soft) и `POST /notes/{id}/restore`
-- [ ] `DELETE /notes/{id}/purge` (tombstone, `deleted_target_id`, каскад прямых ссылок, 403 для editor заметки) — частично: при purge не заполняется `deleted_target_id`
-- [ ] `GET /canvases/{id}/archive?section=` — частично: параметр `section` игнорируется (ответ `{notRelevant, deleted}` вместо `{items, …}`)
-- [ ] `GET /canvases/{id}/search` (с `matchedTag`) — частично: `matchedTag` не возвращается
+- [x] `DELETE /notes/{id}/purge` (tombstone, `deleted_target_id` в той же транзакции по `data-model.md:148`, каскад прямых ссылок, 403 для editor заметки)
+- [x] `GET /canvases/{id}/archive?section=` — обязательный `section=notRelevant|deleted` (422 без/с чужим значением), ответ `{items}`; tombstone'ы purge в `deleted` не попадают
+- [x] `GET /canvases/{id}/search` (с `matchedTag`: null при совпадении заголовка, имя тега — при совпадении тега; ответ — `SearchHit`)
 
 ### R14 · Теги (P1, ← R12)
 
@@ -145,12 +145,12 @@
 
 ### R15 · Ссылки backend (P2, ← R13)
 
-- [ ] `POST /links/direct` (409: дубль / разные канвасы / from = to) — частично: маршрут отсутствует (нет LinkController)
-- [ ] `DELETE /links/direct/{id}`, `POST /links/direct/{id}/reverse` — частично: маршрутов нет
-- [ ] `POST /canvases/{id}/notes/derive` — частично: маршрут отсутствует
+- [x] `POST /links/direct` (409: дубль / разные канвасы / from = to)
+- [x] `DELETE /links/direct/{id}`, `POST /links/direct/{id}/reverse`
+- [x] `POST /canvases/{id}/notes/derive`
 - [x] `LinkParserService`: разбор `[[target|label]]`, резолв по uuid и заголовку
 - [x] пересоздание `indirect_links` в транзакции, дедуп по цели
-- [ ] табличные unit-тесты парсера — частично: тесты парсера отсутствуют
+- [x] табличные unit-тесты парсера
 
 ### R16 · Доступ и публикация backend (P2, ← R10, R12, R13)
 
@@ -204,7 +204,7 @@
 - [x] приватные заметки не видны (и ссылки на них)
 - [x] graph-фильтрация и состояния `removed`
 - [x] 404 vs 403
-- [ ] purge: tombstone, 410 на restore, прямые ссылки удалены, косвенные → «ссылка удалена» — частично: нет проверки удаления прямых ссылок при purge
+- [x] purge: tombstone, 410 на restore, прямые ссылки удалены (каскад FK), косвенные → `to_note_id = NULL` + `deleted_target_id` («ссылка удалена»)
 - [ ] мгновенный grant существующему пользователю; `pending` → `accepted` при подтверждении email — частично: не покрыты (InvitationService не существует)
 
 ---
