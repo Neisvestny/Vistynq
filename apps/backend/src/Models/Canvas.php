@@ -23,6 +23,7 @@ final class Canvas
         public readonly string $myRole,
         public readonly string $createdAt,
         public readonly ?int $noteCount = null,
+        public readonly ?string $updatedAt = null,
     ) {
     }
 
@@ -45,6 +46,9 @@ final class Canvas
             noteCount: isset($row['note_count']) && is_numeric($row['note_count'])
                 ? (int) $row['note_count']
                 : null,
+            updatedAt: isset($row['updated_at']) && $row['updated_at'] !== null
+                ? self::date((string) $row['updated_at'])
+                : null,
         );
     }
 
@@ -60,6 +64,7 @@ final class Canvas
      *     ownerId: string,
      *     access: array{level: string, publicSlug: string|null, myRole: string},
      *     createdAt: string,
+     *     updatedAt?: string,
      *     noteCount?: int
      * }
      */
@@ -76,6 +81,12 @@ final class Canvas
             ],
             'createdAt' => $this->createdAt,
         ];
+
+        // docs/api.md §GET /canvases: updatedAt обязателен в выдаче
+        // (openapi → Canvas); опускается только если строки неоткуда взять.
+        if ($this->updatedAt !== null) {
+            $data['updatedAt'] = $this->updatedAt;
+        }
 
         if ($this->noteCount !== null) {
             $data['noteCount'] = $this->noteCount;

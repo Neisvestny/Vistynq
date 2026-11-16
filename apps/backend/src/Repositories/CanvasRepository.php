@@ -30,6 +30,13 @@ final class CanvasRepository implements CanvasRepositoryInterface
      */
     public function findForUser(string $userId): array
     {
+        // my_role = NULL (нет canvas_access) маппится Canvas::fromRow в 'none':
+        // выдаём и канвасы с доступом только к отдельным заметкам (R12).
+        //
+        // note_count повторяет предикат NoteRepository::findGraphNotes (обе
+        // конъюнкции: есть доступ к канвасу/заметке AND заметка видима по
+        // visibility), чтобы число совпадало с числом нод в /graph для этого
+        // же пользователя и не раскрывало чужие private-заметки.
         $stmt = $this->db->pdo()->prepare(
             "SELECT c.*,
                     CASE
@@ -38,10 +45,26 @@ final class CanvasRepository implements CanvasRepositoryInterface
                         ELSE NULL
                     END as my_role,
                     (SELECT count(*) FROM notes n
-                      WHERE n.canvas_id = c.id AND n.deleted_at IS NULL) AS note_count
+                      WHERE n.canvas_id = c.id AND n.deleted_at IS NULL
+                        AND (n.author_id = :userId
+                             OR c.owner_id = :userId
+                             OR EXISTS (SELECT 1 FROM canvas_access ca2
+                                 WHERE ca2.canvas_id = c.id AND ca2.user_id = :userId)
+                             OR EXISTS (SELECT 1 FROM note_access na2
+                                 WHERE na2.note_id = n.id AND na2.user_id = :userId)
+                             OR c.access_level = 'public')
+                        AND (n.visibility = 'public'
+                             OR n.author_id = :userId
+                             OR c.owner_id = :userId
+                             OR EXISTS (SELECT 1 FROM note_access na3
+                                 WHERE na3.note_id = n.id AND na3.user_id = :userId))) AS note_count
              FROM canvases c
              LEFT JOIN canvas_access ca ON ca.canvas_id = c.id AND ca.user_id = :userId
              WHERE c.owner_id = :userId OR ca.user_id IS NOT NULL
+                OR EXISTS (SELECT 1 FROM note_access na JOIN notes n2 ON n2.id = na.note_id
+                    WHERE na.user_id = :userId AND n2.canvas_id = c.id AND n2.deleted_at IS NULL)
+                OR EXISTS (SELECT 1 FROM notes n3
+                    WHERE n3.canvas_id = c.id AND n3.author_id = :userId AND n3.deleted_at IS NULL)
              ORDER BY c.created_at DESC"
         );
         $stmt->execute(['userId' => $userId]);

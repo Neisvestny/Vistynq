@@ -109,6 +109,21 @@ final class NoteRepository implements NoteRepositoryInterface
         return is_string($role) ? $role : null;
     }
 
+    public function hasNoteAccessOnCanvas(string $canvasId, string $userId): bool
+    {
+        // Живые заметки: доступ к удалённым не делает канвас видимым —
+        // согласуется с WHERE n.deleted_at IS NULL в findForUser (R12).
+        $stmt = $this->db->pdo()->prepare(
+            'SELECT 1 FROM note_access na
+               JOIN notes n ON n.id = na.note_id
+              WHERE na.user_id = :userId AND n.canvas_id = :canvasId AND n.deleted_at IS NULL
+              LIMIT 1',
+        );
+        $stmt->execute(['userId' => $userId, 'canvasId' => $canvasId]);
+
+        return $stmt->fetch() !== false;
+    }
+
     /**
      * Nodes of GET /canvases/{id}/graph.
      *

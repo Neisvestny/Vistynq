@@ -152,6 +152,124 @@ final class CanvasCrudTest extends IntegrationTestCase
         $this->assertArrayNotHasKey('noteCount', $created, 'POST /canvases не считает заметки');
     }
 
+    public function testIndexIncludesCanvasesWithNoteAccessOnlyAsNone(): void
+    {
+        // stranger выдан доступ только к отдельной заметке (R12)
+        $granted = $this->createNote($this->canvasId, $this->ownerId, 'Выданная заметка');
+        $hidden = $this->createNote($this->canvasId, $this->ownerId, 'Невидимая приватная');
+        $this->db->pdo()->prepare("UPDATE notes SET visibility = 'private' WHERE id = :id")
+            ->execute(['id' => $hidden]);
+        $this->grantNoteAccess($granted, $this->strangerId, 'viewer');
+
+        $view = $this->json($this->canvasController->index(
+            $this->request('GET', '/api/v1/canvases', [], null, [], [], $this->strangerId),
+        ));
+
+        $item = $this->itemById($view, $this->canvasId);
+        $this->assertSame('none', $item['access']['myRole'], 'доступ только к заметкам → myRole none');
+        $this->assertSame(1, $item['noteCount'], 'noteCount = доступные мне живые заметки');
+        $this->assertArrayHasKey('updatedAt', $item, 'docs/api.md: updatedAt обязателен в выдаче');
+        $this->assertIso8601($item['updatedAt'], 'updatedAt');
+    }
+
+    public function testIndexIncludesCanvasWhereUserIsAuthorWithoutGrants(): void
+    {
+        // Грантов нет, но на канвасе осталась своя живая заметка — канвас виден,
+        // иначе заметка-сирота недостижима с дашборда.
+        $this->createNote($this->canvasId, $this->strangerId, 'Моя заметка на чужом канвасе');
+
+        $view = $this->json($this->canvasController->index(
+            $this->request('GET', '/api/v1/canvases', [], null, [], [], $this->strangerId),
+        ));
+
+        $item = $this->itemById($view, $this->canvasId);
+        $this->assertSame('none', $item['access']['myRole']);
+        $this->assertSame(1, $item['noteCount'], 'считается только своя заметка');
+    }
+
+    public function testIndexNoteCountCountsOnlyVisibleLiveNotes(): void
+    {
+        $this->createNote($this->canvasId, $this->ownerId, 'Публичная');
+        $private = $this->createNote($this->canvasId, $this->ownerId, 'Приватная');
+        $this->db->pdo()->prepare("UPDATE notes SET visibility = 'private' WHERE id = :id")
+            ->execute(['id' => $private]);
+
+        // Владелец видит обе (private — он же владелец канваса)
+        $ownerView = $this->json($this->canvasController->index(
+            $this->request('GET', '/api/v1/canvases', [], null, [], [], $this->ownerId),
+        ));
+        $this->assertSame(2, $this->itemById($ownerView, $this->canvasId)['noteCount']);
+
+        // Участникам чужая private-заметка не видна — в noteCount не идёт
+        foreach ([$this->editorId, $this->viewerId] as $userId) {
+            $view = $this->json($this->canvasController->index(
+                $this->request('GET', '/api/v1/canvases', [], null, [], [], $userId),
+            ));
+            $this->assertSame(
+                1,
+                $this->itemById($view, $this->canvasId)['noteCount'],
+                'чужие private-заметки не должны считаться',
+            );
+        }
+    }
+
+    public function testGraphOpensForNoteAccessOnlyUserWithNoneRole(): void
+    {
+        $granted = $this->createNote($this->canvasId, $this->ownerId, 'Выданная');
+        $hidden = $this->createNote($this->canvasId, $this->ownerId, 'Скрытая приватная');
+        $this->db->pdo()->prepare("UPDATE notes SET visibility = 'private' WHERE id = :id")
+            ->execute(['id' => $hidden]);
+        $this->grantNoteAccess($granted, $this->strangerId, 'viewer');
+
+        $response = $this->canvasController->graph($this->request(
+            'GET',
+            "/api/v1/canvases/{$this->canvasId}/graph",
+            ['id' => $this->canvasId],
+            null,
+            [],
+            [],
+            $this->strangerId,
+        ));
+
+        $this->assertSame(200, $response->status(), 'карточка myRole none не должна вести в 404');
+        $data = $this->json($response);
+        $this->assertSame('none', $data['canvas']['access']['myRole']);
+        $this->assertSame(
+            [$granted],
+            array_column($data['nodes'], 'id'),
+            'открывается, но ноды фильтруются: чужая private не видна',
+        );
+    }
+
+    public function testNoteAccessOnlyUserGets403Not404OnManage(): void
+    {
+        $granted = $this->createNote($this->canvasId, $this->ownerId, 'Выданная');
+        $this->grantNoteAccess($granted, $this->strangerId, 'viewer');
+
+        // Канвас виден (роль none), но прав не хватает → 403, не 404
+        $this->assertApiStatus(403, fn (): Response => $this->canvasController->update($this->request(
+            'PATCH',
+            "/api/v1/canvases/{$this->canvasId}",
+            ['id' => $this->canvasId],
+            ['title' => 'X'],
+            [],
+            [],
+            $this->strangerId,
+        )));
+
+        $this->assertApiStatus(403, fn (): Response => $this->canvasController->delete($this->request(
+            'DELETE',
+            "/api/v1/canvases/{$this->canvasId}",
+            ['id' => $this->canvasId],
+            null,
+            [],
+            [],
+            $this->strangerId,
+        )));
+
+        $this->assertNotNull($this->canvasRow($this->canvasId), 'канвас не должен удалиться');
+    }
+
     public function testUpdateTitleByOwnerReturnsCanvas(): void
     {
         $response = $this->canvasController->update($this->request(

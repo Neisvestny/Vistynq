@@ -73,7 +73,7 @@ final class FakeNoteRepository implements NoteRepositoryInterface
 
     public function softDelete(string $id): void
     {
-        if (isset($this->notes[$id]) && $this->notes[$id]['deleted_at'] === null) {
+        if (isset($this->notes[$id]) && ($this->notes[$id]['deleted_at'] ?? null) === null) {
             $this->notes[$id]['deleted_at'] = (new DateTimeImmutable())->format(DATE_ATOM);
         }
     }
@@ -93,6 +93,20 @@ final class FakeNoteRepository implements NoteRepositoryInterface
     public function findNoteAccess(string $noteId, string $userId): ?string
     {
         return $this->access[$noteId . ':' . $userId] ?? null;
+    }
+
+    public function hasNoteAccessOnCanvas(string $canvasId, string $userId): bool
+    {
+        foreach ($this->notes as $note) {
+            if ($note['canvas_id'] === $canvasId
+                && ($note['deleted_at'] ?? null) === null
+                && $this->findNoteAccess((string) $note['id'], $userId) !== null
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function findGraphNotes(string $canvasId, ?string $userId): array

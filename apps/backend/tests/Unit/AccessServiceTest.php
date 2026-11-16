@@ -151,6 +151,35 @@ final class AccessServiceTest extends TestCase
         $this->expectExceptionApi(404, fn (): mixed => $this->service->requireCanvasEdit(self::CANVAS, self::STRANGER));
     }
 
+    // --- R12: доступ только к заметкам → роль 'none' ---
+
+    public function testNoteAccessOnlyGrantsNoneRole(): void
+    {
+        $this->notes->grant(self::NOTE, self::STRANGER, 'viewer');
+
+        $ctx = $this->service->getCanvasContext(self::CANVAS, self::STRANGER);
+
+        $this->assertSame('none', $ctx['role'], 'выданный доступ только к заметкам → myRole none');
+        $this->assertSame(self::CANVAS, $ctx['canvas']['id'], 'канвас открывается для просмотра');
+    }
+
+    public function testNoteAccessOnlyUserCannotEditOrManage(): void
+    {
+        $this->notes->grant(self::NOTE, self::STRANGER, 'editor');
+
+        // Виден, но прав не хватает → 403, а не 404 (политика R11/R12).
+        $this->expectExceptionApi(403, fn (): mixed => $this->service->requireCanvasEdit(self::CANVAS, self::STRANGER));
+    }
+
+    public function testNoteAccessToSoftDeletedNoteDoesNotOpenCanvas(): void
+    {
+        $this->notes->grant(self::NOTE, self::STRANGER, 'viewer');
+        $this->notes->softDelete(self::NOTE);
+
+        // Доступ к живым заметкам закончился → канвас снова недоступен.
+        $this->expectExceptionApi(404, fn (): mixed => $this->service->getCanvasContext(self::CANVAS, self::STRANGER));
+    }
+
     // --- Контекст заметки: max(canvas, note), автор ---
 
     public function testMissingNoteIs404(): void

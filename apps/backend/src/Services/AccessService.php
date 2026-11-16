@@ -97,6 +97,12 @@ final class AccessService
             return 'viewer';
         }
 
+        // Выданный доступ только к заметкам (R12): канвас открывается с ролью
+        // 'none' — без editor/viewer-прав, ноды фильтрует findGraphNotes.
+        if ($userId !== null && $this->notes->hasNoteAccessOnCanvas($canvas['id'], $userId)) {
+            return 'none';
+        }
+
         return null;
     }
 

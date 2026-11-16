@@ -44,6 +44,13 @@ interface NoteRepositoryInterface
     public function findNoteAccess(string $noteId, string $userId): ?string;
 
     /**
+     * Есть ли у пользователя note_access хотя бы на одну живую заметку
+     * канваса: даёт роль 'none' в getCanvasContext (R12 — выданный доступ
+     * только к заметкам делает канвас видимым, но не даёт editor/viewer).
+     */
+    public function hasNoteAccessOnCanvas(string $canvasId, string $userId): bool;
+
+    /**
      * Nodes of GET /canvases/{id}/graph (visibility predicate inside).
      *
      * @return list<array<string,mixed>>
