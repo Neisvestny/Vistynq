@@ -52,6 +52,8 @@ final class FakeNoteRepository implements NoteRepositoryInterface
             'is_relevant' => true,
             'body_md' => '',
             'deleted_at' => null,
+            'created_at' => gmdate('c'),
+            'updated_at' => gmdate('c'),
         ];
 
         return $id;
@@ -179,11 +181,20 @@ final class FakeNoteRepository implements NoteRepositoryInterface
 
     public function findVisibleIdsInCanvas(string $canvasId, array $ids): array
     {
+        // Postgres сравнивает uuid без учёта регистра (550E… == 550e…),
+        // как и реальный NoteRepository: id IN (...) приводит строку к uuid.
+        $byLower = [];
+        foreach ($this->notes as $note) {
+            if ($note['canvas_id'] === $canvasId && ($note['deleted_at'] ?? null) === null) {
+                $byLower[mb_strtolower((string) $note['id'])] = (string) $note['id'];
+            }
+        }
+
         $visible = [];
         foreach ($ids as $id) {
-            $note = $this->notes[$id] ?? null;
-            if ($note !== null && $note['canvas_id'] === $canvasId && ($note['deleted_at'] ?? null) === null) {
-                $visible[] = $id;
+            $canonical = $byLower[mb_strtolower($id)] ?? null;
+            if ($canonical !== null) {
+                $visible[] = $canonical;
             }
         }
 
@@ -192,13 +203,17 @@ final class FakeNoteRepository implements NoteRepositoryInterface
 
     public function findVisibleByLowerTitles(string $canvasId, array $titles): array
     {
+        // Реальный репозиторий биндит lower(title) IN (...), поэтому входные
+        // заголовки тоже приводятся к нижнему регистру.
+        $wanted = array_flip(array_map('mb_strtolower', array_values($titles)));
+
         $byLower = [];
         foreach ($this->notes as $note) {
             if ($note['canvas_id'] !== $canvasId || ($note['deleted_at'] ?? null) !== null) {
                 continue;
             }
             $key = mb_strtolower((string) $note['title']);
-            if (in_array($key, $titles, true) && !isset($byLower[$key])) {
+            if (isset($wanted[$key]) && !isset($byLower[$key])) {
                 $byLower[$key] = (string) $note['id'];
             }
         }

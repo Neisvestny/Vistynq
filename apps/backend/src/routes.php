@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Vistynq\Controllers\AuthController;
 use Vistynq\Controllers\CanvasController;
 use Vistynq\Controllers\HealthController;
+use Vistynq\Controllers\LinkController;
 use Vistynq\Controllers\NoteController;
 use Vistynq\Controllers\ProfileController;
 use Vistynq\Controllers\TagController;
@@ -36,6 +37,7 @@ $router->add('GET', '/api/v1/canvases/{id}/search', [NoteController::class, 'sea
 
 $router->add('POST', '/api/v1/canvases/{id}/notes', [NoteController::class, 'create']);
 $router->add('POST', '/api/v1/canvases/{id}/notes/from-text', [NoteController::class, 'fromText']);
+$router->add('POST', '/api/v1/canvases/{id}/notes/derive', [NoteController::class, 'derive']);
 $router->add('PATCH', '/api/v1/canvases/{id}/nodes/{noteId}', [NoteController::class, 'updatePosition']);
 
 $router->add('GET', '/api/v1/notes/{id}', [NoteController::class, 'show']);
@@ -49,3 +51,7 @@ $router->add('GET', '/api/v1/canvases/{id}/tags', [TagController::class, 'index'
 $router->add('POST', '/api/v1/canvases/{id}/tags', [TagController::class, 'create']);
 $router->add('PATCH', '/api/v1/tags/{id}', [TagController::class, 'update']);
 $router->add('DELETE', '/api/v1/tags/{id}', [TagController::class, 'delete']);
+
+$router->add('POST', '/api/v1/links/direct', [LinkController::class, 'create']);
+$router->add('DELETE', '/api/v1/links/direct/{id}', [LinkController::class, 'delete']);
+$router->add('POST', '/api/v1/links/direct/{id}/reverse', [LinkController::class, 'reverse']);

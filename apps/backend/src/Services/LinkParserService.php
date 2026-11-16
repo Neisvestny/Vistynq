@@ -9,13 +9,13 @@ use Vistynq\Repositories\NoteRepositoryInterface;
 
 /**
  * Разбор [[wikilinks]] markdown-тела и пересоздание indirect_links
- * (docs/architecture.md §10, docs/ROADMAP.md R12/R18).
+ * (docs/architecture.md §10, docs/ROADMAP.md R15).
  *
  * Резолв цели — двумя запросами на все ссылки (uuid-цели одним IN,
  * заголовки одним IN) вместо запроса на каждую [[...]]; повторяющиеся
  * цели дают одну строку.
  */
-final class LinkParser
+final class LinkParserService
 {
     private const UUID_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
 

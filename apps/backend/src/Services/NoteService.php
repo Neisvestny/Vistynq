@@ -6,6 +6,7 @@ namespace Vistynq\Services;
 
 use Vistynq\Models\Note;
 use Vistynq\Repositories\DeletedNoteRepositoryInterface;
+use Vistynq\Repositories\DirectLinkRepositoryInterface;
 use Vistynq\Repositories\IndirectLinkRepositoryInterface;
 use Vistynq\Repositories\NoteRepositoryInterface;
 use Vistynq\Repositories\TagRepositoryInterface;
@@ -27,8 +28,9 @@ final class NoteService
         private readonly DeletedNoteRepositoryInterface $deletedNotes,
         private readonly TagRepositoryInterface $tags,
         private readonly IndirectLinkRepositoryInterface $indirectLinks,
+        private readonly DirectLinkRepositoryInterface $directLinks,
         private readonly AccessService $access,
-        private readonly LinkParser $parser,
+        private readonly LinkParserService $parser,
         private readonly Database $db,
     ) {
     }
@@ -124,6 +126,59 @@ final class NoteService
         }
 
         return Note::fromRow($row, [])->toArray();
+    }
+
+    /**
+     * POST /canvases/{id}/notes/derive: «создать от этой заметки» — новая
+     * заметка + прямой линк parent → дочерняя, одной транзакцией
+     * (docs/api.md §Заметки, openapi: 201 {note, link}).
+     *
+     * @param array<string, mixed> $data {parentNoteId, x?, y?}
+     *
+     * @return array<string, mixed> {note: Note, link: DirectLink}
+     */
+    public function derive(string $canvasId, string $userId, array $data): array
+    {
+        $this->access->assertVerified($userId);
+        $this->access->requireCanvasEdit($canvasId, $userId);
+
+        Validator::assert($data, [
+            'parentNoteId' => 'required|uuid',
+            'x' => 'numeric',
+            'y' => 'numeric',
+        ]);
+
+        $parentId = (string) $data['parentNoteId'];
+        $parent = $this->notes->findById($parentId);
+        if ($parent === null || $parent['canvas_id'] !== $canvasId) {
+            throw ApiException::notFound();
+        }
+
+        $x = self::numericField($data, 'x') ?? 0.0;
+        $y = self::numericField($data, 'y') ?? 0.0;
+
+        // Заметка и линк — одной транзакцией: не остаётся ни дочерней
+        // заметки без родителя, ни линка без заметки.
+        $childId = null;
+        $link = null;
+        $this->db->transaction(function () use ($canvasId, $userId, $parentId, $x, $y, &$childId, &$link): void {
+            $childId = $this->notes->create($canvasId, $userId, 'Без названия', $x, $y);
+            $link = $this->directLinks->insert($parentId, $childId, $userId);
+        });
+
+        $row = $childId === null ? null : $this->notes->findById($childId);
+        if ($row === null || $link === null) {
+            throw ApiException::notFound();
+        }
+
+        return [
+            'note' => Note::fromRow($row, [])->toArray(),
+            'link' => [
+                'id' => (string) $link['id'],
+                'fromNoteId' => (string) $link['from_note_id'],
+                'toNoteId' => (string) $link['to_note_id'],
+            ],
+        ];
     }
 
     /**
@@ -400,6 +455,7 @@ final class NoteService
 
         return is_string($value) && preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : null;
     }
+
     /** Лимит импорта из файла: 1 МБ (docs/api.md §from-text). */
     private const MAX_IMPORT_BYTES = 1_048_576;
 

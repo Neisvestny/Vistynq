@@ -47,4 +47,68 @@ final class DirectLinkRepository implements DirectLinkRepositoryInterface
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public function findById(string $id): ?array
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'SELECT id, from_note_id, to_note_id, created_by, created_at
+               FROM direct_links WHERE id = :id'
+        );
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public function findByEndpoints(string $fromNoteId, string $toNoteId): ?array
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'SELECT id, from_note_id, to_note_id, created_by, created_at
+               FROM direct_links
+              WHERE from_note_id = :from AND to_note_id = :to'
+        );
+        $stmt->execute(['from' => $fromNoteId, 'to' => $toNoteId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public function insert(string $fromNoteId, string $toNoteId, string $createdBy): array
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'INSERT INTO direct_links (from_note_id, to_note_id, created_by)
+             VALUES (:from, :to, :created_by)
+             RETURNING id, from_note_id, to_note_id, created_by, created_at'
+        );
+        $stmt->execute([
+            'from' => $fromNoteId,
+            'to' => $toNoteId,
+            'created_by' => $createdBy,
+        ]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : [];
+    }
+
+    public function delete(string $id): bool
+    {
+        $stmt = $this->db->pdo()->prepare('DELETE FROM direct_links WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+
+        return $stmt->rowCount() > 0;
+    }
+
+    public function swap(string $id): array
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'UPDATE direct_links
+                SET from_note_id = to_note_id, to_note_id = from_note_id
+              WHERE id = :id
+             RETURNING id, from_note_id, to_note_id, created_by, created_at'
+        );
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : [];
+    }
 }

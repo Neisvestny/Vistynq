@@ -49,6 +49,14 @@ final class NoteController
         return Response::json($note, 201);
     }
 
+    public function derive(Request $request): Response
+    {
+        $userId = AuthMiddleware::userId($request);
+        $canvasId = (string) $request->routeParam('id');
+
+        return Response::json($this->notes->derive($canvasId, $userId, $request->json()), 201);
+    }
+
     public function show(Request $request): Response
     {
         $userId = AuthMiddleware::optionalUserId($request);
