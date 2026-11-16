@@ -74,6 +74,74 @@ final class FakeUserRepository implements UserRepositoryInterface
         // Фейк не хранит смены пароля: контракт покрыт, поведение не проверяется.
     }
 
+    public function updateDisplayName(string $userId, string $displayName): void
+    {
+        $user = $this->users[$userId] ?? null;
+        if ($user === null) {
+            return;
+        }
+
+        unset($this->byEmail[$user->email]);
+        $this->users[$userId] = $this->rebuild($user, displayName: $displayName);
+        $this->byEmail[$this->users[$userId]->email] = $userId;
+    }
+
+    public function setPendingEmail(string $userId, string $email): void
+    {
+        $user = $this->users[$userId] ?? null;
+        if ($user === null) {
+            return;
+        }
+
+        $this->users[$userId] = $this->rebuild($user, pendingEmail: $email);
+    }
+
+    public function applyPendingEmail(string $userId): void
+    {
+        $user = $this->users[$userId] ?? null;
+        if ($user === null || $user->pendingEmail === null) {
+            return;
+        }
+
+        unset($this->byEmail[$user->email]);
+        $this->users[$userId] = $this->rebuild($user, email: $user->pendingEmail, clearPending: true);
+        $this->byEmail[$user->pendingEmail] = $userId;
+    }
+
+    public function emailTaken(string $email, string $exceptUserId): bool
+    {
+        foreach ($this->users as $id => $user) {
+            if ($id === $exceptUserId) {
+                continue;
+            }
+            if (strcasecmp($user->email, $email) === 0 || strcasecmp((string) $user->pendingEmail, $email) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function rebuild(
+        User $user,
+        ?string $email = null,
+        ?string $displayName = null,
+        ?string $pendingEmail = null,
+        bool $clearPending = false,
+    ): User {
+        return new User(
+            id: $user->id,
+            email: $email ?? $user->email,
+            displayName: $displayName ?? $user->displayName,
+            passwordHash: $user->passwordHash,
+            avatarAttachmentId: $user->avatarAttachmentId,
+            emailVerifiedAt: $user->emailVerifiedAt,
+            createdAt: $user->createdAt,
+            updatedAt: new DateTimeImmutable(),
+            pendingEmail: $clearPending ? null : ($pendingEmail ?? $user->pendingEmail),
+        );
+    }
+
     private function uuid(): string
     {
         $data = random_bytes(16);

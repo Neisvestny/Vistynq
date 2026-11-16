@@ -21,6 +21,7 @@ final class User
         public readonly ?DateTimeImmutable $emailVerifiedAt,
         public readonly DateTimeImmutable $createdAt,
         public readonly ?DateTimeImmutable $updatedAt = null,
+        public readonly ?string $pendingEmail = null,
     ) {
     }
 
@@ -38,6 +39,9 @@ final class User
             emailVerifiedAt: self::dateOrNull($row['email_verified_at'] ?? null),
             createdAt: self::date((string) $row['created_at']),
             updatedAt: self::dateOrNull($row['updated_at'] ?? null),
+            pendingEmail: $row['pending_email'] !== null && $row['pending_email'] !== ''
+                ? (string) $row['pending_email']
+                : null,
         );
     }
 
@@ -52,6 +56,7 @@ final class User
      * @return array{
      *     id: string,
      *     email: string,
+     *     pendingEmail: string|null,
      *     displayName: string,
      *     avatarAttachmentId: string|null,
      *     emailVerified: bool,
@@ -63,6 +68,7 @@ final class User
         return [
             'id' => $this->id,
             'email' => $this->email,
+            'pendingEmail' => $this->pendingEmail,
             'displayName' => $this->displayName,
             'avatarAttachmentId' => $this->avatarAttachmentId,
             'emailVerified' => $this->isEmailVerified(),

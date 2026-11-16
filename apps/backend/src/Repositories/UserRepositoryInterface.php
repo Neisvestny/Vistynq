@@ -22,4 +22,20 @@ interface UserRepositoryInterface
     public function markEmailVerified(string $id): void;
 
     public function updatePassword(string $userId, string $passwordHash): void;
+
+    public function updateDisplayName(string $userId, string $displayName): void;
+
+    public function setPendingEmail(string $userId, string $email): void;
+
+    /**
+     * Переносит pending_email в email (подтверждение смены адреса).
+     * Нет строки с pending_email — ничего не происходит.
+     */
+    public function applyPendingEmail(string $userId): void;
+
+    /**
+     * Занят ли email у другого пользователя: колонка email или pending_email
+     * (partial UNIQUE в 0004_align.sql).
+     */
+    public function emailTaken(string $email, string $exceptUserId): bool;
 }

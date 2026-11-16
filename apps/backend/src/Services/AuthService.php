@@ -16,6 +16,7 @@ final class AuthService
     private const RESET_TTL_SECONDS = 3600;
 
     private const PURPOSE_EMAIL_VERIFY = 'email_verify';
+    private const PURPOSE_EMAIL_CHANGE = 'email_change';
     private const PURPOSE_PASSWORD_RESET = 'password_reset';
 
     public function __construct(
@@ -58,13 +59,88 @@ final class AuthService
 
     public function verifyEmail(string $token): void
     {
-        $tokenRow = $this->authTokens->findValid(hash('sha256', $token), self::PURPOSE_EMAIL_VERIFY);
-        if ($tokenRow === null) {
+        $tokenHash = hash('sha256', $token);
+
+        $tokenRow = $this->authTokens->findValid($tokenHash, self::PURPOSE_EMAIL_VERIFY);
+        if ($tokenRow !== null) {
+            $this->authTokens->markUsed($tokenRow['id']);
+            $this->users->markEmailVerified($tokenRow['user_id']);
+
+            // hook для InvitationService: pending-инвайты на подтверждённый
+            // email превращаются в доступы (реализация — R16).
+            return;
+        }
+
+        $tokenRow = $this->authTokens->findValid($tokenHash, self::PURPOSE_EMAIL_CHANGE);
+        if ($tokenRow !== null) {
+            $this->applyEmailChange($tokenRow['id'], $tokenRow['user_id']);
+
+            return;
+        }
+
+        throw ApiException::gone('Токен недействителен или истёк');
+    }
+
+    /**
+     * Переносит pending_email в email. Пользователь остаётся верифицированным
+     * всё время (docs/data-model.md §31): адрес подтверждён по старому.
+     */
+    private function applyEmailChange(string $tokenId, string $userId): void
+    {
+        $user = $this->users->findById($userId);
+        if ($user === null || $user->pendingEmail === null) {
             throw ApiException::gone('Токен недействителен или истёк');
         }
 
-        $this->authTokens->markUsed($tokenRow['id']);
-        $this->users->markEmailVerified($tokenRow['user_id']);
+        // Гонка: между PATCH /profile и подтверждением кто-то мог занять адрес
+        // (в т.ч. зарегистрировавшись). pending_email не чистим — юзер сможет
+        // выбрать другой адрес повторным PATCH.
+        if ($this->users->emailTaken($user->pendingEmail, $userId)) {
+            throw ApiException::conflict('Email уже занят', ['email' => ['email занят']]);
+        }
+
+        $this->authTokens->markUsed($tokenId);
+        $this->users->applyPendingEmail($userId);
+    }
+
+    /**
+     * PATCH /profile: имя меняется сразу, email — через pending_email
+     * (docs/api.md §Auth и профиль, architecture.md §2).
+     *
+     * @return User текущее состояние пользователя (с pendingEmail)
+     */
+    public function updateProfile(string $userId, ?string $displayName, ?string $email): User
+    {
+        $user = $this->users->findById($userId);
+        if ($user === null) {
+            throw ApiException::unauthorized();
+        }
+
+        if ($displayName !== null && $displayName !== $user->displayName) {
+            $this->users->updateDisplayName($userId, $displayName);
+        }
+
+        if ($email !== null && strcasecmp($email, $user->email) !== 0) {
+            if ($this->users->emailTaken($email, $userId)) {
+                throw ApiException::conflict('Email уже занят', ['email' => ['email занят']]);
+            }
+
+            $this->users->setPendingEmail($userId, $email);
+
+            // Старый токен смены недействителен: подтверждается последний адрес.
+            $this->authTokens->invalidatePending($userId, self::PURPOSE_EMAIL_CHANGE);
+            $token = bin2hex(random_bytes(32));
+            $this->authTokens->create($userId, self::PURPOSE_EMAIL_CHANGE, hash('sha256', $token), self::VERIFY_TTL_SECONDS);
+
+            $this->mail->sendEmailChangeEmail($email, $token);
+        }
+
+        $updated = $this->users->findById($userId);
+        if ($updated === null) {
+            throw ApiException::unauthorized();
+        }
+
+        return $updated;
     }
 
     public function resendVerification(string $email): void

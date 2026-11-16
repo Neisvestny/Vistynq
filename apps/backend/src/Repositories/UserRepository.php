@@ -64,4 +64,37 @@ final class UserRepository implements UserRepositoryInterface
         $stmt = $this->db->pdo()->prepare('UPDATE users SET password_hash = :password_hash, updated_at = now() WHERE id = :id');
         $stmt->execute(['id' => $userId, 'password_hash' => $passwordHash]);
     }
+
+    public function updateDisplayName(string $userId, string $displayName): void
+    {
+        $stmt = $this->db->pdo()->prepare('UPDATE users SET display_name = :display_name, updated_at = now() WHERE id = :id');
+        $stmt->execute(['id' => $userId, 'display_name' => $displayName]);
+    }
+
+    public function setPendingEmail(string $userId, string $email): void
+    {
+        $stmt = $this->db->pdo()->prepare('UPDATE users SET pending_email = :pending_email, updated_at = now() WHERE id = :id');
+        $stmt->execute(['id' => $userId, 'pending_email' => $email]);
+    }
+
+    public function applyPendingEmail(string $userId): void
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'UPDATE users SET email = pending_email, pending_email = NULL, updated_at = now()
+              WHERE id = :id AND pending_email IS NOT NULL',
+        );
+        $stmt->execute(['id' => $userId]);
+    }
+
+    public function emailTaken(string $email, string $exceptUserId): bool
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'SELECT 1 FROM users
+              WHERE (email = :email OR pending_email = :email) AND id <> :id
+              LIMIT 1',
+        );
+        $stmt->execute(['email' => $email, 'id' => $exceptUserId]);
+
+        return $stmt->fetch() !== false;
+    }
 }

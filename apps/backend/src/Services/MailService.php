@@ -34,6 +34,28 @@ final class MailService
         );
     }
 
+    /**
+     * Письмо на **новый** адрес с токеном purpose=email_change
+     * (docs/architecture.md §2: email меняется после POST /auth/verify-email).
+     */
+    public function sendEmailChangeEmail(string $to, string $token): void
+    {
+        $link = $this->config->frontendUrl() . '/verify-email?token=' . rawurlencode($token);
+
+        $this->send(
+            $to,
+            'Подтвердите смену email — Vistynq',
+            sprintf(
+                "Здравствуйте!\n\nПодтвердите смену email, перейдя по ссылке:\n%s\n\nСсылка действует 1 час. Если вы не запрашивали смену — проигнорируйте письмо.\n",
+                $link,
+            ),
+            sprintf(
+                '<p>Здравствуйте!</p><p>Подтвердите смену email: <a href="%s">Подтвердить</a></p><p>Ссылка действует 1 час. Если вы не запрашивали смену — проигнорируйте письмо.</p>',
+                htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+            ),
+        );
+    }
+
     public function sendPasswordResetEmail(string $to, string $token): void
     {
         $link = $this->config->frontendUrl() . '/reset-password?token=' . rawurlencode($token);
