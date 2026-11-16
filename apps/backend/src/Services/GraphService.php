@@ -50,6 +50,7 @@ final class GraphService
                 'title' => (string) $row['title'],
                 'importance' => (int) $row['importance'],
                 'isRelevant' => (bool) $row['is_relevant'],
+                'visibility' => (string) ($row['visibility'] ?? 'public'),
                 'x' => (float) $row['x'],
                 'y' => (float) $row['y'],
                 'width' => (int) $row['width'],

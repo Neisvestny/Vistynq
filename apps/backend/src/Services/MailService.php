@@ -10,7 +10,7 @@ use Vistynq\Config\Config;
 /**
  * SMTP outbound mail (dev: Mailpit on SMTP_HOST:SMTP_PORT).
  */
-final class MailService
+final class MailService implements MailServiceInterface
 {
     public function __construct(private readonly Config $config)
     {
@@ -72,6 +72,80 @@ final class MailService
                 htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
             ),
         );
+    }
+
+    public function sendAccessGrantedEmail(
+        string $to,
+        string $resourceType,
+        string $resourceTitle,
+        string $role,
+        string $link,
+    ): void {
+        $target = self::resourceTarget($resourceType);
+        $roleLabel = self::roleLabel($role);
+        $safeTitle = htmlspecialchars($resourceTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeLink = htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $this->send(
+            $to,
+            'Вам открыли доступ — Vistynq',
+            sprintf(
+                "Здравствуйте!\n\nВам открыли доступ (%s) к %s «%s».\n\nОткрыть: %s\n",
+                $roleLabel,
+                $target,
+                $resourceTitle,
+                $link,
+            ),
+            sprintf(
+                '<p>Здравствуйте!</p><p>Вам открыли доступ (%s) к %s «%s».</p><p><a href="%s">Открыть</a></p>',
+                $roleLabel,
+                $target,
+                $safeTitle,
+                $safeLink,
+            ),
+        );
+    }
+
+    public function sendAccessInviteEmail(
+        string $to,
+        string $resourceType,
+        string $resourceTitle,
+        string $role,
+        string $link,
+    ): void {
+        $target = self::resourceTarget($resourceType);
+        $roleLabel = self::roleLabel($role);
+        $safeTitle = htmlspecialchars($resourceTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeLink = htmlspecialchars($link, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $this->send(
+            $to,
+            'Приглашение в Vistynq',
+            sprintf(
+                "Здравствуйте!\n\nВас пригласили (%s) к %s «%s».\n\nЗарегистрируйтесь и подтвердите email, чтобы получить доступ: %s\n",
+                $roleLabel,
+                $target,
+                $resourceTitle,
+                $link,
+            ),
+            sprintf(
+                '<p>Здравствуйте!</p><p>Вас пригласили (%s) к %s «%s».</p><p><a href="%s">Зарегистрироваться</a></p>',
+                $roleLabel,
+                $target,
+                $safeTitle,
+                $safeLink,
+            ),
+        );
+    }
+
+    private static function resourceTarget(string $resourceType): string
+    {
+        return $resourceType === 'note' ? 'заметке' : 'канвасу';
+    }
+
+    private static function roleLabel(string $role): string
+    {
+        return $role === 'editor' ? 'редактирование' : 'просмотр';
     }
 
     private function send(string $to, string $subject, string $text, string $html): void

@@ -22,6 +22,7 @@ final class AuthMiddleware implements MiddlewareInterface
         '/api/v1/auth/logout',
         '/api/v1/auth/forgot-password',
         '/api/v1/auth/reset-password',
+        '/api/v1/shared',
     ];
 
     public function __construct(private readonly JwtService $jwt)

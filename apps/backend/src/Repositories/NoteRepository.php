@@ -138,7 +138,8 @@ final class NoteRepository implements NoteRepositoryInterface
      */
     public function findGraphNotes(string $canvasId, ?string $userId): array
     {
-        $select = 'SELECT n.id, n.title, n.importance, n.is_relevant, n.x, n.y, n.width, n.deleted_at, n.author_id'
+        $select = 'SELECT n.id, n.title, n.importance, n.is_relevant, n.visibility,'
+            . ' n.x, n.y, n.width, n.deleted_at, n.author_id'
             . ' FROM notes n WHERE n.canvas_id = :canvasId AND n.deleted_at IS NULL';
 
         [$visible, $visParams] = $this->visibilityCondition($userId);
@@ -325,6 +326,60 @@ final class NoteRepository implements NoteRepositoryInterface
         $stmt = $this->db->pdo()->prepare(
             'SELECT id, lower(title) AS lt FROM notes'
             . " WHERE canvas_id = ? AND deleted_at IS NULL AND lower(title) IN ($in)"
+            . ' ORDER BY created_at'
+        );
+        $stmt->execute(array_merge([$canvasId], array_map('mb_strtolower', array_values($titles))));
+
+        $byLower = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $key = mb_strtolower((string) $row['lt']);
+            if (!isset($byLower[$key])) {
+                $byLower[$key] = (string) $row['id'];
+            }
+        }
+
+        return $byLower;
+    }
+
+    public function setVisibility(string $noteId, string $visibility): void
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'UPDATE notes SET visibility = :visibility, updated_at = now() WHERE id = :id'
+        );
+        $stmt->execute(['visibility' => $visibility, 'id' => $noteId]);
+    }
+
+    public function findPublicIdsInCanvas(string $canvasId, array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $this->db->pdo()->prepare(
+            "SELECT id FROM notes
+              WHERE canvas_id = ? AND deleted_at IS NULL AND visibility = 'public'
+                AND id IN ($in)"
+        );
+        $stmt->execute(array_merge([$canvasId], array_values($ids)));
+
+        return array_values(array_map(
+            static fn (array $row): string => (string) $row['id'],
+            $stmt->fetchAll(PDO::FETCH_ASSOC),
+        ));
+    }
+
+    public function findPublicByLowerTitles(string $canvasId, array $titles): array
+    {
+        if ($titles === []) {
+            return [];
+        }
+
+        $in = implode(',', array_fill(0, count($titles), '?'));
+        $stmt = $this->db->pdo()->prepare(
+            'SELECT id, lower(title) AS lt FROM notes'
+            . " WHERE canvas_id = ? AND deleted_at IS NULL AND visibility = 'public'"
+            . " AND lower(title) IN ($in)"
             . ' ORDER BY created_at'
         );
         $stmt->execute(array_merge([$canvasId], array_map('mb_strtolower', array_values($titles))));

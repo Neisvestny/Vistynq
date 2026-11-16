@@ -21,6 +21,7 @@ final class Note
         public readonly string $title,
         public readonly int $importance,
         public readonly bool $isRelevant,
+        public readonly string $visibility,
         public readonly array $tagIds,
         public readonly float $x,
         public readonly float $y,
@@ -47,6 +48,7 @@ final class Note
             title: (string) $row['title'],
             importance: (int) $row['importance'],
             isRelevant: (bool) $row['is_relevant'],
+            visibility: (string) ($row['visibility'] ?? 'public'),
             tagIds: $tags,
             x: (float) $row['x'],
             y: (float) $row['y'],
@@ -62,7 +64,8 @@ final class Note
      *
      * @return array{
      *     id: string, canvasId: string, authorId: string, title: string,
-     *     importance: int, isRelevant: bool, tagIds: list<string>,
+     *     importance: int, isRelevant: bool, visibility: string,
+     *     tagIds: list<string>,
      *     x: float, y: float, width: int,
      *     createdAt: string, updatedAt: string, deletedAt: string|null
      * }
@@ -76,6 +79,7 @@ final class Note
             'title' => $this->title,
             'importance' => $this->importance,
             'isRelevant' => $this->isRelevant,
+            'visibility' => $this->visibility,
             'tagIds' => $this->tagIds,
             'x' => $this->x,
             'y' => $this->y,

@@ -154,14 +154,14 @@
 
 ### R16 · Доступ и публикация backend (P2, ← R10, R12, R13)
 
-- [ ] `PUT /canvases/{id}/access-level` (новый slug / обнуление)
-- [ ] `PUT /notes/{id}/visibility`
-- [ ] `POST …/access/invite`: аккаунт есть → мгновенный grant + письмо; нет → `pending`
-- [ ] `GET …/access`, `PATCH/DELETE …/access/{userId}`, `DELETE …/invitations/{invitationId}`
-- [ ] `InvitationService`: `pending` → `accepted` при подтверждении email
-- [ ] только owner/author выдают и меняют доступ
-- [ ] `GET /shared/canvases/{slug}` (только публичные заметки, без `removed`-рёбер)
-- [ ] `GET /shared/canvases/{slug}/notes/{noteId}`
+- [x] `PUT /canvases/{id}/access-level` (новый slug / обнуление)
+- [x] `PUT /notes/{id}/visibility`
+- [x] `POST …/access/invite`: аккаунт есть → мгновенный grant + письмо; нет → `pending`
+- [x] `GET …/access`, `PATCH/DELETE …/access/{userId}`, `DELETE …/invitations/{invitationId}`
+- [x] `InvitationService`: `pending` → `accepted` при подтверждении email
+- [x] только owner/author выдают и меняют доступ
+- [x] `GET /shared/canvases/{slug}` (только публичные заметки, без `removed`-рёбер)
+- [x] `GET /shared/canvases/{slug}/notes/{noteId}`
 
 ### R17 · Storage и файлы (P2, ← R08, R13)
 

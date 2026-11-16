@@ -15,6 +15,8 @@ final class RouterUuidTest extends TestCase
         $router->add('GET', '/api/v1/canvases/{id}', fn () => null);
         $router->add('PATCH', '/api/v1/canvases/{id}/nodes/{noteId}', fn () => null);
         $router->add('GET', '/api/v1/notes/{id}', fn () => null);
+        $router->add('GET', '/api/v1/shared/canvases/{slug}', fn () => null);
+        $router->add('GET', '/api/v1/shared/canvases/{slug}/notes/{noteId}', fn () => null);
 
         return $router;
     }
@@ -76,6 +78,30 @@ final class RouterUuidTest extends TestCase
 
         $this->expectException(ApiException::class);
         $this->expectExceptionCode(404);
+        $router->match($req);
+    }
+
+    public function testPublicSlugIsNotValidatedAsUuid(): void
+    {
+        // R16: {slug} — hex-строка, а не UUID; валидация slug — в SharedService.
+        $router = $this->makeRouter();
+        $req = $this->request('GET', '/api/v1/shared/canvases/deadbeef00112233');
+
+        $match = $router->match($req);
+        $this->assertNotNull($match);
+        $this->assertSame('deadbeef00112233', $match[1]['slug']);
+    }
+
+    public function testPublicNoteIdStillValidatedAsUuid(): void
+    {
+        $router = $this->makeRouter();
+        $req = $this->request(
+            'GET',
+            '/api/v1/shared/canvases/deadbeef00112233/notes/not-a-uuid',
+        );
+
+        $this->expectException(ApiException::class);
+        $this->expectExceptionCode(400);
         $router->match($req);
     }
 }

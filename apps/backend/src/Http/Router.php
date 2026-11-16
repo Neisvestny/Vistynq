@@ -74,14 +74,18 @@ final class Router
     }
 
     /**
-     * Все route-параметры бэкенда — UUID. Некорректный UUID → 400 вместо 500
-     * от PostgreSQL downstream.
+     * Все route-параметры бэкенда — UUID, кроме публичного {slug}
+     * (R16): он не UUID, а hex-строка, и валидируется в SharedService.
+     * Некорректный UUID → 400 вместо 500 от PostgreSQL downstream.
      *
      * @param array<string, mixed> $vars
      */
     private function validateUuidRouteParams(array $vars): void
     {
-        foreach ($vars as $value) {
+        foreach ($vars as $name => $value) {
+            if ($name === 'slug') {
+                continue;
+            }
             if (!is_string($value) || $value === '') {
                 continue;
             }

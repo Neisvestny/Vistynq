@@ -75,7 +75,7 @@ final class ProfileEmailChangeTest extends IntegrationTestCase
         $this->assertSame(200, $login->status());
 
         // 3. письмо смены пришло на НОВЫЙ адрес, токен подтверждает смену
-        $token = $this->fetchTokenFromMailpit($newEmail);
+        $token = $this->fetchVerifyTokenFromMailpit($newEmail);
         $verify = $this->auth->verifyEmail($this->jsonRequest('/api/v1/auth/verify-email', ['token' => $token]));
         $this->assertSame(200, $verify->status());
 
@@ -105,7 +105,7 @@ final class ProfileEmailChangeTest extends IntegrationTestCase
         $second = sprintf('r10-second-%s@example.local', bin2hex(random_bytes(6)));
 
         $this->patchProfile(['email' => $first]);
-        $staleToken = $this->fetchTokenFromMailpit($first);
+        $staleToken = $this->fetchVerifyTokenFromMailpit($first);
 
         // Новый PATCH перезаписывает pending_email и отзывает старый токен
         $this->patchProfile(['email' => $second]);
@@ -117,7 +117,7 @@ final class ProfileEmailChangeTest extends IntegrationTestCase
         );
 
         // Актуальным токеном (на второй адрес) смена проходит
-        $token = $this->fetchTokenFromMailpit($second);
+        $token = $this->fetchVerifyTokenFromMailpit($second);
         $verify = $this->auth->verifyEmail($this->jsonRequest('/api/v1/auth/verify-email', ['token' => $token]));
         $this->assertSame(200, $verify->status());
 
@@ -206,7 +206,7 @@ final class ProfileEmailChangeTest extends IntegrationTestCase
         $this->userId = (string) $stmt->fetchColumn();
         $this->trackUserId($this->userId);
 
-        $verifyToken = $this->fetchTokenFromMailpit($this->email);
+        $verifyToken = $this->fetchVerifyTokenFromMailpit($this->email);
         $verify = $this->auth->verifyEmail($this->jsonRequest('/api/v1/auth/verify-email', ['token' => $verifyToken]));
         $this->assertSame(200, $verify->status());
 
@@ -244,38 +244,4 @@ final class ProfileEmailChangeTest extends IntegrationTestCase
         return $this->request('POST', $path, [], $json);
     }
 
-    /**
-     * Токен подтверждения из письма в Mailpit, адресованного $email.
-     */
-    private function fetchTokenFromMailpit(string $email): string
-    {
-        $api = rtrim((string) (getenv('MAILPIT_API') ?: 'http://127.0.0.1:8025'), '/');
-
-        $search = @file_get_contents(
-            $api . '/api/v1/search?query=' . rawurlencode('to:' . $email) . '&limit=10',
-        );
-        $this->assertIsString(
-            $search,
-            'Mailpit API недоступен на ' . $api . ' — нужен сервис mailpit (docker compose up -d mailpit)',
-        );
-
-        $decoded = json_decode($search, true);
-        $messages = is_array($decoded) ? ($decoded['messages'] ?? []) : [];
-        $this->assertNotSame([], $messages, 'письмо с подтверждением не найдено в Mailpit для ' . $email);
-
-        $id = (string) ($messages[0]['ID'] ?? '');
-        $raw = @file_get_contents($api . '/api/v1/message/' . rawurlencode($id));
-        $this->assertIsString($raw, 'не удалось получить письмо ' . $id . ' из Mailpit');
-
-        $message = json_decode($raw, true);
-        $body = is_array($message) ? (string) ($message['Text'] ?? '') : '';
-        $this->assertMatchesRegularExpression(
-            '~verify-email\?token=([0-9a-f]{64})~',
-            $body,
-            'в тексте письма нет ссылки /verify-email?token=…',
-        );
-        preg_match('~verify-email\?token=([0-9a-f]{64})~', $body, $matches);
-
-        return $matches[1];
-    }
 }

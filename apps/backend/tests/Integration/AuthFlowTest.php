@@ -271,7 +271,7 @@ final class AuthFlowTest extends IntegrationTestCase
      */
     private function verifyEmailViaMailpit(): void
     {
-        $token = $this->fetchVerifyTokenFromMailpit();
+        $token = $this->fetchVerifyTokenFromMailpit($this->email);
 
         $response = $this->auth->verifyEmail($this->request(
             'POST',
@@ -282,44 +282,6 @@ final class AuthFlowTest extends IntegrationTestCase
 
         $this->assertSame(200, $response->status());
         $this->assertSame(['ok' => true], $this->json($response));
-    }
-
-    /**
-     * Ищет письмо «Подтвердите email» в Mailpit (SMTP-приёмник dev/CI) и
-     * достаёт из него 64-символьный токен ссылки /verify-email?token=….
-     */
-    private function fetchVerifyTokenFromMailpit(): string
-    {
-        $api = rtrim((string) (getenv('MAILPIT_API') ?: 'http://127.0.0.1:8025'), '/');
-
-        $search = @file_get_contents(
-            $api . '/api/v1/search?query=' . rawurlencode('to:' . $this->email) . '&limit=10',
-        );
-        $this->assertIsString(
-            $search,
-            'Mailpit API недоступен на ' . $api . ' — нужен сервис mailpit (docker compose up -d mailpit)',
-        );
-
-        $decoded = json_decode($search, true);
-        $messages = is_array($decoded) ? ($decoded['messages'] ?? []) : [];
-        $this->assertNotSame([], $messages, 'письмо с подтверждением не найдено в Mailpit для ' . $this->email);
-
-        $id = (string) ($messages[0]['ID'] ?? '');
-        $this->assertNotSame('', $id, 'у письма из Mailpit нет ID');
-
-        $raw = @file_get_contents($api . '/api/v1/message/' . rawurlencode($id));
-        $this->assertIsString($raw, 'не удалось получить письмо ' . $id . ' из Mailpit');
-
-        $message = json_decode($raw, true);
-        $body = is_array($message) ? (string) ($message['Text'] ?? '') : '';
-        $this->assertMatchesRegularExpression(
-            '~verify-email\?token=([0-9a-f]{64})~',
-            $body,
-            'в тексте письма нет ссылки /verify-email?token=…',
-        );
-        preg_match('~verify-email\?token=([0-9a-f]{64})~', $body, $matches);
-
-        return $matches[1];
     }
 
     private function loginAndGetToken(): string
@@ -357,14 +319,5 @@ final class AuthFlowTest extends IntegrationTestCase
         [$name, $value] = array_pad(explode('=', $pair, 2), 2, '');
 
         return $name === 'vistynq_refresh' ? trim($value) : '';
-    }
-
-    private function userIdByEmail(string $email): ?string
-    {
-        $stmt = $this->db->pdo()->prepare('SELECT id FROM users WHERE email = :email');
-        $stmt->execute(['email' => $email]);
-        $id = $stmt->fetchColumn();
-
-        return $id === false ? null : (string) $id;
     }
 }

@@ -80,6 +80,27 @@ final class FakeCanvasRepository implements CanvasRepositoryInterface
         return $this->access[$canvasId . ':' . $userId] ?? null;
     }
 
+    public function findByPublicSlug(string $slug): ?array
+    {
+        foreach ($this->canvases as $canvas) {
+            if (($canvas['public_slug'] ?? null) === $slug
+                && ($canvas['access_level'] ?? 'private') === 'public'
+            ) {
+                return $canvas;
+            }
+        }
+
+        return null;
+    }
+
+    public function setAccessLevel(string $canvasId, string $level, ?string $publicSlug): void
+    {
+        if (isset($this->canvases[$canvasId])) {
+            $this->canvases[$canvasId]['access_level'] = $level;
+            $this->canvases[$canvasId]['public_slug'] = $publicSlug;
+        }
+    }
+
     private function uuid(): string
     {
         $data = random_bytes(16);

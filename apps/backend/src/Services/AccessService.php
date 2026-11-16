@@ -201,6 +201,31 @@ final class AccessService
     }
 
     /**
+     * Чтение + право управлять доступом/видимостью заметки (R16):
+     * owner канваса или автор заметки. Editor канваса, даже если видит
+     * заметку, доступом не управляет (docs/api.md §Доступ).
+     *
+     * @return array{
+     *     note:array<string,mixed>,
+     *     canvas:array<string,mixed>,
+     *     role:string,
+     *     effectiveEdit:bool,
+     *     effectiveView:bool,
+     *     isAuthor:bool,
+     *     noteRole:string|null
+     * }
+     */
+    public function requireNoteAccessManage(string $noteId, string $userId): array
+    {
+        $ctx = $this->getNoteContext($noteId, $userId);
+        if ($ctx['canvas']['owner_id'] !== $userId && !$ctx['isAuthor']) {
+            throw ApiException::forbidden();
+        }
+
+        return $ctx;
+    }
+
+    /**
      * Свёртка прав заметки в одну роль для NoteDetail.myRole
      * (docs/openapi.yaml: owner | author | editor | viewer | none).
      *

@@ -43,4 +43,17 @@ interface CanvasRepositoryInterface
      * Role from canvas_access invite row, or null when no invite exists.
      */
     public function findCanvasAccess(string $canvasId, string $userId): ?string;
+
+    /**
+     * Публичный канвас по slug (R16); null — slug не существует.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function findByPublicSlug(string $slug): ?array;
+
+    /**
+     * access_level и public_slug меняются одним UPDATE: CHECK
+     * canvases_public_slug_check связывает оба значения.
+     */
+    public function setAccessLevel(string $canvasId, string $level, ?string $publicSlug): void;
 }

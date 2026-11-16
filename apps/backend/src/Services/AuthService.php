@@ -23,8 +23,9 @@ final class AuthService
         private readonly UserRepositoryInterface $users,
         private readonly AuthTokenRepositoryInterface $authTokens,
         private readonly JwtService $jwt,
-        private readonly MailService $mail,
+        private readonly MailServiceInterface $mail,
         private readonly RefreshTokenService $refreshTokens,
+        private readonly InvitationService $invitations,
     ) {
         if (!extension_loaded('sodium')) {
             throw new RuntimeException('ext-sodium is required for argon2id password hashing');
@@ -66,8 +67,14 @@ final class AuthService
             $this->authTokens->markUsed($tokenRow['id']);
             $this->users->markEmailVerified($tokenRow['user_id']);
 
-            // hook для InvitationService: pending-инвайты на подтверждённый
-            // email превращаются в доступы (реализация — R16).
+            // pending-инвайты на подтверждённый email превращаются в доступы
+            // (R16). Best-effort: подтверждение email не должно откатываться
+            // из-за сбоя выдачи доступа.
+            $user = $this->users->findById($tokenRow['user_id']);
+            if ($user !== null) {
+                $this->resolveInvitations($user->email, $user->id);
+            }
+
             return;
         }
 
@@ -92,6 +99,8 @@ final class AuthService
             throw ApiException::gone('Токен недействителен или истёк');
         }
 
+        $newEmail = $user->pendingEmail;
+
         // Гонка: между PATCH /profile и подтверждением кто-то мог занять адрес
         // (в т.ч. зарегистрировавшись). pending_email не чистим — юзер сможет
         // выбрать другой адрес повторным PATCH.
@@ -101,6 +110,19 @@ final class AuthService
 
         $this->authTokens->markUsed($tokenId);
         $this->users->applyPendingEmail($userId);
+
+        // Инвайты, отправленные на новый адрес, резолвятся после его
+        // подтверждения (R16).
+        $this->resolveInvitations($newEmail, $userId);
+    }
+
+    private function resolveInvitations(string $email, string $userId): void
+    {
+        try {
+            $this->invitations->acceptPendingForEmail($email, $userId);
+        } catch (\Throwable $e) {
+            error_log('[auth] invitation resolve failed: ' . $e->getMessage());
+        }
     }
 
     /**

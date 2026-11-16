@@ -812,6 +812,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /canvases/{id}/access/{userId}:
     parameters: [{ $ref: '#/components/parameters/CanvasId' }, { $ref: '#/components/parameters/UserId' }]
@@ -894,6 +895,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /notes/{id}/access/{userId}:
     parameters: [{ $ref: '#/components/parameters/NoteId' }, { $ref: '#/components/parameters/UserId' }]

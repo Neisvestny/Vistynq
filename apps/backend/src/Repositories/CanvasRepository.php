@@ -144,4 +144,29 @@ final class CanvasRepository implements CanvasRepositoryInterface
 
         return is_string($role) ? $role : null;
     }
+
+    public function findByPublicSlug(string $slug): ?array
+    {
+        $stmt = $this->db->pdo()->prepare(
+            "SELECT * FROM canvases WHERE public_slug = :slug AND access_level = 'public'"
+        );
+        $stmt->execute(['slug' => $slug]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public function setAccessLevel(string $canvasId, string $level, ?string $publicSlug): void
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'UPDATE canvases
+                SET access_level = :level, public_slug = :public_slug, updated_at = now()
+              WHERE id = :id'
+        );
+        $stmt->execute([
+            'level' => $level,
+            'public_slug' => $publicSlug,
+            'id' => $canvasId,
+        ]);
+    }
 }

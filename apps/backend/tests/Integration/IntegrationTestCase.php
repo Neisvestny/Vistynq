@@ -244,6 +244,73 @@ abstract class IntegrationTestCase extends TestCase
         $this->createdUserIds[] = $userId;
     }
 
+    /**
+     * Сообщения Mailpit для адреса (SMTP-приёмник dev/CI). Mailpit отдаёт
+     * новые письма первыми — на этом порядке держатся тесты email-change.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected function mailpitMessages(string $email): array
+    {
+        $api = rtrim((string) (getenv('MAILPIT_API') ?: 'http://127.0.0.1:8025'), '/');
+
+        $search = @file_get_contents(
+            $api . '/api/v1/search?query=' . rawurlencode('to:' . $email) . '&limit=50',
+        );
+        $this->assertIsString(
+            $search,
+            'Mailpit API недоступен на ' . $api . ' — нужен сервис mailpit (docker compose up -d mailpit)',
+        );
+
+        $decoded = json_decode($search, true);
+        $messages = is_array($decoded) ? ($decoded['messages'] ?? []) : [];
+        $this->assertNotSame([], $messages, 'письма не найдены в Mailpit для ' . $email);
+
+        return array_values($messages);
+    }
+
+    protected function mailpitMessageText(string $id): string
+    {
+        $api = rtrim((string) (getenv('MAILPIT_API') ?: 'http://127.0.0.1:8025'), '/');
+
+        $raw = @file_get_contents($api . '/api/v1/message/' . rawurlencode($id));
+        $this->assertIsString($raw, 'не удалось получить письмо ' . $id . ' из Mailpit');
+
+        $message = json_decode($raw, true);
+
+        return is_array($message) ? (string) ($message['Text'] ?? '') : '';
+    }
+
+    /**
+     * Токен подтверждения из письма /verify-email?token=… для адреса.
+     * Перебирает письма (новые первыми), чтобы не зависеть от соседних
+     * писем-приглашений в том же ящике.
+     */
+    protected function fetchVerifyTokenFromMailpit(string $email): string
+    {
+        foreach ($this->mailpitMessages($email) as $message) {
+            $id = (string) ($message['ID'] ?? '');
+            if ($id === '') {
+                continue;
+            }
+            $body = $this->mailpitMessageText($id);
+            if (preg_match('~verify-email\?token=([0-9a-f]{64})~', $body, $matches) === 1) {
+                return $matches[1];
+            }
+        }
+
+        $this->fail('в письмах Mailpit для ' . $email . ' нет ссылки /verify-email?token=…');
+    }
+
+    protected function userIdByEmail(string $email): ?string
+    {
+        $stmt = $this->db->pdo()->prepare('SELECT id FROM users WHERE email = :email');
+        $stmt->execute(['email' => $email]);
+        $id = $stmt->fetchColumn();
+
+        return is_string($id) ? $id : null;
+    }
+
     protected function assertIso8601(mixed $value, string $field): void
     {
         $this->assertIsString($value, $field . ' должен быть строкой');

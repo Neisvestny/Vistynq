@@ -102,6 +102,30 @@ interface NoteRepositoryInterface
     public function findVisibleByLowerTitles(string $canvasId, array $titles): array;
 
     /**
+     * PUT /notes/{id}/visibility (R16).
+     */
+    public function setVisibility(string $noteId, string $visibility): void;
+
+    /**
+     * Резолв [[uuid]]-цели для анонимного /shared: только публичные живые
+     * заметки канваса (приватные не должны раскрываться даже ссылкой).
+     *
+     * @param list<string> $ids
+     *
+     * @return list<string> подмножество $ids
+     */
+    public function findPublicIdsInCanvas(string $canvasId, array $ids): array;
+
+    /**
+     * Резолв [[Заголовок]] для анонимного /shared: только public + живые.
+     *
+     * @param list<string> $titles
+     *
+     * @return array<string, string>
+     */
+    public function findPublicByLowerTitles(string $canvasId, array $titles): array;
+
+    /**
      * @return list<array<string,mixed>>
      */
     public function findTags(string $noteId): array;

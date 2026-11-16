@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use Vistynq\Controllers\AccessController;
 use Vistynq\Controllers\AuthController;
 use Vistynq\Controllers\CanvasController;
 use Vistynq\Controllers\HealthController;
 use Vistynq\Controllers\LinkController;
 use Vistynq\Controllers\NoteController;
 use Vistynq\Controllers\ProfileController;
+use Vistynq\Controllers\SharedController;
 use Vistynq\Controllers\TagController;
 use Vistynq\Http\Router;
 
@@ -55,3 +57,22 @@ $router->add('DELETE', '/api/v1/tags/{id}', [TagController::class, 'delete']);
 $router->add('POST', '/api/v1/links/direct', [LinkController::class, 'create']);
 $router->add('DELETE', '/api/v1/links/direct/{id}', [LinkController::class, 'delete']);
 $router->add('POST', '/api/v1/links/direct/{id}/reverse', [LinkController::class, 'reverse']);
+
+// Доступ и публикация (R16): участники, инвайты, уровень публичности.
+$router->add('GET', '/api/v1/canvases/{id}/access', [AccessController::class, 'listCanvas']);
+$router->add('PUT', '/api/v1/canvases/{id}/access-level', [AccessController::class, 'setCanvasLevel']);
+$router->add('POST', '/api/v1/canvases/{id}/access/invite', [AccessController::class, 'inviteCanvas']);
+$router->add('PATCH', '/api/v1/canvases/{id}/access/{userId}', [AccessController::class, 'updateCanvasRole']);
+$router->add('DELETE', '/api/v1/canvases/{id}/access/{userId}', [AccessController::class, 'revokeCanvas']);
+$router->add('DELETE', '/api/v1/canvases/{id}/invitations/{invitationId}', [AccessController::class, 'revokeCanvasInvitation']);
+
+$router->add('GET', '/api/v1/notes/{id}/access', [AccessController::class, 'listNote']);
+$router->add('PUT', '/api/v1/notes/{id}/visibility', [AccessController::class, 'setVisibility']);
+$router->add('POST', '/api/v1/notes/{id}/access/invite', [AccessController::class, 'inviteNote']);
+$router->add('PATCH', '/api/v1/notes/{id}/access/{userId}', [AccessController::class, 'updateNoteRole']);
+$router->add('DELETE', '/api/v1/notes/{id}/access/{userId}', [AccessController::class, 'revokeNote']);
+$router->add('DELETE', '/api/v1/notes/{id}/invitations/{invitationId}', [AccessController::class, 'revokeNoteInvitation']);
+
+// Публичные read-only страницы (R16): без Bearer.
+$router->add('GET', '/api/v1/shared/canvases/{slug}', [SharedController::class, 'canvas']);
+$router->add('GET', '/api/v1/shared/canvases/{slug}/notes/{noteId}', [SharedController::class, 'note']);

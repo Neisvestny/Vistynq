@@ -346,6 +346,43 @@ final class AccessServiceTest extends TestCase
         );
     }
 
+    // --- requireNoteAccessManage: доступ/видимость — owner канваса или автор ---
+
+    public function testCanvasOwnerCanManageNoteAccess(): void
+    {
+        $ctx = $this->service->requireNoteAccessManage(self::NOTE, self::OWNER);
+
+        $this->assertSame('owner', $ctx['role']);
+    }
+
+    public function testNoteAuthorCanManageNoteAccess(): void
+    {
+        $ctx = $this->service->requireNoteAccessManage(self::NOTE, self::INVITED);
+
+        $this->assertTrue($ctx['isAuthor']);
+    }
+
+    public function testCanvasEditorCannotManageNoteAccess(): void
+    {
+        // Editor канваса видит и редактирует заметку, но не управляет доступом (R16).
+        $this->canvases->grant(self::CANVAS, self::STRANGER, 'editor');
+
+        $this->expectExceptionApi(403, fn (): mixed => $this->service->requireNoteAccessManage(self::NOTE, self::STRANGER));
+    }
+
+    public function testNoteEditorCannotManageNoteAccess(): void
+    {
+        $this->notes->grant(self::NOTE, self::STRANGER, 'editor');
+
+        $this->expectExceptionApi(403, fn (): mixed => $this->service->requireNoteAccessManage(self::NOTE, self::STRANGER));
+    }
+
+    public function testStrangerNoteAccessManageIs404(): void
+    {
+        // Не видит заметку → 404, а не 403 (политика R11).
+        $this->expectExceptionApi(404, fn (): mixed => $this->service->requireNoteAccessManage(self::NOTE, self::STRANGER));
+    }
+
     // --- describeNoteRole: свёртка в одну роль для NoteDetail.myRole ---
 
     public function testDescribeNoteRolePrefersCanvasRole(): void

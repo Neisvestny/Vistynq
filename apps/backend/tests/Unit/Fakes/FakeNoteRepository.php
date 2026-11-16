@@ -50,6 +50,7 @@ final class FakeNoteRepository implements NoteRepositoryInterface
             'width' => 200,
             'importance' => 3,
             'is_relevant' => true,
+            'visibility' => 'public',
             'body_md' => '',
             'deleted_at' => null,
             'created_at' => gmdate('c'),
@@ -210,6 +211,57 @@ final class FakeNoteRepository implements NoteRepositoryInterface
         $byLower = [];
         foreach ($this->notes as $note) {
             if ($note['canvas_id'] !== $canvasId || ($note['deleted_at'] ?? null) !== null) {
+                continue;
+            }
+            $key = mb_strtolower((string) $note['title']);
+            if (isset($wanted[$key]) && !isset($byLower[$key])) {
+                $byLower[$key] = (string) $note['id'];
+            }
+        }
+
+        return $byLower;
+    }
+
+    public function setVisibility(string $noteId, string $visibility): void
+    {
+        if (isset($this->notes[$noteId])) {
+            $this->notes[$noteId]['visibility'] = $visibility;
+        }
+    }
+
+    public function findPublicIdsInCanvas(string $canvasId, array $ids): array
+    {
+        $byLower = [];
+        foreach ($this->notes as $note) {
+            if ($note['canvas_id'] === $canvasId
+                && ($note['deleted_at'] ?? null) === null
+                && ($note['visibility'] ?? 'public') === 'public'
+            ) {
+                $byLower[mb_strtolower((string) $note['id'])] = (string) $note['id'];
+            }
+        }
+
+        $visible = [];
+        foreach ($ids as $id) {
+            $canonical = $byLower[mb_strtolower($id)] ?? null;
+            if ($canonical !== null) {
+                $visible[] = $canonical;
+            }
+        }
+
+        return $visible;
+    }
+
+    public function findPublicByLowerTitles(string $canvasId, array $titles): array
+    {
+        $wanted = array_flip(array_map('mb_strtolower', array_values($titles)));
+
+        $byLower = [];
+        foreach ($this->notes as $note) {
+            if ($note['canvas_id'] !== $canvasId
+                || ($note['deleted_at'] ?? null) !== null
+                || ($note['visibility'] ?? 'public') !== 'public'
+            ) {
                 continue;
             }
             $key = mb_strtolower((string) $note['title']);
