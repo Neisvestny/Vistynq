@@ -206,6 +206,12 @@ flowchart TD
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | почта |
 | `COOKIE_DOMAIN` (опц.), `COOKIE_SECURE` | refresh-кука `vistynq_refresh` |
 
+## XSS и рендер shared
+
+`Services\MarkdownRenderer` — escape-first: любой пользовательский текст проходит через `htmlspecialchars`, HTML-теги генерируются только из закрытого whitelist, сырой HTML из `bodyMd` не проходит никогда. Ссылки `[text](url)` допускаются только с `http/https`, остальные остаются литералом. Недоступная или неразрешённая `[[wikilink]]`-цель рендерится plain text без `href`. Поэтому `bodyHtml` на `/shared` уже санитизирован сервером.
+
+Клиент не должен доверять HTML из сети и обязан повторно санитизировать его перед `v-html`: `frontend/src/lib/sanitize.ts` (DOMPurify, whitelist под Tiptap) — точка интеграции для R28 (Tiptap) и R32 (`SharedNote`).
+
 ## Ошибки и логирование
 
 Единый обработчик: `ApiException {httpStatus, code, message, details}` → JSON `{error: {...}}`; непокрытые исключения → 500 `INTERNAL` (в prod без стека). Логирование — error_log/stdout контейнера, одна строка с context json и `requestId`, без токенов и паролей. Валидация входных параметров — точечная в Controllers через `Support\Validator`, без «магии».

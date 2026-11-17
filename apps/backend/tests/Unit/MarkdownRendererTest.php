@@ -96,4 +96,79 @@ final class MarkdownRendererTest extends TestCase
 
         $this->assertSame(['A', 'B'], $targets);
     }
+
+    public function testNonHttpLinksStayLiteral(): void
+    {
+        $html = $this->renderer->render(
+            '[a](data:text/html,<script>) [b](//evil.com) [c](mailto:a@b.c)',
+            [],
+            self::SLUG,
+        );
+
+        $this->assertStringNotContainsString('href="', $html);
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringContainsString('[a](data:text/html,&lt;script&gt;)', $html);
+        $this->assertStringContainsString('[b](//evil.com)', $html);
+        $this->assertStringContainsString('[c](mailto:a@b.c)', $html);
+    }
+
+    public function testLinkAttributeInjectionIsEscaped(): void
+    {
+        $html = $this->renderer->render('[x](https://e.com/")', [], self::SLUG);
+        $this->assertStringContainsString('href="https://e.com/&quot;"', $html);
+
+        $broken = $this->renderer->render('[y](https://e.com/" onmouseover="alert(1))', [], self::SLUG);
+        $this->assertStringNotContainsString('onmouseover="', $broken);
+        $this->assertStringNotContainsString('href=', $broken);
+        $this->assertStringNotContainsString('<script>', $broken);
+    }
+
+    public function testImageSyntaxDoesNotProduceImgTag(): void
+    {
+        $html = $this->renderer->render('![alt](https://e.com/x.png)', [], self::SLUG);
+
+        $this->assertStringNotContainsString('<img', $html);
+        $this->assertStringContainsString('<a href="https://e.com/x.png"', $html);
+    }
+
+    public function testResolvedWikilinkLabelIsEscaped(): void
+    {
+        $html = $this->renderer->render(
+            '[[Цель|"><script>alert(1)</script>]]',
+            ['цель' => self::NOTE_ID],
+            self::SLUG,
+        );
+
+        $this->assertStringContainsString('href="/shared/canvas/' . self::SLUG . '/note/' . self::NOTE_ID . '"', $html);
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+        $this->assertStringNotContainsString('<script>', $html);
+    }
+
+    public function testUnresolvedDangerousWikilinkTargetStaysPlainText(): void
+    {
+        $html = $this->renderer->render('[[javascript:alert(1)]]', [], self::SLUG);
+
+        $this->assertStringNotContainsString('<a', $html);
+        $this->assertStringNotContainsString('href=', $html);
+        $this->assertStringContainsString('javascript:alert(1)', $html);
+    }
+
+    public function testCodeBlockEscapesHtml(): void
+    {
+        $html = $this->renderer->render("```\n<script>alert(1)</script>\n```", [], self::SLUG);
+
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+        $this->assertStringNotContainsString('<script>', $html);
+    }
+
+    public function testNulBytesAreStripped(): void
+    {
+        $this->assertSame(['Цель'], $this->renderer->extractTargets("[[Ц\0ель]]"));
+
+        $html = $this->renderer->render("A\0B [[Ц\0ель]]", [], self::SLUG);
+
+        $this->assertStringNotContainsString("\0", $html);
+        $this->assertStringContainsString('AB', $html);
+        $this->assertStringContainsString('Цель', $html);
+    }
 }

@@ -54,7 +54,8 @@ final class SharedAccessTest extends IntegrationTestCase
             'UPDATE notes SET body_md = :body WHERE id = :id'
         )->execute([
             'id' => $this->notePublicId,
-            'body' => "# Открытая\n\n[[Секретная]] [[Вторая]] [[Нет такой]] <script>alert(1)</script>",
+            'body' => "# Открытая\n\n[[Секретная]] [[Вторая]] [[Нет такой]]"
+                . ' <script>alert(1)</script> <img src=x onerror=alert(1)>',
         ]);
 
         $this->tagPublicId = $this->createTag($this->canvasId, 'публичный-тег');
@@ -174,6 +175,8 @@ final class SharedAccessTest extends IntegrationTestCase
         $this->assertStringContainsString('Нет такой', $html);
         $this->assertStringNotContainsString('<script>', $html);
         $this->assertStringContainsString('&lt;script&gt;', $html);
+        $this->assertStringNotContainsString('<img', $html, 'raw HTML-теги не проходят в bodyHtml');
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $html);
     }
 
     public function testPrivateDeletedForeignAndUnknownNotesAre404(): void

@@ -6,7 +6,7 @@
 **Прогресс по этапам**:
 
 - Этап 1 Основа: 7/7
-- Этап 2 Backend: 8/13
+- Этап 2 Backend: 13/13
 - Этап 3 Backend-тесты: 1/2
 - Этап 4 Frontend: 0/12
 - Этап 5 Качество: 0/1
@@ -175,9 +175,9 @@
 
 ### R18 · XSS (P2, ← R15, R16)
 
-- [ ] `MarkdownRenderer` с санитизацией (`bodyHtml` на `/shared`)
-- [ ] недоступные `[[wikilinks]]` → plain text
-- [ ] DOMPurify в Tiptap
+- [x] `MarkdownRenderer` с санитизацией (`bodyHtml` на `/shared`) — escape-first + adversarial-тесты (R18)
+- [x] недоступные `[[wikilinks]]` → plain text
+- [ ] DOMPurify в Tiptap — helper `frontend/src/lib/sanitize.ts` и тесты готовы; подключение в Tiptap (R28) и `/shared` (R32)
 
 ### R19 · Пагинация (P2, ← R12, R13)
 

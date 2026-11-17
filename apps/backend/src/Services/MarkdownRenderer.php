@@ -16,6 +16,10 @@ namespace Vistynq\Services;
  *
  * Недоступная [[wikilink]]-цель (приватная/удалённая/чужая) превращается в
  * plain text: label, иначе raw target — без скобок и без href.
+ *
+ * R18: инварианты зафиксированы adversarial-тестами; NUL-байты вырезаются,
+ * чтобы пользовательский текст не мог подменить внутренние placeholder'ы
+ * (`\x00N\x00`), которыми inline-рендер защищает уже собранные HTML-токены.
  */
 final class MarkdownRenderer
 {
@@ -28,6 +32,7 @@ final class MarkdownRenderer
      */
     public function extractTargets(string $bodyMd): array
     {
+        $bodyMd = self::stripNul($bodyMd);
         preg_match_all(self::WIKILINK_PATTERN, $bodyMd, $matches, PREG_SET_ORDER);
         /** @var array<string, string> $targets lower(target) => first spelling */
         $targets = [];
@@ -46,6 +51,7 @@ final class MarkdownRenderer
      */
     public function render(string $bodyMd, array $resolvedByLowerTarget, string $slug): string
     {
+        $bodyMd = self::stripNul($bodyMd);
         $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $bodyMd));
         $count = count($lines);
         $blocks = [];
@@ -179,6 +185,11 @@ final class MarkdownRenderer
         }
 
         return $out;
+    }
+
+    private static function stripNul(string $value): string
+    {
+        return str_replace("\0", '', $value);
     }
 
     private static function escape(string $value): string

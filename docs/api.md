@@ -194,6 +194,8 @@ Mime определяется по содержимому (finfo), клиент�
 | GET | `/shared/canvases/{slug}` | тот же `graph`, но только публичные заметки, без `removed`-рёбер и без `access`-деталей; 404 если канвас не `public` |
 | GET | `/shared/canvases/{slug}/notes/{noteId}` | `{note, bodyHtml}` — публичная заметка публичного канваса со статичным рендером markdown; недоступные `[[wikilinks]]` → plain text; 404 для приватных |
 
+`bodyHtml` уже прошёл серверную escape-first санитизацию: сырой HTML из `bodyMd` не проходит, ссылки — только `http/https`, недоступные wikilinks остаются plain text. Клиент всё равно обязан прогнать HTML через DOMPurify перед вставкой в DOM (R18/R28/R32).
+
 Анонимы не ходят в `/canvases/*` и `/notes/*`: эти маршруты всегда требуют Bearer, а недействительный Bearer — 401.
 
 ## Матрица прав (сводно)
