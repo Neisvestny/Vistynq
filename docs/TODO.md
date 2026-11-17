@@ -165,12 +165,13 @@
 
 ### R17 · Storage и файлы (P2, ← R08, R13)
 
-- [ ] `StorageInterface`, LocalAdapter, S3Adapter (aws-sdk)
-- [ ] проверка mime по содержимому (finfo) и лимитов (image 5 МБ, audio 25 МБ)
-- [ ] ключи `canvases/{canvasId}/notes/{noteId}/{uuid}.{ext}` и `avatars/{userId}/{uuid}.{ext}`
-- [ ] `POST /notes/{id}/attachments` (201 с `url`), `GET /attachments/{id}/url`, `DELETE /attachments/{id}`
-- [ ] `POST/DELETE /profile/avatar`
-- [ ] удаление объектов S3 после коммита при удалении заметки/канваса
+- [x] `StorageInterface`, LocalAdapter, S3Adapter (aws-sdk)
+- [x] проверка mime по содержимому (finfo) и лимитов (image 5 МБ, audio 25 МБ)
+- [x] ключи `canvases/{canvasId}/notes/{noteId}/{uuid}.{ext}` и `avatars/{userId}/{uuid}.{ext}`
+- [x] `POST /notes/{id}/attachments` (201 с `url`), `GET /attachments/{id}/url`, `DELETE /attachments/{id}`
+- [x] `POST/DELETE /profile/avatar`
+- [x] удаление объектов S3 после коммита при удалении заметки/канваса
+- [x] интеграционные тесты на реальном MinIO (бакет `vistynq-test`)
 
 ### R18 · XSS (P2, ← R15, R16)
 

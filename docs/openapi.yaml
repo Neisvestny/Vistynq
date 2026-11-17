@@ -197,7 +197,7 @@ components:
         sizeBytes: { type: integer }
         width: { type: [integer, "null"] }
         height: { type: [integer, "null"] }
-        url: { type: string, format: uri, description: "presigned GET, TTL 1h" }
+        url: { type: string, format: uri, description: "presigned GET, TTL S3_PRESIGN_TTL (по умолчанию 1 ч)" }
     AccessEntry:
       type: object
       properties:
@@ -953,7 +953,7 @@ paths:
   /attachments/{id}/url:
     parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
     get:
-      summary: Presigned URL файла (TTL 1h)
+      summary: Presigned URL файла (TTL S3_PRESIGN_TTL, по умолчанию 1 ч)
       operationId: getAttachments_id_url
       tags: [attachments]
       description: "≥viewer заметки."

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Vistynq\Support;
 
+use Aws\S3\S3Client;
 use Vistynq\Config\Config;
 use Vistynq\Http\Router;
 use Vistynq\Repositories\AccessRepository;
 use Vistynq\Repositories\AccessRepositoryInterface;
+use Vistynq\Repositories\AttachmentRepository;
+use Vistynq\Repositories\AttachmentRepositoryInterface;
 use Vistynq\Repositories\AuthTokenRepository;
 use Vistynq\Repositories\AuthTokenRepositoryInterface;
 use Vistynq\Repositories\CanvasRepository;
@@ -30,6 +33,9 @@ use Vistynq\Repositories\UserRepository;
 use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Services\MailService;
 use Vistynq\Services\MailServiceInterface;
+use Vistynq\Services\Storage\LocalAdapter;
+use Vistynq\Services\Storage\S3Adapter;
+use Vistynq\Services\Storage\StorageInterface;
 
 /**
  * Единая точка регистрации зависимостей (roadmap R17): Kernel::boot() и
@@ -61,6 +67,43 @@ final class ContainerFactory
         $container->bind(AccessRepositoryInterface::class, AccessRepository::class);
         $container->bind(InvitationRepositoryInterface::class, InvitationRepository::class);
         $container->bind(MailServiceInterface::class, MailService::class);
+        $container->bind(AttachmentRepositoryInterface::class, AttachmentRepository::class);
+
+        // Хранилище (R17): драйвер выбирается env, адаптеры создаются здесь,
+        // чтобы Kernel и интеграционные тесты видели одинаковую конфигурацию.
+        $container->singleton(StorageInterface::class, static function (Container $c): StorageInterface {
+            $config = $c->get(Config::class);
+
+            if ($config->storageDriver() === 'local') {
+                return new LocalAdapter(
+                    $config->localStoragePath(),
+                    $config->appUrl(),
+                    $config->s3PresignTtl(),
+                );
+            }
+
+            $clientConfig = [
+                'version' => 'latest',
+                'region' => $config->s3Region(),
+                'credentials' => [
+                    'key' => $config->s3AccessKey(),
+                    'secret' => $config->s3SecretKey(),
+                ],
+                'use_path_style_endpoint' => $config->s3UsePathStyle(),
+            ];
+
+            $client = new S3Client($clientConfig + ['endpoint' => $config->s3Endpoint()]);
+            $publicClient = $config->s3PublicEndpoint() === $config->s3Endpoint()
+                ? $client
+                : new S3Client($clientConfig + ['endpoint' => $config->s3PublicEndpoint()]);
+
+            return new S3Adapter(
+                $client,
+                $publicClient,
+                $config->s3Bucket(),
+                $config->s3PresignTtl(),
+            );
+        });
 
         $container->singleton(Router::class, static function (): Router {
             $router = new Router();

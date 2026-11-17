@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Vistynq\Controllers\AccessController;
+use Vistynq\Controllers\AttachmentController;
 use Vistynq\Controllers\AuthController;
 use Vistynq\Controllers\CanvasController;
 use Vistynq\Controllers\HealthController;
@@ -28,6 +29,8 @@ $router->add('POST', '/api/v1/auth/forgot-password', [AuthController::class, 'fo
 $router->add('POST', '/api/v1/auth/reset-password', [AuthController::class, 'resetPassword']);
 $router->add('GET', '/api/v1/auth/me', [AuthController::class, 'me']);
 $router->add('PATCH', '/api/v1/profile', [ProfileController::class, 'update']);
+$router->add('POST', '/api/v1/profile/avatar', [ProfileController::class, 'uploadAvatar']);
+$router->add('DELETE', '/api/v1/profile/avatar', [ProfileController::class, 'deleteAvatar']);
 
 $router->add('GET', '/api/v1/canvases', [CanvasController::class, 'index']);
 $router->add('POST', '/api/v1/canvases', [CanvasController::class, 'create']);
@@ -48,6 +51,10 @@ $router->add('PUT', '/api/v1/notes/{id}/body', [NoteController::class, 'updateBo
 $router->add('DELETE', '/api/v1/notes/{id}', [NoteController::class, 'delete']);
 $router->add('POST', '/api/v1/notes/{id}/restore', [NoteController::class, 'restore']);
 $router->add('DELETE', '/api/v1/notes/{id}/purge', [NoteController::class, 'purge']);
+
+$router->add('POST', '/api/v1/notes/{id}/attachments', [AttachmentController::class, 'uploadNote']);
+$router->add('GET', '/api/v1/attachments/{id}/url', [AttachmentController::class, 'url']);
+$router->add('DELETE', '/api/v1/attachments/{id}', [AttachmentController::class, 'delete']);
 
 $router->add('GET', '/api/v1/canvases/{id}/tags', [TagController::class, 'index']);
 $router->add('POST', '/api/v1/canvases/{id}/tags', [TagController::class, 'create']);

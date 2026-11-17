@@ -28,6 +28,11 @@ interface UserRepositoryInterface
     public function setPendingEmail(string $userId, string $email): void;
 
     /**
+     * Привязка/отвязка аватара (R17): null очищает ссылку.
+     */
+    public function setAvatarAttachmentId(string $userId, ?string $attachmentId): void;
+
+    /**
      * Переносит pending_email в email (подтверждение смены адреса).
      * Нет строки с pending_email — ничего не происходит.
      */

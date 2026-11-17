@@ -149,7 +149,9 @@ sequenceDiagram
 - Upload идёт **через бэкенд** (прокси), прямых presigned PUT не используем — проще валидация и права. Имя файла в ключ не попадает (только расширение), оригинальное имя хранится в БД.
 - `.md/.txt` вложениями **не являются**: drop на канвас → `POST /canvases/{id}/notes/from-text` (multipart, содержимое файла → `bodyMd` новой заметки); drop в редактор → клиент читает файл и вставляет текст в курсор.
 - Аватар: `POST /profile/avatar`, ключ `avatars/{userId}/{uuid}.{ext}`.
-- Удаление заметки/канваса каскадом удаляет строки `attachments`; объекты в S3 удаляет `StorageService` после коммита.
+- Два S3-endpoint'а: `S3_ENDPOINT` (внутренний, Put/Delete/Head) и `S3_PUBLIC_ENDPOINT` (браузерный, только presign). SigV4 подписывает `Host`, поэтому ссылка, подписанная внутренним `minio:9000`, в браузере не откроется.
+- `STORAGE_DRIVER=local` — fallback для локального запуска без MinIO: файлы лежат в `apps/backend/storage/` (gitignored), nginx отдаёт их по `/storage/{key}`. В проде и интеграционных тестах используется S3.
+- `attachments.note_id` — `ON DELETE SET NULL`, поэтому при purge заметки и удалении канваса строки `attachments` удаляются явно в той же транзакции; объекты S3 удаляются `StorageService` после коммита (ошибка S3 логируется, но не откатывает БД).
 
 ### 4. Косвенные ссылки (LinkParserService)
 
@@ -198,7 +200,9 @@ flowchart TD
 | `APP_ENV`, `APP_URL`, `FRONTEND_URL` | режим, адреса (CORS, ссылки в письмах) |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` | PostgreSQL |
 | `JWT_SECRET`, `ACCESS_TTL=900`, `REFRESH_TTL=2592000` | токены |
-| `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_USE_PATH_STYLE=true` | MinIO/S3 |
+| `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT` | внутренний (Put/Delete) и браузерный (presign) адрес S3/MinIO |
+| `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_USE_PATH_STYLE=true`, `S3_PRESIGN_TTL=3600` | S3/MinIO и TTL ссылок |
+| `STORAGE_DRIVER=s3`, `LOCAL_STORAGE_PATH=storage` | адаптер хранилища; `local` — dev/test fallback |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | почта |
 | `COOKIE_DOMAIN` (опц.), `COOKIE_SECURE` | refresh-кука `vistynq_refresh` |
 
@@ -216,12 +220,14 @@ flowchart TD
 
 ### Запуск backend-тестов (R21)
 
-Требования на хосте: PHP ≥ 8.2 с расширениями `pdo_pgsql` и `sodium`
-(Arch/CachyOS: `sudo pacman -S php-pgsql php-sodium`, `.ini` — в `/etc/php/conf.d/`).
+Требования на хосте: PHP ≥ 8.2 с расширениями `pdo_pgsql`, `sodium`, `curl`,
+`fileinfo` и `simplexml` (Arch/CachyOS: `sudo pacman -S php-pgsql php-sodium`,
+`.ini` — в `/etc/php/conf.d/`).
 
 ```bash
-# 1. Изолированная тестовая БД (не трогает dev-данные, порт 5433)
-docker compose up -d test-postgres
+# 1. Изолированная тестовая БД и MinIO (не трогают dev-данные, порты 5433/9000)
+#    minio-init создаёт бакеты vistynq-media и vistynq-test.
+docker compose up -d test-postgres minio minio-init
 
 # 2. Схема тестовой БД
 cd apps/backend
@@ -233,7 +239,9 @@ DB_HOST=127.0.0.1 DB_PORT=5433 DB_NAME=vistynq_test vendor/bin/phpunit
 ```
 
 Без test-postgres интеграция упадёт на подключении; без `pdo_pgsql`/`sodium`
-юнит-тесты идут, интеграция скипается с сообщением.
+юнит-тесты идут, интеграция скипается с сообщением. Storage-тесты R17 работают
+только с реальным MinIO (бакет `vistynq-test`): при недоступном MinIO они
+скипаются, а не подменяют адаптер временной папкой.
 
 Интеграционный сценарий `tests/Integration/AuthFlowTest.php` покрывает
 register → verify → login → refresh (ротация + reuse → 401) → logout → 401;

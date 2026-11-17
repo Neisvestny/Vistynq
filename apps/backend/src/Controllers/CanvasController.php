@@ -8,10 +8,13 @@ use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Middleware\AuthMiddleware;
 use Vistynq\Models\Canvas;
+use Vistynq\Repositories\AttachmentRepositoryInterface;
 use Vistynq\Repositories\CanvasRepositoryInterface;
 use Vistynq\Services\AccessService;
 use Vistynq\Services\GraphService;
+use Vistynq\Services\Storage\StorageService;
 use Vistynq\Support\ApiException;
+use Vistynq\Support\Database;
 use Vistynq\Support\Validator;
 
 /**
@@ -25,6 +28,9 @@ final class CanvasController
         private readonly CanvasRepositoryInterface $canvases,
         private readonly AccessService $access,
         private readonly GraphService $graph,
+        private readonly AttachmentRepositoryInterface $attachments,
+        private readonly StorageService $storage,
+        private readonly Database $db,
     ) {
     }
 
@@ -97,7 +103,14 @@ final class CanvasController
         $canvasId = (string) $request->routeParam('id');
         $this->access->requireCanvasManage($canvasId, $userId);
 
-        $this->canvases->delete($canvasId);
+        // Ключи до удаления строк: attachments.note_id — SET NULL, поэтому
+        // метаданные удаляем явно, объекты — после коммита (R17).
+        $keys = $this->attachments->s3KeysByCanvasId($canvasId);
+        $this->db->transaction(function () use ($canvasId): void {
+            $this->attachments->deleteByCanvasId($canvasId);
+            $this->canvases->delete($canvasId);
+        });
+        $this->storage->deleteQuietly($keys);
 
         return Response::noContent();
     }

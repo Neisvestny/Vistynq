@@ -96,6 +96,16 @@ final class FakeUserRepository implements UserRepositoryInterface
         $this->users[$userId] = $this->rebuild($user, pendingEmail: $email);
     }
 
+    public function setAvatarAttachmentId(string $userId, ?string $attachmentId): void
+    {
+        $user = $this->users[$userId] ?? null;
+        if ($user === null) {
+            return;
+        }
+
+        $this->users[$userId] = $this->rebuild($user, avatarAttachmentId: $attachmentId, setAvatar: true);
+    }
+
     public function applyPendingEmail(string $userId): void
     {
         $user = $this->users[$userId] ?? null;
@@ -128,13 +138,15 @@ final class FakeUserRepository implements UserRepositoryInterface
         ?string $displayName = null,
         ?string $pendingEmail = null,
         bool $clearPending = false,
+        ?string $avatarAttachmentId = null,
+        bool $setAvatar = false,
     ): User {
         return new User(
             id: $user->id,
             email: $email ?? $user->email,
             displayName: $displayName ?? $user->displayName,
             passwordHash: $user->passwordHash,
-            avatarAttachmentId: $user->avatarAttachmentId,
+            avatarAttachmentId: $setAvatar ? $avatarAttachmentId : $user->avatarAttachmentId,
             emailVerifiedAt: $user->emailVerifiedAt,
             createdAt: $user->createdAt,
             updatedAt: new DateTimeImmutable(),

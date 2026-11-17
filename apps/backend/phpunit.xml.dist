@@ -28,5 +28,12 @@
         <!-- verify-email ходит письмом в Mailpit (см. tests/Integration/AuthFlowTest) -->
         <env name="SMTP_HOST" value="127.0.0.1"/>
         <env name="SMTP_PORT" value="1025"/>
+        <!-- R17: интеграционные тесты работают с реальным MinIO; отдельный
+             бакет, чтобы не трогать dev-объекты. -->
+        <env name="STORAGE_DRIVER" value="s3"/>
+        <env name="S3_ENDPOINT" value="http://127.0.0.1:9000"/>
+        <env name="S3_PUBLIC_ENDPOINT" value="http://127.0.0.1:9000"/>
+        <env name="S3_BUCKET" value="vistynq-test"/>
+        <env name="S3_USE_PATH_STYLE" value="true"/>
     </php>
 </phpunit>

@@ -55,6 +55,19 @@ jobs:
       mailpit:
         image: axllent/mailpit:latest
         ports: ['1025:1025', '8025:8025']
+      # Реальное S3-хранилище для R17 (не LocalAdapter-заглушка):
+      # бакет создаётся отдельным шагом ниже.
+      minio:
+        image: quay.io/minio/minio
+        env:
+          MINIO_ROOT_USER: test-minio
+          MINIO_ROOT_PASSWORD: test-minio-secret
+        ports: ['9000:9000']
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v6
 
@@ -62,7 +75,7 @@ jobs:
         with:
           php-version: '8.5'
           coverage: none
-          extensions: pdo, pdo_pgsql, sodium
+          extensions: pdo, pdo_pgsql, sodium, curl, fileinfo, simplexml, iconv
 
       - uses: actions/cache@v6
         with:
@@ -105,6 +118,12 @@ jobs:
 
       - name: Run migrations
         run: php bin/migrate
+
+      - name: Create MinIO test bucket
+        run: >-
+          docker run --rm --network host
+          -e MC_HOST_local="http://test-minio:test-minio-secret@127.0.0.1:9000"
+          quay.io/minio/mc mb --ignore-existing local/vistynq-test
 
       - run: vendor/bin/phpunit
 

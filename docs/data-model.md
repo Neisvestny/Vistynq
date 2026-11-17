@@ -196,7 +196,7 @@ CHECK: `(canvas_id IS NOT NULL) <> (note_id IS NOT NULL)`. UNIQUE `(canvas_id, e
 |---|---|---|
 | id | uuid PK | |
 | uploader_id | uuid FK → users | |
-| note_id | uuid NULL FK → notes ON DELETE CASCADE | `null` только для аватара |
+| note_id | uuid NULL FK → notes ON DELETE SET NULL | `null` только для аватара; строки удаляются явно при purge/удалении канваса |
 | kind | text CHECK IN ('image','audio','avatar') | |
 | s3_key | text UNIQUE | заметки: `canvases/{canvasId}/notes/{noteId}/{uuid}.{ext}`; аватар: `avatars/{userId}/{uuid}.{ext}` |
 | filename | text | оригинальное имя (только для отображения, в ключ не попадает) |

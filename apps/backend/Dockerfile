@@ -15,6 +15,8 @@ RUN set -e; \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+COPY php-uploads.ini /usr/local/etc/php/conf.d/uploads.ini
+
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

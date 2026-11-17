@@ -51,26 +51,26 @@ final class User
     }
 
     /**
-     * Public API shape (never exposes password_hash).
+     * Public API shape (never exposes password_hash or internal attachment id).
      *
      * @return array{
      *     id: string,
      *     email: string,
      *     pendingEmail: string|null,
      *     displayName: string,
-     *     avatarAttachmentId: string|null,
+     *     avatarUrl: string|null,
      *     emailVerified: bool,
      *     createdAt: string
      * }
      */
-    public function toArray(): array
+    public function toArray(?string $avatarUrl = null): array
     {
         return [
             'id' => $this->id,
             'email' => $this->email,
             'pendingEmail' => $this->pendingEmail,
             'displayName' => $this->displayName,
-            'avatarAttachmentId' => $this->avatarAttachmentId,
+            'avatarUrl' => $avatarUrl,
             'emailVerified' => $this->isEmailVerified(),
             'createdAt' => $this->createdAt->format(DATE_ATOM),
         ];

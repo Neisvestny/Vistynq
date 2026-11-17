@@ -86,6 +86,14 @@ final class UserRepository implements UserRepositoryInterface
         $stmt->execute(['id' => $userId]);
     }
 
+    public function setAvatarAttachmentId(string $userId, ?string $attachmentId): void
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'UPDATE users SET avatar_attachment_id = :avatar_attachment_id, updated_at = now() WHERE id = :id',
+        );
+        $stmt->execute(['id' => $userId, 'avatar_attachment_id' => $attachmentId]);
+    }
+
     public function emailTaken(string $email, string $exceptUserId): bool
     {
         $stmt = $this->db->pdo()->prepare(

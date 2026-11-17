@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Vistynq\Services;
 
 use Vistynq\Models\Note;
+use Vistynq\Repositories\AttachmentRepositoryInterface;
 use Vistynq\Repositories\DeletedNoteRepositoryInterface;
 use Vistynq\Repositories\DirectLinkRepositoryInterface;
 use Vistynq\Repositories\IndirectLinkRepositoryInterface;
 use Vistynq\Repositories\NoteRepositoryInterface;
 use Vistynq\Repositories\TagRepositoryInterface;
+use Vistynq\Services\Storage\StorageService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Database;
 use Vistynq\Support\Validator;
@@ -32,6 +34,8 @@ final class NoteService
         private readonly AccessService $access,
         private readonly LinkParserService $parser,
         private readonly Database $db,
+        private readonly AttachmentRepositoryInterface $attachments,
+        private readonly StorageService $storage,
     ) {
     }
 
@@ -362,6 +366,10 @@ final class NoteService
         $ctx = $this->access->requireNoteManage($noteId, $userId);
         $note = $ctx['note'];
 
+        // Ключи до удаления строк: note_id — SET NULL, поэтому метаданные
+        // удаляем явно в транзакции, объекты — после коммита (R17).
+        $keys = $this->attachments->s3KeysByNoteId($noteId);
+
         $this->db->transaction(function () use ($noteId, $note, $userId): void {
             $this->deletedNotes->create(
                 $noteId,
@@ -373,8 +381,11 @@ final class NoteService
             // deleted_target_id (docs/data-model.md:148); прямые уйдут
             // каскадом FK ON DELETE CASCADE.
             $this->indirectLinks->unlinkTarget($noteId);
+            $this->attachments->deleteByNoteId($noteId);
             $this->notes->hardDelete($noteId);
         });
+
+        $this->storage->deleteQuietly($keys);
     }
 
     /**

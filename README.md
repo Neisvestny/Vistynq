@@ -73,7 +73,7 @@ PHPUnit (unit + интеграция) против изолированной te
 [`docs/architecture.md#запуск-backend-тестов-r15`](docs/architecture.md):
 
 ```bash
-docker compose up -d test-postgres                  # тестовая БД, порт 5433
+docker compose up -d test-postgres minio minio-init  # тестовая БД (5433) + MinIO
 cd apps/backend
 DB_HOST=127.0.0.1 DB_PORT=5433 DB_NAME=vistynq_test php bin/migrate
 DB_HOST=127.0.0.1 DB_PORT=5433 DB_NAME=vistynq_test composer test

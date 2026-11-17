@@ -101,9 +101,38 @@ final class Config
         return self::int('REFRESH_TTL', 2592000);
     }
 
+    public function storageDriver(): string
+    {
+        return self::str('STORAGE_DRIVER', 's3');
+    }
+
+    public function localStoragePath(): string
+    {
+        $path = self::str('LOCAL_STORAGE_PATH', 'storage');
+
+        return str_starts_with($path, '/')
+            ? $path
+            : dirname(__DIR__, 2) . '/' . $path;
+    }
+
     public function s3Endpoint(): string
     {
         return self::str('S3_ENDPOINT', 'http://minio:9000');
+    }
+
+    /**
+     * Браузерный endpoint для presigned URL (docs/architecture.md).
+     * Подпись SigV4 включает Host, поэтому подписывать нужно тем адресом,
+     * который видит клиент, а не внутренним minio:9000.
+     */
+    public function s3PublicEndpoint(): string
+    {
+        return rtrim(self::str('S3_PUBLIC_ENDPOINT', $this->s3Endpoint()), '/');
+    }
+
+    public function s3PresignTtl(): int
+    {
+        return self::int('S3_PRESIGN_TTL', 3600);
     }
 
     public function s3Region(): string

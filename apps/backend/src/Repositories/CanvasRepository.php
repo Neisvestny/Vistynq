@@ -121,19 +121,12 @@ final class CanvasRepository implements CanvasRepositoryInterface
      */
     public function delete(string $id): void
     {
-        $pdo = $this->db->pdo();
-        $pdo->beginTransaction();
-        try {
-            $stmt = $pdo->prepare('DELETE FROM canvases WHERE id = :id');
+        // Database::transaction реентерабелен: контроллер может удалить
+        // метаданные вложений в той же транзакции (R17).
+        $this->db->transaction(function () use ($id): void {
+            $stmt = $this->db->pdo()->prepare('DELETE FROM canvases WHERE id = :id');
             $stmt->execute(['id' => $id]);
-
-            $pdo->commit();
-        } catch (\Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            throw $e;
-        }
+        });
     }
 
     public function findCanvasAccess(string $canvasId, string $userId): ?string

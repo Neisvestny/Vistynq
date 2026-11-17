@@ -12,7 +12,7 @@ final class ConfigTest extends TestCase
 
     protected function setUp(): void
     {
-        foreach (['APP_ENV', 'APP_URL', 'FRONTEND_URL', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'JWT_SECRET', 'ACCESS_TTL', 'REFRESH_TTL', 'TRUSTED_PROXIES', 'COOKIE_SECURE', 'CORS_ORIGINS', 'SMTP_HOST', 'SMTP_PORT'] as $key) {
+        foreach (['APP_ENV', 'APP_URL', 'FRONTEND_URL', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'JWT_SECRET', 'ACCESS_TTL', 'REFRESH_TTL', 'TRUSTED_PROXIES', 'COOKIE_SECURE', 'CORS_ORIGINS', 'SMTP_HOST', 'SMTP_PORT', 'STORAGE_DRIVER', 'LOCAL_STORAGE_PATH', 'S3_ENDPOINT', 'S3_PUBLIC_ENDPOINT', 'S3_PRESIGN_TTL', 'S3_REGION', 'S3_BUCKET', 'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'S3_USE_PATH_STYLE'] as $key) {
             $this->savedEnv[$key] = getenv($key);
             putenv($key);
         }
@@ -46,7 +46,12 @@ final class ConfigTest extends TestCase
         $this->assertSame('dev_only_change_me', $config->jwtSecret());
         $this->assertSame(900, $config->accessTtl());
         $this->assertSame(2592000, $config->refreshTtl());
+        $this->assertSame('s3', $config->storageDriver());
+        $this->assertStringEndsWith('/apps/backend/storage', $config->localStoragePath());
         $this->assertSame('http://minio:9000', $config->s3Endpoint());
+        // Без явного публичного endpoint'а берётся внутренний (dev).
+        $this->assertSame('http://minio:9000', $config->s3PublicEndpoint());
+        $this->assertSame(3600, $config->s3PresignTtl());
         $this->assertSame('us-east-1', $config->s3Region());
         $this->assertSame('vistynq-media', $config->s3Bucket());
         $this->assertSame('', $config->s3AccessKey());
@@ -73,6 +78,11 @@ final class ConfigTest extends TestCase
         putenv('ACCESS_TTL=300');
         putenv('TRUSTED_PROXIES=10.0.0.1,10.0.0.2');
         putenv('COOKIE_SECURE=true');
+        putenv('STORAGE_DRIVER=local');
+        putenv('LOCAL_STORAGE_PATH=/srv/media');
+        putenv('S3_ENDPOINT=http://minio:9000');
+        putenv('S3_PUBLIC_ENDPOINT=https://media.example.com/');
+        putenv('S3_PRESIGN_TTL=600');
 
         $_ENV['APP_ENV'] = 'prod';
         $_ENV['APP_URL'] = 'https://api.example.com';
@@ -97,6 +107,10 @@ final class ConfigTest extends TestCase
         $this->assertSame(300, $config->accessTtl());
         $this->assertSame(['10.0.0.1', '10.0.0.2'], $config->trustedProxies());
         $this->assertTrue($config->cookieSecure());
+        $this->assertSame('local', $config->storageDriver());
+        $this->assertSame('/srv/media', $config->localStoragePath());
+        $this->assertSame('https://media.example.com', $config->s3PublicEndpoint());
+        $this->assertSame(600, $config->s3PresignTtl());
     }
 
     public function testTrustedProxiesEmptyWhenNotSet(): void

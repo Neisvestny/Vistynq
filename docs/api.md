@@ -179,11 +179,13 @@
 
 | Метод | Путь | Доступ | Описание |
 |---|---|---|---|
-| POST | `/notes/{id}/attachments` | редактор заметки | multipart `file` (image png/jpg/gif/webp ≤5 МБ, audio mp3/ogg/wav ≤25 МБ) → 201 Attachment (с полем `url` — presigned GET, 1 ч); 413 / 415 |
-| GET | `/attachments/{id}/url` | ≥viewer заметки | `{url, expiresIn}` — свежий presigned GET |
+| POST | `/notes/{id}/attachments` | редактор заметки | multipart `file` (image png/jpg/gif/webp ≤5 МБ, audio mp3/ogg/wav ≤25 МБ) → 201 Attachment (с полем `url` — presigned GET); 413 / 415 |
+| GET | `/attachments/{id}/url` | ≥viewer заметки | `{url, expiresIn}` — свежий presigned GET (TTL `S3_PRESIGN_TTL`, по умолчанию 3600 с) |
 | DELETE | `/attachments/{id}` | редактор заметки | удалить объект в S3 + строку → 204 |
 
-Аватар загружается через `/profile/avatar`. `.md/.txt` вложениями не становятся: на канвас — `notes/from-text`, в редактор — клиент читает файл и вставляет текст.
+Mime определяется по содержимому (finfo), клиентские `Content-Type` и расширение игнорируются; SVG/HTML не принимаются. Ключ объекта — `canvases/{canvasId}/notes/{noteId}/{uuid}.{ext}`, оригинальное имя хранится только в БД. Вложения soft-deleted заметки недоступны (404); soft delete объекты сохраняет, purge и удаление канваса — удаляют их после коммита БД.
+
+Аватар загружается через `/profile/avatar` (только изображения ≤5 МБ): `201 {avatarUrl}`, повторная загрузка заменяет старый объект, `DELETE` идемпотентен (204). Публичный JSON `User` отдаёт `avatarUrl` (presigned, `null` без аватара), внутренний `avatarAttachmentId` наружу не попадает. `.md/.txt` вложениями не становятся: на канвас — `notes/from-text`, в редактор — клиент читает файл и вставляет текст.
 
 ## Публичный доступ (анонимы, только чтение)
 

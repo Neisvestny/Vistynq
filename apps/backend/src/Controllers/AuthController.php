@@ -10,6 +10,7 @@ use Vistynq\Http\Response;
 use Vistynq\Middleware\AuthMiddleware;
 use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Services\AuthService;
+use Vistynq\Services\UserPresenter;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Validator;
 
@@ -19,6 +20,7 @@ final class AuthController
         private readonly AuthService $auth,
         private readonly UserRepositoryInterface $users,
         private readonly Config $config,
+        private readonly UserPresenter $presenter,
     ) {
     }
 
@@ -67,7 +69,7 @@ final class AuthController
         $result = $this->auth->login((string) $data['email'], (string) $data['password']);
 
         $response = Response::json([
-            'user' => $result['user']->toArray(),
+            'user' => $this->presenter->present($result['user']),
             'accessToken' => $result['accessToken'],
             'accessTokenExpiresIn' => $this->config->accessTtl(),
         ]);
@@ -85,7 +87,7 @@ final class AuthController
         $result = $this->auth->refresh($raw);
 
         $response = Response::json([
-            'user' => $result['user']->toArray(),
+            'user' => $this->presenter->present($result['user']),
             'accessToken' => $result['accessToken'],
             'accessTokenExpiresIn' => $this->config->accessTtl(),
         ]);
@@ -132,6 +134,6 @@ final class AuthController
             throw ApiException::unauthorized();
         }
 
-        return Response::json($user->toArray());
+        return Response::json($this->presenter->present($user));
     }
 }

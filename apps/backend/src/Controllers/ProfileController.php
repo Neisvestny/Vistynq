@@ -8,17 +8,23 @@ use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Middleware\AuthMiddleware;
 use Vistynq\Services\AuthService;
+use Vistynq\Services\AvatarService;
+use Vistynq\Services\UserPresenter;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Validator;
 
 /**
  * PATCH /api/v1/profile (docs/api.md §Auth и профиль): displayName — сразу,
  * email — через pending_email + письмо на новый адрес (R10).
+ * Аватар: POST/DELETE /profile/avatar.
  */
 final class ProfileController
 {
-    public function __construct(private readonly AuthService $auth)
-    {
+    public function __construct(
+        private readonly AuthService $auth,
+        private readonly AvatarService $avatars,
+        private readonly UserPresenter $presenter,
+    ) {
     }
 
     public function update(Request $request): Response
@@ -45,6 +51,24 @@ final class ProfileController
             isset($data['email']) ? (string) $data['email'] : null,
         );
 
-        return Response::json($user->toArray());
+        return Response::json($this->presenter->present($user));
+    }
+
+    public function uploadAvatar(Request $request): Response
+    {
+        return Response::json(
+            ['avatarUrl' => $this->avatars->upload(
+                AuthMiddleware::userId($request),
+                $request->multipartFile('file'),
+            )],
+            201,
+        );
+    }
+
+    public function deleteAvatar(Request $request): Response
+    {
+        $this->avatars->delete(AuthMiddleware::userId($request));
+
+        return Response::noContent();
     }
 }

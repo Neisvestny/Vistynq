@@ -5,13 +5,21 @@ declare(strict_types=1);
 use PHPUnit\Framework\TestCase;
 use Vistynq\Config\Config;
 use Vistynq\Config\EnvLoader;
+use Vistynq\Controllers\AttachmentController;
+use Vistynq\Controllers\AuthController;
 use Vistynq\Controllers\CanvasController;
 use Vistynq\Controllers\NoteController;
+use Vistynq\Controllers\ProfileController;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
+use Vistynq\Repositories\AttachmentRepositoryInterface;
 use Vistynq\Repositories\CanvasRepository;
 use Vistynq\Repositories\UserRepository;
+use Vistynq\Services\AttachmentService;
+use Vistynq\Services\AvatarService;
 use Vistynq\Services\JwtService;
+use Vistynq\Services\Storage\S3Adapter;
+use Vistynq\Services\Storage\StorageInterface;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Container;
 use Vistynq\Support\ContainerFactory;
@@ -35,12 +43,28 @@ abstract class IntegrationTestCase extends TestCase
     protected JwtService $jwt;
     protected UserRepository $users;
     protected CanvasRepository $canvases;
+    protected StorageInterface $storage;
+    protected AttachmentRepositoryInterface $attachments;
+    protected AttachmentService $attachmentService;
+    protected AvatarService $avatarService;
+    protected AttachmentController $attachmentController;
+    protected ProfileController $profileController;
+    protected AuthController $authController;
 
     /** @var list<string> */
     private array $createdUserIds = [];
 
     /** @var list<string> */
     private array $createdCanvasIds = [];
+
+    /** @var list<string> */
+    private array $storageKeys = [];
+
+    /** @var list<string> */
+    private array $temporaryFiles = [];
+
+    /** null — ещё не проверяли, true/false — результат пробы MinIO. */
+    private ?bool $storageAvailable = null;
 
     protected function setUp(): void
     {
@@ -62,6 +86,13 @@ abstract class IntegrationTestCase extends TestCase
         $this->canvases = $this->container->get(CanvasRepository::class);
         $this->canvasController = $this->container->get(CanvasController::class);
         $this->noteController = $this->container->get(NoteController::class);
+        $this->storage = $this->container->get(StorageInterface::class);
+        $this->attachments = $this->container->get(AttachmentRepositoryInterface::class);
+        $this->attachmentService = $this->container->get(AttachmentService::class);
+        $this->avatarService = $this->container->get(AvatarService::class);
+        $this->attachmentController = $this->container->get(AttachmentController::class);
+        $this->profileController = $this->container->get(ProfileController::class);
+        $this->authController = $this->container->get(AuthController::class);
     }
 
     protected function tearDown(): void
@@ -72,6 +103,26 @@ abstract class IntegrationTestCase extends TestCase
         }
 
         $pdo = $this->db->pdo();
+        // Вложения (R17): attachments.note_id — ON DELETE SET NULL, поэтому
+        // сиротские строки удаляем явно до канвасов/пользователей, а объекты
+        // в S3 — после коммита БД.
+        $storageKeys = array_merge($this->storageKeys, $this->attachmentKeysForCreatedEntities());
+
+        if ($this->createdUserIds !== []) {
+            $in = implode(', ', array_fill(0, count($this->createdUserIds), '?'));
+            $pdo->prepare("DELETE FROM attachments WHERE uploader_id IN ({$in})")
+                ->execute($this->createdUserIds);
+        }
+        if ($this->createdCanvasIds !== []) {
+            $in = implode(', ', array_fill(0, count($this->createdCanvasIds), '?'));
+            $pdo->prepare(
+                "DELETE FROM attachments a
+                       USING notes n
+                       WHERE a.note_id = n.id
+                         AND n.canvas_id IN ({$in})",
+            )->execute($this->createdCanvasIds);
+        }
+
         // notes.author_id и direct_links.created_by без ON DELETE, поэтому
         // сначала канвасы (каскад уносит notes/links/tags/access), потом юзеры.
         foreach ($this->createdCanvasIds as $canvasId) {
@@ -81,8 +132,58 @@ abstract class IntegrationTestCase extends TestCase
             $pdo->prepare('DELETE FROM users WHERE id = :id')->execute(['id' => $userId]);
         }
 
+        if ($storageKeys !== []) {
+            try {
+                $this->storage->deleteMany(array_values(array_unique($storageKeys)));
+            } catch (Throwable $e) {
+                // Очистка теста не должна маскировать результат проверок.
+                error_log('[tests] storage cleanup failed: ' . $e->getMessage());
+            }
+        }
+
+        foreach ($this->temporaryFiles as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+
         $this->createdCanvasIds = [];
         $this->createdUserIds = [];
+        $this->storageKeys = [];
+        $this->temporaryFiles = [];
+    }
+
+    /**
+     * Все s3_key вложений созданных тестом пользователей/канвасов — до
+     * удаления строк (R17).
+     *
+     * @return list<string>
+     */
+    private function attachmentKeysForCreatedEntities(): array
+    {
+        $keys = [];
+        $pdo = $this->db->pdo();
+
+        if ($this->createdUserIds !== []) {
+            $in = implode(', ', array_fill(0, count($this->createdUserIds), '?'));
+            $stmt = $pdo->prepare("SELECT s3_key FROM attachments WHERE uploader_id IN ({$in})");
+            $stmt->execute($this->createdUserIds);
+            $keys = array_merge($keys, $stmt->fetchAll(PDO::FETCH_COLUMN));
+        }
+
+        if ($this->createdCanvasIds !== []) {
+            $in = implode(', ', array_fill(0, count($this->createdCanvasIds), '?'));
+            $stmt = $pdo->prepare(
+                "SELECT a.s3_key
+                   FROM attachments a
+                   JOIN notes n ON n.id = a.note_id
+                  WHERE n.canvas_id IN ({$in})",
+            );
+            $stmt->execute($this->createdCanvasIds);
+            $keys = array_merge($keys, $stmt->fetchAll(PDO::FETCH_COLUMN));
+        }
+
+        return array_values(array_unique(array_map('strval', $keys)));
     }
 
     /**
@@ -319,6 +420,130 @@ abstract class IntegrationTestCase extends TestCase
             $value,
             $field . ' должен быть в ISO 8601: ' . $value,
         );
+    }
+
+    /**
+     * Проба реального MinIO (R17): тесты хранилища не подменяют адаптер
+     * временной папкой. Если сервис/бакет недоступен — skip с понятным
+     * сообщением, а не падение всех интеграционных тестов.
+     */
+    protected function requireStorage(): void
+    {
+        if ($this->storageAvailable === true) {
+            return;
+        }
+        if ($this->storageAvailable === false) {
+            $this->markTestSkipped('MinIO недоступен — storage-тесты пропущены');
+        }
+
+        $this->assertInstanceOf(
+            S3Adapter::class,
+            $this->storage,
+            'интеграционные тесты R17 должны работать с реальным MinIO (STORAGE_DRIVER=s3), а не с LocalAdapter',
+        );
+
+        $key = 'tests/probe-' . bin2hex(random_bytes(6));
+        $file = tempnam(sys_get_temp_dir(), 'vistynq-probe-');
+        $this->assertNotFalse($file);
+        file_put_contents($file, 'probe');
+
+        try {
+            $this->storage->putFile($key, $file, 'text/plain');
+            $this->storageAvailable = $this->storage->exists($key);
+        } catch (Throwable $e) {
+            $this->storageAvailable = false;
+            $this->markTestSkipped(
+                'MinIO недоступен (' . $this->config->s3PublicEndpoint() . '): ' . $e->getMessage(),
+            );
+        } finally {
+            @unlink($file);
+            if ($this->storageAvailable === true) {
+                $this->storage->delete($key);
+            }
+        }
+
+        $this->assertTrue($this->storageAvailable, 'MinIO не сохранил пробный объект');
+    }
+
+    /**
+     * $_FILES['file']-подобная структура с реальным временным файлом.
+     *
+     * @return array<string, mixed>
+     */
+    protected function uploadedFile(string $content, string $name = 'upload.bin'): array
+    {
+        $path = tempnam(sys_get_temp_dir(), 'vistynq-upload-');
+        $this->assertNotFalse($path);
+        file_put_contents($path, $content);
+        $this->temporaryFiles[] = $path;
+
+        return [
+            'name' => $name,
+            'type' => 'application/octet-stream',
+            'tmp_name' => $path,
+            'error' => UPLOAD_ERR_OK,
+            'size' => strlen($content),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $file
+     * @param array<string, string>     $fields
+     */
+    protected function requestWithFile(
+        string $method,
+        string $path,
+        array $routeParams,
+        ?array $file,
+        ?string $authUserId = null,
+        array $fields = [],
+    ): Request {
+        $attributes = ['multipart' => [
+            'fields' => $fields,
+            'files' => $file !== null ? ['file' => $file] : [],
+        ]];
+        if ($authUserId !== null) {
+            $attributes['authUserId'] = $authUserId;
+        }
+
+        return new Request($method, $path, [], [], '', [], $routeParams, $attributes);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function attachmentRow(string $id): array
+    {
+        $row = $this->attachments->findById($id);
+        $this->assertNotNull($row, 'строка attachments не найдена: ' . $id);
+        $this->storageKeys[] = (string) $row['s3_key'];
+
+        return $row;
+    }
+
+    protected function trackStorageKey(string $key): void
+    {
+        $this->storageKeys[] = $key;
+    }
+
+    protected function assertStorageMissing(string $key, string $case = ''): void
+    {
+        $this->assertFalse(
+            $this->storage->exists($key),
+            ($case !== '' ? $case . ': ' : '') . 'объект должен быть удалён из хранилища: ' . $key,
+        );
+    }
+
+    /**
+     * Скачивает объект по presigned/static URL — проверяет, что ссылка
+     * действительно открывается (SigV4 подписан публичным Host).
+     */
+    protected function download(string $url): string
+    {
+        $content = @file_get_contents($url);
+        $this->assertIsString($content, 'URL хранилища не открывается: ' . $url);
+
+        return $content;
     }
 
     /**
