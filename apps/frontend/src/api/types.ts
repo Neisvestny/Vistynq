@@ -86,3 +86,11 @@ export interface GraphResponse {
   edges: GraphEdge[]
   tags: GraphTag[]
 }
+
+/** docs/openapi.yaml → PageMeta: пагинированные списки (R19). */
+export interface Paginated<T> {
+  items: T[]
+  page: number
+  perPage: number
+  total: number
+}

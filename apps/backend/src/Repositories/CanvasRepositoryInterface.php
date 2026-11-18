@@ -17,9 +17,9 @@ interface CanvasRepositoryInterface
     public function findById(string $id): ?array;
 
     /**
-     * @return list<array<string,mixed>>
+     * @return array{items: list<array<string,mixed>>, total: int}
      */
-    public function findForUser(string $userId): array;
+    public function findForUser(string $userId, int $limit, int $offset): array;
 
     /**
      * @return array<string,mixed> the inserted row

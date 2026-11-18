@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Vistynq\Services;
 
 use Vistynq\Repositories\NoteRepositoryInterface;
+use Vistynq\Support\Pagination;
 
 /**
  * Поиск по заголовкам и тегам внутри канваса (docs/api.md).
  * Регистронезависимый LIKE с экранированием %/_ — литеральный ввод.
- * Ответ — SearchHit {id, title, importance, matchedTag} (docs/openapi.yaml).
+ * Ответ — {items: SearchHit[], page, perPage, total} (docs/openapi.yaml, R19).
  */
 final class SearchService
 {
@@ -22,14 +23,22 @@ final class SearchService
     /**
      * @return array<string, mixed>
      */
-    public function search(string $canvasId, ?string $userId, string $q): array
+    public function search(string $canvasId, ?string $userId, string $q, Pagination $pagination): array
     {
         $this->access->getCanvasContext($canvasId, $userId);
 
         $q = trim($q);
         if ($q === '') {
-            return ['items' => []];
+            return $pagination->envelope([], 0);
         }
+
+        $result = $this->notes->search(
+            $canvasId,
+            $userId,
+            $q,
+            $pagination->limit(),
+            $pagination->offset(),
+        );
 
         $items = array_map(
             static fn (array $row): array => [
@@ -40,9 +49,9 @@ final class SearchService
                     ? (string) $row['matched_tag']
                     : null,
             ],
-            $this->notes->search($canvasId, $userId, $q),
+            $result['items'],
         );
 
-        return ['items' => $items];
+        return $pagination->envelope($items, $result['total']);
     }
 }

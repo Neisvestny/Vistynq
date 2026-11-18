@@ -15,6 +15,7 @@ use Vistynq\Services\GraphService;
 use Vistynq\Services\Storage\StorageService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Database;
+use Vistynq\Support\Pagination;
 use Vistynq\Support\Validator;
 
 /**
@@ -37,14 +38,16 @@ final class CanvasController
     public function index(Request $request): Response
     {
         $userId = AuthMiddleware::userId($request);
-        $rows = $this->canvases->findForUser($userId);
+        $pagination = Pagination::fromRequest($request);
+        $result = $this->canvases->findForUser($userId, $pagination->limit(), $pagination->offset());
 
-        return Response::json([
-            'items' => array_map(
+        return Response::json($pagination->envelope(
+            array_map(
                 static fn (array $row): array => Canvas::fromRow($row)->toArray(),
-                $rows,
+                $result['items'],
             ),
-        ]);
+            $result['total'],
+        ));
     }
 
     public function create(Request $request): Response

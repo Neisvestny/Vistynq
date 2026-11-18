@@ -223,6 +223,7 @@ components:
         role: { type: string, enum: [viewer, editor] }
     PageMeta:
       type: object
+      required: [page, perPage, total]
       properties:
         page: { type: integer }
         perPage: { type: integer }
@@ -429,6 +430,7 @@ paths:
                     properties:
                       items: { type: array, items: { $ref: '#/components/schemas/Canvas' } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
     post:
       summary: Создать канвас
       operationId: postCanvases
@@ -517,6 +519,7 @@ paths:
                       items: { type: array, items: { $ref: '#/components/schemas/SearchHit' } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
   /canvases/{id}/archive:
     parameters:
       - { $ref: '#/components/parameters/CanvasId' }

@@ -140,6 +140,48 @@ final class ArchiveSearchTest extends IntegrationTestCase
         }
     }
 
+    public function testArchivePaginates(): void
+    {
+        $pdo = $this->db->pdo();
+        foreach (['Ещё неактуальная 1', 'Ещё неактуальная 2'] as $title) {
+            $id = $this->createNote($this->canvasId, $this->ownerId, $title);
+            $pdo->prepare('UPDATE notes SET is_relevant = false WHERE id = :id')->execute(['id' => $id]);
+        }
+
+        $first = $this->archiveAs($this->ownerId, 'notRelevant', ['page' => '1', 'perPage' => '2']);
+        $this->assertSame(1, $first['page']);
+        $this->assertSame(2, $first['perPage']);
+        $this->assertSame(3, $first['total']);
+        $this->assertCount(2, $first['items']);
+
+        $second = $this->archiveAs($this->ownerId, 'notRelevant', ['page' => '2', 'perPage' => '2']);
+        $this->assertSame(3, $second['total']);
+        $this->assertCount(1, $second['items']);
+        $this->assertSame(
+            [],
+            array_intersect(
+                array_column($first['items'], 'id'),
+                array_column($second['items'], 'id'),
+            ),
+            'страницы архива не пересекаются',
+        );
+    }
+
+    public function testArchiveRejectsInvalidPagination(): void
+    {
+        $e = $this->assertApiStatus(422, fn (): Response => $this->noteController->archive($this->request(
+            'GET',
+            "/api/v1/canvases/{$this->canvasId}/archive",
+            ['id' => $this->canvasId],
+            null,
+            ['section' => 'notRelevant', 'perPage' => '0'],
+            [],
+            $this->ownerId,
+        )), 'perPage=0');
+
+        $this->assertSame('VALIDATION_FAILED', $e->errorCode());
+    }
+
     public function testArchiveRequiresEditor(): void
     {
         $this->assertApiStatus(403, fn (): Response => $this->archiveAs($this->viewerId, 'deleted'));
@@ -164,6 +206,50 @@ final class ArchiveSearchTest extends IntegrationTestCase
         $this->assertCount(1, $found);
         $this->assertSame('Проект X', $found[0]['title']);
         $this->assertSame('машинное обучение', $found[0]['matchedTag'], 'совпал тег → его имя');
+    }
+
+    public function testSearchPaginates(): void
+    {
+        foreach (['Пагинация 1', 'Пагинация 2', 'Пагинация 3'] as $title) {
+            $this->createNote($this->canvasId, $this->ownerId, $title);
+        }
+
+        $first = $this->searchEnvelopeAs('пагинация', $this->ownerId, ['page' => '1', 'perPage' => '2']);
+        $this->assertSame(1, $first['page']);
+        $this->assertSame(2, $first['perPage']);
+        $this->assertSame(3, $first['total']);
+        $this->assertCount(2, $first['items']);
+
+        $second = $this->searchEnvelopeAs('пагинация', $this->ownerId, ['page' => '2', 'perPage' => '2']);
+        $this->assertSame(3, $second['total']);
+        $this->assertCount(1, $second['items']);
+        $this->assertSame(
+            [],
+            array_intersect(
+                array_column($first['items'], 'id'),
+                array_column($second['items'], 'id'),
+            ),
+            'страницы поиска не пересекаются',
+        );
+
+        $beyond = $this->searchEnvelopeAs('пагинация', $this->ownerId, ['page' => '5', 'perPage' => '2']);
+        $this->assertSame([], $beyond['items']);
+        $this->assertSame(3, $beyond['total']);
+    }
+
+    public function testSearchRejectsInvalidPagination(): void
+    {
+        $e = $this->assertApiStatus(422, fn (): Response => $this->noteController->search($this->request(
+            'GET',
+            "/api/v1/canvases/{$this->canvasId}/search",
+            ['id' => $this->canvasId],
+            null,
+            ['q' => 'план', 'page' => '0'],
+            [],
+            $this->ownerId,
+        )), 'page=0');
+
+        $this->assertSame('VALIDATION_FAILED', $e->errorCode());
     }
 
     public function testSearchReturnsSearchHitShapeOnly(): void
@@ -275,14 +361,14 @@ final class ArchiveSearchTest extends IntegrationTestCase
     /**
      * @return array<string, mixed>
      */
-    private function archiveAs(string $userId, string $section): array
+    private function archiveAs(string $userId, string $section, array $pagination = []): array
     {
         $response = $this->noteController->archive($this->request(
             'GET',
             "/api/v1/canvases/{$this->canvasId}/archive",
             ['id' => $this->canvasId],
             null,
-            ['section' => $section],
+            ['section' => $section] + $pagination,
             [],
             $userId,
         ));
@@ -297,19 +383,29 @@ final class ArchiveSearchTest extends IntegrationTestCase
      */
     private function searchAs(string $q, ?string $userId): array
     {
+        return $this->searchEnvelopeAs($q, $userId)['items'];
+    }
+
+    /**
+     * @param array<string, string> $pagination
+     *
+     * @return array<string, mixed>
+     */
+    private function searchEnvelopeAs(string $q, ?string $userId, array $pagination = []): array
+    {
         $response = $this->noteController->search($this->request(
             'GET',
             "/api/v1/canvases/{$this->canvasId}/search",
             ['id' => $this->canvasId],
             null,
-            ['q' => $q],
+            ['q' => $q] + $pagination,
             [],
             $userId,
         ));
 
         $this->assertSame(200, $response->status());
 
-        return $this->json($response)['items'];
+        return $this->json($response);
     }
 
     /**

@@ -10,6 +10,7 @@ use Vistynq\Middleware\AuthMiddleware;
 use Vistynq\Services\ArchiveService;
 use Vistynq\Services\NoteService;
 use Vistynq\Services\SearchService;
+use Vistynq\Support\Pagination;
 
 /**
  * HTTP-обёртка над NoteService/ArchiveService/SearchService: статусы и тела
@@ -125,8 +126,9 @@ final class NoteController
         $userId = AuthMiddleware::userId($request);
         $canvasId = (string) $request->routeParam('id');
         $section = (string) $request->query('section', '');
+        $pagination = Pagination::fromRequest($request);
 
-        return Response::json($this->archive->get($canvasId, $userId, $section));
+        return Response::json($this->archive->get($canvasId, $userId, $section, $pagination));
     }
 
     public function search(Request $request): Response
@@ -134,7 +136,8 @@ final class NoteController
         $userId = AuthMiddleware::optionalUserId($request);
         $canvasId = (string) $request->routeParam('id');
         $q = (string) $request->query('q', '');
+        $pagination = Pagination::fromRequest($request);
 
-        return Response::json($this->search->search($canvasId, $userId, $q));
+        return Response::json($this->search->search($canvasId, $userId, $q, $pagination));
     }
 }

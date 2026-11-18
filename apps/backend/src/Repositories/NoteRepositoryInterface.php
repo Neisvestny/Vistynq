@@ -62,26 +62,26 @@ interface NoteRepositoryInterface
      * Visibility predicate inside: private-заметки видны только автору,
      * владельцу канваса и обладателям note_access.
      *
-     * @return list<array<string,mixed>>
+     * @return array{items: list<array<string,mixed>>, total: int}
      */
-    public function findNotRelevant(string $canvasId, string $userId): array;
+    public function findNotRelevant(string $canvasId, string $userId, int $limit, int $offset): array;
 
     /**
      * Archive «удалённые» — soft-deleted заметки (tombstone'ы purge приходят
      * отдельно из DeletedNoteRepository). Visibility predicate inside, как
      * у findNotRelevant.
      *
-     * @return list<array<string,mixed>>
+     * @return array{items: list<array<string,mixed>>, total: int}
      */
-    public function findDeleted(string $canvasId, string $userId): array;
+    public function findDeleted(string $canvasId, string $userId, int $limit, int $offset): array;
 
     /**
      * Поиск по заголовкам и тегам в рамках канваса (docs/api.md).
      * Visibility predicate inside; $userId = null (аноним) — только public.
      *
-     * @return list<array<string,mixed>>
+     * @return array{items: list<array<string,mixed>>, total: int}
      */
-    public function search(string $canvasId, ?string $userId, string $q): array;
+    public function search(string $canvasId, ?string $userId, string $q, int $limit, int $offset): array;
 
     /**
      * Резолв [[uuid]]-цели: только живые заметки этого канваса.

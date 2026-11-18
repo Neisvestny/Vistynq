@@ -197,52 +197,77 @@ final class NoteRepository implements NoteRepositoryInterface
      * @param array<string,mixed> $params
      * @return list<array<string,mixed>>
      */
-    private function findNotesBy(string $condition, array $params, string $orderBy): array
+    private function findNotesBy(string $condition, array $params, string $orderBy, int $limit, int $offset): array
     {
         $sql = 'SELECT n.*, ' . self::TAG_IDS_AGG
             . ' FROM notes n'
             . ' LEFT JOIN note_tags nt ON nt.note_id = n.id'
             . ' WHERE ' . $condition
             . ' GROUP BY n.id'
-            . ' ORDER BY ' . $orderBy;
+            . ' ORDER BY ' . $orderBy
+            . ' LIMIT :limit OFFSET :offset';
 
         $stmt = $this->db->pdo()->prepare($sql);
-        $stmt->execute($params);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
+     * COUNT под тот же предикат, что и findNotesBy (R19). Без GROUP BY:
+     * заметка одна, теги в count не участвуют.
+     *
+     * @param array<string,mixed> $params
+     */
+    private function countNotesBy(string $condition, array $params): int
+    {
+        $stmt = $this->db->pdo()->prepare('SELECT count(*) FROM notes n WHERE ' . $condition);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->execute();
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
      * Archive «неактуально» (docs/data-model.md: is_relevant = false, живые).
      *
-     * @return list<array<string,mixed>>
+     * @return array{items: list<array<string,mixed>>, total: int}
      */
-    public function findNotRelevant(string $canvasId, string $userId): array
+    public function findNotRelevant(string $canvasId, string $userId, int $limit, int $offset): array
     {
         [$visible, $visParams] = $this->visibilityCondition($userId);
+        $condition = 'n.canvas_id = :canvasId AND n.deleted_at IS NULL AND n.is_relevant = false AND ' . $visible;
+        $params = array_merge(['canvasId' => $canvasId], $visParams);
 
-        return $this->findNotesBy(
-            'n.canvas_id = :canvasId AND n.deleted_at IS NULL AND n.is_relevant = false AND ' . $visible,
-            array_merge(['canvasId' => $canvasId], $visParams),
-            'n.updated_at DESC',
-        );
+        return [
+            'items' => $this->findNotesBy($condition, $params, 'n.updated_at DESC, n.id DESC', $limit, $offset),
+            'total' => $this->countNotesBy($condition, $params),
+        ];
     }
 
     /**
      * Archive «удалённые» — soft-deleted заметки (tombstone'ы purge приходят
      * отдельно из DeletedNoteRepository: выборки непересекающиеся).
      *
-     * @return list<array<string,mixed>>
+     * @return array{items: list<array<string,mixed>>, total: int}
      */
-    public function findDeleted(string $canvasId, string $userId): array
+    public function findDeleted(string $canvasId, string $userId, int $limit, int $offset): array
     {
         [$visible, $visParams] = $this->visibilityCondition($userId);
+        $condition = 'n.canvas_id = :canvasId AND n.deleted_at IS NOT NULL AND ' . $visible;
+        $params = array_merge(['canvasId' => $canvasId], $visParams);
 
-        return $this->findNotesBy(
-            'n.canvas_id = :canvasId AND n.deleted_at IS NOT NULL AND ' . $visible,
-            array_merge(['canvasId' => $canvasId], $visParams),
-            'n.deleted_at DESC',
-        );
+        return [
+            'items' => $this->findNotesBy($condition, $params, 'n.deleted_at DESC, n.id DESC', $limit, $offset),
+            'total' => $this->countNotesBy($condition, $params),
+        ];
     }
 
     /**
@@ -253,12 +278,25 @@ final class NoteRepository implements NoteRepositoryInterface
      * matched_tag: null, если совпал заголовок, иначе имя первого
      * совпавшего тега (SearchHit, docs/openapi.yaml).
      *
-     * @return list<array<string,mixed>>
+     * @return array{items: list<array<string,mixed>>, total: int}
      */
-    public function search(string $canvasId, ?string $userId, string $q): array
+    public function search(string $canvasId, ?string $userId, string $q, int $limit, int $offset): array
     {
         $like = '%' . self::escapeLike($q) . '%';
         [$visible, $visParams] = $this->visibilityCondition($userId);
+        $params = ['canvasId' => $canvasId, 'q' => $like] + $visParams;
+
+        $match = "lower(n.title) LIKE lower(:q) ESCAPE '\\'"
+            . ' OR EXISTS (SELECT 1 FROM note_tags x JOIN tags t ON t.id = x.tag_id'
+            . " WHERE x.note_id = n.id AND lower(t.name) LIKE lower(:q) ESCAPE '\\')";
+        $condition = 'n.canvas_id = :canvasId AND n.deleted_at IS NULL AND (' . $match . ') AND ' . $visible;
+
+        $count = $this->db->pdo()->prepare('SELECT count(DISTINCT n.id) FROM notes n WHERE ' . $condition);
+        foreach ($params as $key => $value) {
+            $count->bindValue($key, $value);
+        }
+        $count->execute();
+        $total = (int) $count->fetchColumn();
 
         $sql = 'SELECT n.*, ' . self::TAG_IDS_AGG
             . ', CASE WHEN lower(n.title) LIKE lower(:q) ESCAPE \'\\\' THEN NULL ELSE ('
@@ -267,19 +305,23 @@ final class NoteRepository implements NoteRepositoryInterface
             . ' ORDER BY t.name LIMIT 1) END AS matched_tag'
             . ' FROM notes n'
             . ' LEFT JOIN note_tags nt ON nt.note_id = n.id'
-            . ' WHERE n.canvas_id = :canvasId AND n.deleted_at IS NULL'
-            . " AND (lower(n.title) LIKE lower(:q) ESCAPE '\\'"
-            . ' OR EXISTS (SELECT 1 FROM note_tags x JOIN tags t ON t.id = x.tag_id'
-            . " WHERE x.note_id = n.id AND lower(t.name) LIKE lower(:q) ESCAPE '\\'))"
-            . ' AND ' . $visible
+            . ' WHERE ' . $condition
             . ' GROUP BY n.id'
-            . ' ORDER BY n.updated_at DESC'
-            . ' LIMIT 50';
+            . ' ORDER BY n.updated_at DESC, n.id DESC'
+            . ' LIMIT :limit OFFSET :offset';
 
         $stmt = $this->db->pdo()->prepare($sql);
-        $stmt->execute(['canvasId' => $canvasId, 'q' => $like] + $visParams);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+            'total' => $total,
+        ];
     }
 
     /**

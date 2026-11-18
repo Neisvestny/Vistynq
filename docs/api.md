@@ -6,7 +6,7 @@
 
 - **Имена полей в JSON — `camelCase`** (`displayName`, `perPage`, `bodyMd`, `fromNoteId`). В БД — `snake_case`, см. [data-model.md](data-model.md).
 - Даты — ISO 8601 UTC. Id — uuid.
-- Пагинация (`/canvases`, `/canvases/{id}/search`, `/canvases/{id}/archive`): `?page=1&perPage=50` (по умолчанию 1 и 50, максимум 200), ответ `{items, page, perPage, total}`.
+- Пагинация (`/canvases`, `/canvases/{id}/search`, `/canvases/{id}/archive`): `?page=1&perPage=50` (по умолчанию 1 и 50, максимум 200), ответ `{items, page, perPage, total}`. Невалидные `page`/`perPage` → `422 VALIDATION_FAILED`; страница за пределами общего числа элементов возвращает пустой `items` при прежнем `total`.
 - Остальные списки (теги, участники доступа) — плоские массивы.
 - Ошибки — единый формат:
 

@@ -181,8 +181,9 @@
 
 ### R19 · Пагинация (P2, ← R12, R13)
 
-- [ ] `page`/`perPage` (1/50, максимум 200) для `/canvases`, search, archive — частично: описано в openapi, в коде не реализовано
-- [ ] формат `{items, page, perPage, total}`; openapi синхронизирован — частично: в openapi есть, бэкенд не отдаёт
+- [x] `page`/`perPage` (1/50, максимум 200) для `/canvases`, search, archive; невалидные значения → 422
+- [x] формат `{items, page, perPage, total}`; openapi и api.md синхронизированы
+- [x] индексы пагинации: `migrations/0005_pagination_indexes.sql` (`canvases.created_at,id`, `notes.deleted_at,id`)
 
 ### R20 · Логирование (P2, ← R03)
 

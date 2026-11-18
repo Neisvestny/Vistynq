@@ -34,7 +34,7 @@ final class FakeCanvasRepository implements CanvasRepositoryInterface
         return $this->canvases[$id] ?? null;
     }
 
-    public function findForUser(string $userId): array
+    public function findForUser(string $userId, int $limit, int $offset): array
     {
         $rows = [];
         foreach ($this->canvases as $canvas) {
@@ -46,7 +46,10 @@ final class FakeCanvasRepository implements CanvasRepositoryInterface
             }
         }
 
-        return $rows;
+        return [
+            'items' => array_slice($rows, $offset, $limit),
+            'total' => count($rows),
+        ];
     }
 
     public function create(string $ownerId, string $title): array

@@ -126,6 +126,50 @@ final class CanvasCrudTest extends IntegrationTestCase
         $this->assertNotContains($this->canvasId, array_column($strangerView['items'], 'id'));
     }
 
+    public function testIndexPaginatesWithStableTotal(): void
+    {
+        $this->createCanvas($this->ownerId, 'Второй');
+        $this->createCanvas($this->ownerId, 'Третий');
+
+        $first = $this->json($this->canvasController->index(
+            $this->request('GET', '/api/v1/canvases', [], null, ['page' => '1', 'perPage' => '2'], [], $this->ownerId),
+        ));
+        $this->assertSame(1, $first['page']);
+        $this->assertSame(2, $first['perPage']);
+        $this->assertSame(3, $first['total']);
+        $this->assertCount(2, $first['items']);
+
+        $second = $this->json($this->canvasController->index(
+            $this->request('GET', '/api/v1/canvases', [], null, ['page' => '2', 'perPage' => '2'], [], $this->ownerId),
+        ));
+        $this->assertSame(3, $second['total'], 'total не зависит от страницы');
+        $this->assertCount(1, $second['items']);
+        $this->assertSame(
+            [],
+            array_intersect(
+                array_column($first['items'], 'id'),
+                array_column($second['items'], 'id'),
+            ),
+            'страницы не пересекаются',
+        );
+
+        $beyond = $this->json($this->canvasController->index(
+            $this->request('GET', '/api/v1/canvases', [], null, ['page' => '9', 'perPage' => '2'], [], $this->ownerId),
+        ));
+        $this->assertSame([], $beyond['items'], 'страница за концом — пустой список');
+        $this->assertSame(3, $beyond['total']);
+    }
+
+    public function testIndexRejectsInvalidPagination(): void
+    {
+        foreach ([['page' => '0'], ['page' => 'abc'], ['perPage' => '201']] as $query) {
+            $e = $this->assertApiStatus(422, fn (): Response => $this->canvasController->index(
+                $this->request('GET', '/api/v1/canvases', [], null, $query, [], $this->ownerId),
+            ), json_encode($query));
+            $this->assertSame('VALIDATION_FAILED', $e->errorCode());
+        }
+    }
+
     public function testIndexCountsLiveNotesOnly(): void
     {
         $this->createNote($this->canvasId, $this->ownerId, 'Первая');

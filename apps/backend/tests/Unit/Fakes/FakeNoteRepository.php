@@ -127,38 +127,43 @@ final class FakeNoteRepository implements NoteRepositoryInterface
         return $rows;
     }
 
-    public function findNotRelevant(string $canvasId, string $userId): array
+    public function findNotRelevant(string $canvasId, string $userId, int $limit, int $offset): array
     {
-        return array_values(array_filter(
+        $rows = array_values(array_filter(
             $this->notes,
             fn (array $n): bool => $n['canvas_id'] === $canvasId
                 && ($n['deleted_at'] ?? null) === null
                 && empty($n['is_relevant'])
                 && $this->canSee($n, $userId),
         ));
+
+        return ['items' => array_slice($rows, $offset, $limit), 'total' => count($rows)];
     }
 
-    public function findDeleted(string $canvasId, string $userId): array
+    public function findDeleted(string $canvasId, string $userId, int $limit, int $offset): array
     {
-        return array_values(array_filter(
+        $rows = array_values(array_filter(
             $this->notes,
             fn (array $n): bool => $n['canvas_id'] === $canvasId
                 && ($n['deleted_at'] ?? null) !== null
                 && $this->canSee($n, $userId),
         ));
+
+        return ['items' => array_slice($rows, $offset, $limit), 'total' => count($rows)];
     }
 
-    public function search(string $canvasId, ?string $userId, string $q): array
+    public function search(string $canvasId, ?string $userId, string $q, int $limit, int $offset): array
     {
         $q = mb_strtolower($q);
-
-        return array_values(array_filter(
+        $rows = array_values(array_filter(
             $this->notes,
             fn (array $n): bool => $n['canvas_id'] === $canvasId
                 && ($n['deleted_at'] ?? null) === null
                 && $this->canSee($n, $userId)
                 && str_contains(mb_strtolower((string) $n['title']), $q),
         ));
+
+        return ['items' => array_slice($rows, $offset, $limit), 'total' => count($rows)];
     }
 
     /**

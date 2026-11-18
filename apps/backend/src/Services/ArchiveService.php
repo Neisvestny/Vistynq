@@ -7,10 +7,12 @@ namespace Vistynq\Services;
 use Vistynq\Models\Note;
 use Vistynq\Repositories\NoteRepositoryInterface;
 use Vistynq\Support\ApiException;
+use Vistynq\Support\Pagination;
 
 /**
  * Архив канваса (docs/api.md §Канвасы, ROADMAP R13): обязательный
- * ?section=notRelevant|deleted, ответ {items:[Note]}.
+ * ?section=notRelevant|deleted, ответ {items:[Note], page, perPage, total}
+ * (R19).
  *
  * notRelevant — живые is_relevant=false; deleted — только soft-deleted
  * заметки (стёртые навсегда, tombstone'ы, сюда не попадают —
@@ -27,9 +29,9 @@ final class ArchiveService
     }
 
     /**
-     * @return array<string, mixed> {items: list<array<string, mixed>>}
+     * @return array{items: list<array<string, mixed>>, page: int, perPage: int, total: int}
      */
-    public function get(string $canvasId, string $userId, string $section): array
+    public function get(string $canvasId, string $userId, string $section, Pagination $pagination): array
     {
         // Сначала права (404/403 не подтверждают существование канваса),
         // затем валидация — как в NoteService::create.
@@ -43,26 +45,17 @@ final class ArchiveService
             );
         }
 
-        $rows = $section === 'notRelevant'
-            ? $this->notes->findNotRelevant($canvasId, $userId)
-            : $this->notes->findDeleted($canvasId, $userId);
+        $result = $section === 'notRelevant'
+            ? $this->notes->findNotRelevant($canvasId, $userId, $pagination->limit(), $pagination->offset())
+            : $this->notes->findDeleted($canvasId, $userId, $pagination->limit(), $pagination->offset());
 
+        // Порядок задан в SQL: notRelevant — updated_at DESC, deleted —
+        // deleted_at DESC, оба с tiebreaker по id (стабильная пагинация).
         $items = array_map(
             static fn (array $row): array => Note::fromRow($row)->toArray(),
-            $rows,
+            $result['items'],
         );
 
-        if ($section === 'deleted') {
-            // Уже отсортировано по deleted_at DESC в SQL, но дублируем
-            // явно: контракт — «по deletedAt DESC» (docs/api.md).
-            usort($items, static function (array $a, array $b): int {
-                $left = strtotime((string) ($a['deletedAt'] ?? '')) ?: 0;
-                $right = strtotime((string) ($b['deletedAt'] ?? '')) ?: 0;
-
-                return $right <=> $left;
-            });
-        }
-
-        return ['items' => $items];
+        return $pagination->envelope($items, $result['total']);
     }
 }

@@ -9,6 +9,16 @@ use Vistynq\Support\Database;
 
 final class CanvasRepository implements CanvasRepositoryInterface
 {
+    /**
+     * Общий предикат «канвас виден пользователю» для COUNT и списка (R19):
+     * нельзя допустить, чтобы total и items считались по разным условиям.
+     */
+    private const USER_CANVAS_WHERE = 'c.owner_id = :userId OR ca.user_id IS NOT NULL
+        OR EXISTS (SELECT 1 FROM note_access na JOIN notes n2 ON n2.id = na.note_id
+            WHERE na.user_id = :userId AND n2.canvas_id = c.id AND n2.deleted_at IS NULL)
+        OR EXISTS (SELECT 1 FROM notes n3
+            WHERE n3.canvas_id = c.id AND n3.author_id = :userId AND n3.deleted_at IS NULL)';
+
     public function __construct(private readonly Database $db)
     {
     }
@@ -26,9 +36,9 @@ final class CanvasRepository implements CanvasRepositoryInterface
     }
 
     /**
-     * @return list<array<string,mixed>>
+     * @return array{items: list<array<string,mixed>>, total: int}
      */
-    public function findForUser(string $userId): array
+    public function findForUser(string $userId, int $limit, int $offset): array
     {
         // my_role = NULL (нет canvas_access) маппится Canvas::fromRow в 'none':
         // выдаём и канвасы с доступом только к отдельным заметкам (R12).
@@ -37,7 +47,17 @@ final class CanvasRepository implements CanvasRepositoryInterface
         // конъюнкции: есть доступ к канвасу/заметке AND заметка видима по
         // visibility), чтобы число совпадало с числом нод в /graph для этого
         // же пользователя и не раскрывало чужие private-заметки.
-        $stmt = $this->db->pdo()->prepare(
+        $pdo = $this->db->pdo();
+
+        $count = $pdo->prepare(
+            'SELECT count(DISTINCT c.id) FROM canvases c'
+            . ' LEFT JOIN canvas_access ca ON ca.canvas_id = c.id AND ca.user_id = :userId'
+            . ' WHERE ' . self::USER_CANVAS_WHERE
+        );
+        $count->execute(['userId' => $userId]);
+        $total = (int) $count->fetchColumn();
+
+        $stmt = $pdo->prepare(
             "SELECT c.*,
                     CASE
                         WHEN c.owner_id = :userId THEN 'owner'
@@ -60,16 +80,19 @@ final class CanvasRepository implements CanvasRepositoryInterface
                                  WHERE na3.note_id = n.id AND na3.user_id = :userId))) AS note_count
              FROM canvases c
              LEFT JOIN canvas_access ca ON ca.canvas_id = c.id AND ca.user_id = :userId
-             WHERE c.owner_id = :userId OR ca.user_id IS NOT NULL
-                OR EXISTS (SELECT 1 FROM note_access na JOIN notes n2 ON n2.id = na.note_id
-                    WHERE na.user_id = :userId AND n2.canvas_id = c.id AND n2.deleted_at IS NULL)
-                OR EXISTS (SELECT 1 FROM notes n3
-                    WHERE n3.canvas_id = c.id AND n3.author_id = :userId AND n3.deleted_at IS NULL)
-             ORDER BY c.created_at DESC"
+             WHERE " . self::USER_CANVAS_WHERE
+            . ' ORDER BY c.created_at DESC, c.id DESC'
+            . ' LIMIT :limit OFFSET :offset'
         );
-        $stmt->execute(['userId' => $userId]);
+        $stmt->bindValue('userId', $userId);
+        $stmt->bindValue('limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+            'total' => $total,
+        ];
     }
 
     /**
