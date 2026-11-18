@@ -1,13 +1,18 @@
 /**
  * Карта маршрутов (docs/ui-ux.md; решение: Dashboard на /dashboard, лендинг на /).
  */
-import { createRouter, createWebHistory } from 'vue-router'
+import { createMemoryHistory, createRouter, createWebHistory } from 'vue-router'
 import { setupGuards } from './guards'
 import AppLayout from '@/layouts/AppLayout.vue'
 import LandingLayout from '@/layouts/LandingLayout.vue'
 
+const history =
+  typeof window !== 'undefined'
+    ? createWebHistory(import.meta.env.BASE_URL)
+    : createMemoryHistory(import.meta.env.BASE_URL)
+
 export const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history,
   routes: [
     {
       path: '/',

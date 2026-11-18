@@ -56,6 +56,19 @@ export function useAccessGuard(note?: MaybeRefOrGetter<NoteAccessLike | null | u
     return isOwner.value || isCanvasOwnerById.value
   }
 
+  /**
+   * Право двигать/ресайзить ноду (docs/ui-ux.md, матрица прав):
+   * owner/author ноды, editor канваса, owner канваса — да; viewer и editor только заметки — нет.
+   */
+  function canMoveResizeNode(target?: NoteAccessLike | null): boolean {
+    if (canEditCanvas.value) return true
+    const n = target ?? toValue(note) ?? null
+    if (!n) return false
+    const uid = userId.value
+    if (uid && n.authorId && uid === n.authorId) return true
+    return false
+  }
+
   const canEditCurrentNote = computed(() => canEditNote())
 
   return {
@@ -71,6 +84,7 @@ export function useAccessGuard(note?: MaybeRefOrGetter<NoteAccessLike | null | u
     canReadOnly,
     canEditNote,
     canManageNoteAccess,
+    canMoveResizeNode,
     canEditCurrentNote,
   }
 }

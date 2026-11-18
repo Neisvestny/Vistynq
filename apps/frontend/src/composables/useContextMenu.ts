@@ -26,7 +26,8 @@ function toPoint(target: MouseEvent | ContextMenuPoint): ContextMenuPoint {
 
 /**
  * Состояние контекстного меню (координаты + произвольный контекст).
- * Закрывается по Esc, клику вне и скроллу/resize; содержимое меню — задача R27.
+ * Закрывается по Esc, клику вне, скроллу/resize. Для кликов внутри меню
+ * передайте контейнер через menuEl.
  */
 export function useContextMenu<T = unknown>() {
   const state = reactive<ContextMenuState>({
@@ -35,6 +36,8 @@ export function useContextMenu<T = unknown>() {
     y: 0,
   })
   const context = shallowRef<T | null>(null)
+  /** DOM-элемент меню: pointerdown внутри него не закрывает меню. */
+  const menuEl = shallowRef<HTMLElement | null>(null)
 
   function close(): void {
     state.open = false
@@ -64,7 +67,9 @@ export function useContextMenu<T = unknown>() {
     if (event.key === 'Escape') close()
   }
 
-  function onPointerDown(): void {
+  function onPointerDown(event: PointerEvent): void {
+    const el = menuEl.value
+    if (el && event.target instanceof Node && el.contains(event.target)) return
     close()
   }
 
@@ -104,5 +109,5 @@ export function useContextMenu<T = unknown>() {
     removeListeners()
   })
 
-  return { state, context, open, close, toggle }
+  return { state, context, menuEl, open, close, toggle }
 }

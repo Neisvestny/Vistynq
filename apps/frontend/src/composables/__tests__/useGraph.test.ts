@@ -77,4 +77,18 @@ describe('useGraph', () => {
     expect(indirect?.style).toMatchObject({ strokeDasharray: '6 4' })
     expect(g.brokenEdgesCount.value).toBe(1)
   })
+
+  it('в режиме editableLayout делает ноды перетаскиваемыми по правам (owner канваса)', () => {
+    const c = useCanvasStore()
+    const n = useNotesStore()
+    c.canvas = canvas()
+    c.edges = []
+    c.tags = []
+    n.setNodes([node({ id: 'n1', authorId: 'u-2' }), node({ id: 'n2', authorId: 'u-1' })])
+
+    const g = useGraph({ editableLayout: true })
+
+    expect(g.flowNodes.value.every((x) => x.draggable)).toBe(true)
+    expect(g.flowNodes.value.every((x) => x.selectable)).toBe(true)
+  })
 })

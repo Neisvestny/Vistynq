@@ -67,4 +67,17 @@ describe('notes store (R04)', () => {
     expect(store.visibleNodeIds.size).toBe(0)
     expect(store.selectedId).toBeNull()
   })
+
+  it('updateNodeGeometry обновляет x/y/width и игнорирует неизвестный id', () => {
+    const store = useNotesStore()
+    store.setNodes([node('a'), node('b')])
+
+    store.updateNodeGeometry('a', { x: 10, y: 20 })
+    store.updateNodeGeometry('b', { width: 300 })
+    store.updateNodeGeometry('missing', { x: 1 })
+
+    expect(store.getNodeById('a')).toMatchObject({ x: 10, y: 20, width: 220 })
+    expect(store.getNodeById('b')).toMatchObject({ x: 0, y: 0, width: 300 })
+    expect(store.nodes).toHaveLength(2)
+  })
 })
