@@ -58,7 +58,8 @@ jobs:
       # Реальное S3-хранилище для R17 (не LocalAdapter-заглушка):
       # бакет создаётся отдельным шагом ниже.
       minio:
-        image: quay.io/minio/minio
+        image: pgsty/silo:latest
+        command: server /data
         env:
           MINIO_ROOT_USER: test-minio
           MINIO_ROOT_PASSWORD: test-minio-secret
@@ -123,7 +124,7 @@ jobs:
         run: >-
           docker run --rm --network host
           -e MC_HOST_local="http://test-minio:test-minio-secret@127.0.0.1:9000"
-          quay.io/minio/mc mb --ignore-existing local/vistynq-test
+          pgsty/silo:latest mc mb --ignore-existing local/vistynq-test
 
       - run: vendor/bin/phpunit
 

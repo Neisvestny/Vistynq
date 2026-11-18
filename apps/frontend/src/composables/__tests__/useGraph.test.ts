@@ -1,0 +1,80 @@
+import { describe, expect, it, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { useCanvasStore } from '@/stores/canvas'
+import { useNotesStore } from '@/stores/notes'
+import type { Canvas, GraphEdge, GraphNode, Tag } from '@/api/types'
+import { useGraph } from '../useGraph'
+
+function canvas(): Canvas {
+  return {
+    id: 'c-1',
+    title: 'Тест',
+    ownerId: 'u-1',
+    access: { level: 'private', myRole: 'owner', publicSlug: null },
+    createdAt: '2026-01-01T00:00:00.000Z',
+  }
+}
+
+function node(partial: Partial<GraphNode> & { id: string }): GraphNode {
+  return {
+    id: partial.id,
+    title: partial.title ?? 'Заметка',
+    importance: partial.importance ?? 1,
+    isRelevant: partial.isRelevant ?? true,
+    visibility: partial.visibility,
+    x: partial.x ?? 0,
+    y: partial.y ?? 0,
+    width: partial.width ?? 220,
+    deletedAt: partial.deletedAt ?? null,
+    tags: partial.tags ?? [],
+    authorId: partial.authorId ?? 'u-1',
+  }
+}
+
+function edge(partial: Partial<GraphEdge> & { id: string; from: string }): GraphEdge {
+  return {
+    id: partial.id,
+    type: partial.type ?? 'direct',
+    from: partial.from,
+    to: partial.to === undefined ? null : partial.to,
+    state: partial.state ?? 'ok',
+    label: partial.label ?? null,
+  }
+}
+
+describe('useGraph', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('маппит видимые ноды и фильтрует рёбра (ok, to!=null, оба конца видимы)', () => {
+    const c = useCanvasStore()
+    const n = useNotesStore()
+    const tags: Tag[] = [{ id: 't1', name: 'важное', color: '#f00' }]
+
+    c.canvas = canvas()
+    c.tags = tags
+    c.edges = [
+      edge({ id: 'e-ok', from: 'n1', to: 'n2', state: 'ok', type: 'direct' }),
+      edge({ id: 'e-ind', from: 'n1', to: 'n2', state: 'ok', type: 'indirect' }),
+      edge({ id: 'e-removed', from: 'n1', to: null, state: 'removed' }),
+      edge({ id: 'e-hidden', from: 'n1', to: 'n3', state: 'ok' }),
+    ]
+    n.setNodes([
+      node({ id: 'n1', title: 'A', importance: 3, tags: ['важное'] }),
+      node({ id: 'n2', title: 'B' }),
+      node({ id: 'n3', title: 'C', isRelevant: false }),
+    ])
+
+    const g = useGraph()
+
+    expect(g.flowNodes.value.map((x) => x.id)).toEqual(['n1', 'n2'])
+    expect(g.flowNodes.value[0]?.draggable).toBe(false)
+    expect(g.flowNodes.value[0]?.data.tagColors['важное']).toBe('#f00')
+    expect(g.flowEdges.value.map((x) => x.id).sort()).toEqual(['e-ind', 'e-ok'])
+    const indirect = g.flowEdges.value.find((x) => x.id === 'e-ind')
+    expect(indirect?.class).toContain('canvas-edge--indirect')
+    expect(indirect?.style).toMatchObject({ strokeDasharray: '6 4' })
+    expect(g.brokenEdgesCount.value).toBe(1)
+  })
+})

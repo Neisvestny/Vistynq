@@ -8,7 +8,7 @@
 - Этап 1 Основа: 7/7
 - Этап 2 Backend: 12/13
 - Этап 3 Backend-тесты: 1/2
-- Этап 4 Frontend: 1/12
+- Этап 4 Frontend: 3/12
 - Этап 5 Качество: 0/1
 - Этап 6 Продакшн: 0/1
 - Этап 7 Документация разработчика: 0/1
@@ -225,14 +225,14 @@
 
 ### R24 · Структура frontend (P2, ← R04, R23)
 
-- [ ] composables: `useDebounce`, `useContextMenu`, `useDropFiles`, `useGraph`, `useAccessGuard` — частично: реализован только `useToast`
-- [ ] типизированные api-модули по openapi — частично: только `auth` и `canvas` (+errors/notify)
+- [x] composables: `useDebounce`, `useContextMenu`, `useDropFiles`, `useGraph`, `useAccessGuard` (и `useToast`)
+- [x] типизированные api-модули по openapi (`auth`, `profile`, `canvas`, `notes`, `tags`, `links`, `access`, `attachments`, `shared` + `http/types/errors/notify`)
 
 ### R25 · Vue Flow 1 (P2, ← R23, R12)
 
-- [x] рендер нод и рёбер из `/graph`
-- [x] стили нод по важности, рёбер (прямые/косвенные)
-- [ ] зум к курсору, панорама — частично: только дефолты Vue Flow, явная настройка зума к курсору не сделана
+- [x] скелет канваса: `CanvasBoard.vue` + маппинг графа через `useGraph`, страница `CanvasViewPage` — оркестрация
+- [x] рендер нод и рёбер из `/graph`, стили нод по важности, рёбер (прямые/косвенные)
+- [x] явный зум и панорама (колесо — панорама, Ctrl+колесо — зум к курсору, Space+drag — панорама)
 
 ### R26 · Vue Flow 2 (P2, ← R25)
 

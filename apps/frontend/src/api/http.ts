@@ -30,11 +30,11 @@ export class ApiError extends Error {
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-  /** Сериализуется в JSON; для пустого тела не задавайте. */
+  /** JSON-объект (сериализуется) или FormData для multipart-запросов. */
   body?: unknown
   /** Добавлять Authorization: Bearer (по умолчанию true). */
   auth?: boolean
-  query?: Record<string, string | number | undefined>
+  query?: Record<string, string | number | boolean | null | undefined>
   headers?: Record<string, string>
 }
 
@@ -125,11 +125,16 @@ async function execute<T>(
 ): Promise<T> {
   const method = options.method ?? 'GET'
   const headers: Record<string, string> = { Accept: 'application/json', ...options.headers }
-  let body: string | undefined
+  let body: BodyInit | undefined
 
   if (options.body !== undefined) {
-    headers['Content-Type'] = 'application/json'
-    body = JSON.stringify(options.body)
+    if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
+      body = options.body
+      // Content-Type для FormData выставляет браузер (с boundary).
+    } else {
+      headers['Content-Type'] = 'application/json'
+      body = JSON.stringify(options.body)
+    }
   }
 
   if (options.auth !== false && accessToken !== null) {
@@ -163,9 +168,13 @@ async function execute<T>(
     throw await toApiError(res)
   }
 
+  if (res.status === 204 || res.status === 205) {
+    return undefined as T
+  }
+
   const text = await res.text()
   if (text === '') {
-    throw new ApiError(res.status, 'EMPTY_RESPONSE', 'Пустой ответ от сервера')
+    return undefined as T
   }
 
   return JSON.parse(text) as T
@@ -176,7 +185,7 @@ async function fetchWithNetworkRetry(
   url: string,
   method: string,
   headers: Record<string, string>,
-  body?: string
+  body?: BodyInit
 ): Promise<Response> {
   const init: RequestInit = { method, headers, credentials: 'same-origin' }
   if (body !== undefined) {
@@ -213,7 +222,10 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, code, message, details)
 }
 
-function buildUrl(path: string, query?: Record<string, string | number | undefined>): string {
+function buildUrl(
+  path: string,
+  query?: Record<string, string | number | boolean | null | undefined>
+): string {
   const url = `${API_BASE}${path}`
   if (!query) {
     return url
@@ -221,7 +233,7 @@ function buildUrl(path: string, query?: Record<string, string | number | undefin
 
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined) {
+    if (value !== undefined && value !== null) {
       params.set(key, String(value))
     }
   }
