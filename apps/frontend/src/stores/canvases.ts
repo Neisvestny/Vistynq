@@ -1,9 +1,9 @@
 /**
- * Список канвасов пользователя (docs/architecture.md §stores, roadmap R04).
- * Данные GET /canvases + создание канваса; форма-состояние диалога (newTitle,
- * createErrors) остаётся локальным в DashboardPage.
+ * Список канвасов пользователя (docs/architecture.md §stores, roadmap R04, R19).
+ * Данные GET /canvases (постранично) + создание канваса; форма-состояние диалога
+ * (newTitle, createErrors) остаётся локальным в DashboardPage.
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { canvasApi } from '@/api/canvas'
 import type { Canvas } from '@/api/types'
@@ -13,12 +13,21 @@ export const useCanvasesStore = defineStore('canvases', () => {
   const loading = ref(true)
   const loadFailed = ref(false)
   const creating = ref(false)
+  const page = ref(1)
+  const perPage = ref(50)
+  const total = ref(0)
 
-  async function load(): Promise<void> {
+  const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage.value)))
+
+  async function load(nextPage = 1): Promise<void> {
     loading.value = true
     loadFailed.value = false
     try {
-      items.value = (await canvasApi.list()).items
+      const data = await canvasApi.list({ page: nextPage, perPage: perPage.value })
+      items.value = data.items
+      page.value = data.page
+      perPage.value = data.perPage
+      total.value = data.total
     } catch {
       loadFailed.value = true
     } finally {
@@ -45,7 +54,22 @@ export const useCanvasesStore = defineStore('canvases', () => {
     loading.value = true
     loadFailed.value = false
     creating.value = false
+    page.value = 1
+    perPage.value = 50
+    total.value = 0
   }
 
-  return { items, loading, loadFailed, creating, load, create, reset }
+  return {
+    items,
+    loading,
+    loadFailed,
+    creating,
+    page,
+    perPage,
+    total,
+    totalPages,
+    load,
+    create,
+    reset,
+  }
 })

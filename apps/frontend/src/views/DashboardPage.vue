@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Dashboard (docs/ui-ux.md §1) — список канвасов из GET /canvases,
+ * Dashboard (docs/ui-ux.md §1) — список канвасов из GET /canvases (постранично),
  * создание канваса, секция приглашений-заглушка (инвайты — R31).
  */
 import { onMounted, ref } from 'vue'
@@ -58,9 +58,19 @@ function roleLabel(canvas: Canvas): string {
       return 'Редактор'
     case 'viewer':
       return 'Зритель'
+    case 'none':
+      return 'Доступ к заметкам'
     default:
       return ''
   }
+}
+
+async function goToPage(nextPage: number) {
+  if (store.loading) return
+  const target = Math.min(Math.max(1, nextPage), store.totalPages)
+  if (target === store.page) return
+  await store.load(target)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 onMounted(async () => {
@@ -115,7 +125,7 @@ onMounted(async () => {
     <!-- Ошибка загрузки -->
     <UiCard v-else-if="store.loadFailed">
       <p class="dashboard__hint">Не удалось загрузить канвасы — проверьте соединение.</p>
-      <UiButton variant="ghost" size="sm" @click="store.load">Повторить</UiButton>
+      <UiButton variant="ghost" size="sm" @click="store.load(store.page || 1)">Повторить</UiButton>
     </UiCard>
 
     <!-- Пусто -->
@@ -126,25 +136,54 @@ onMounted(async () => {
     </UiCard>
 
     <!-- Список -->
-    <div v-else class="dashboard__grid">
-      <UiCard
-        v-for="canvas in store.items"
-        :key="canvas.id"
-        class="dashboard__card"
-        @click="router.push({ name: 'canvas', params: { id: canvas.id } })"
-      >
-        <div class="dashboard__card-top">
-          <h2 class="dashboard__card-title">{{ canvas.title }}</h2>
-          <UiBadge v-if="canvas.access.publicSlug" tone="accent">Публичный</UiBadge>
-        </div>
+    <template v-else>
+      <div class="dashboard__grid">
+        <UiCard
+          v-for="canvas in store.items"
+          :key="canvas.id"
+          class="dashboard__card"
+          @click="router.push({ name: 'canvas', params: { id: canvas.id } })"
+        >
+          <div class="dashboard__card-top">
+            <h2 class="dashboard__card-title">{{ canvas.title }}</h2>
+            <UiBadge v-if="canvas.access.publicSlug" tone="accent">Публичный</UiBadge>
+          </div>
 
-        <div class="dashboard__card-meta">
-          <UiBadge v-if="roleLabel(canvas)">{{ roleLabel(canvas) }}</UiBadge>
-          <span class="dashboard__meta-text"> {{ canvas.noteCount ?? 0 }} зам. </span>
-          <span class="dashboard__meta-text">{{ formatDate(canvas.createdAt) }}</span>
-        </div>
-      </UiCard>
-    </div>
+          <div class="dashboard__card-meta">
+            <UiBadge v-if="roleLabel(canvas)">{{ roleLabel(canvas) }}</UiBadge>
+            <span class="dashboard__meta-text"> {{ canvas.noteCount ?? 0 }} зам. </span>
+            <span class="dashboard__meta-text">{{ formatDate(canvas.createdAt) }}</span>
+          </div>
+        </UiCard>
+      </div>
+
+      <nav
+        v-if="store.totalPages > 1"
+        class="dashboard__pagination"
+        aria-label="Страницы списка канвасов"
+      >
+        <UiButton
+          variant="ghost"
+          size="sm"
+          :disabled="store.loading || store.page <= 1"
+          @click="goToPage(store.page - 1)"
+        >
+          Назад
+        </UiButton>
+        <span class="dashboard__pagination-info">
+          Страница {{ store.page }} из {{ store.totalPages }}
+          <span class="dashboard__pagination-total">· всего {{ store.total }}</span>
+        </span>
+        <UiButton
+          variant="ghost"
+          size="sm"
+          :disabled="store.loading || store.page >= store.totalPages"
+          @click="goToPage(store.page + 1)"
+        >
+          Вперёд
+        </UiButton>
+      </nav>
+    </template>
 
     <section class="dashboard__invites">
       <h2 class="dashboard__invites-title">Приглашения</h2>

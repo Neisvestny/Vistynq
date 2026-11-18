@@ -11,7 +11,11 @@
       </p>
 
       <div class="hero__actions">
-        <UiButton size="lg" href="#cta">Начать</UiButton>
+        <UiButton v-if="auth.isAuthenticated" size="lg" to="/dashboard">Открыть дашборд</UiButton>
+        <template v-else>
+          <UiButton size="lg" to="/register">Регистрация</UiButton>
+          <UiButton variant="ghost" size="lg" to="/login">Войти</UiButton>
+        </template>
         <UiButton variant="ghost" size="lg" href="#how">Как это работает</UiButton>
       </div>
     </div>
@@ -19,5 +23,13 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import UiButton from '../ui/UiButton.vue'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+
+onMounted(() => {
+  void auth.ensureRestored()
+})
 </script>

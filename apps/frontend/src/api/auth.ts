@@ -14,6 +14,11 @@ export interface RegisterPayload extends LoginPayload {
   displayName: string
 }
 
+export interface UpdateProfilePayload {
+  displayName?: string
+  email?: string
+}
+
 export const authApi = {
   login(payload: LoginPayload): Promise<AccessTokenResponse> {
     return request<AccessTokenResponse>('/auth/login', {
@@ -39,6 +44,11 @@ export const authApi = {
 
   me(): Promise<User> {
     return request<User>('/auth/me')
+  },
+
+  /** Смена имени/email (email — через pendingEmail и письмо на новый адрес). */
+  updateProfile(payload: UpdateProfilePayload): Promise<User> {
+    return request<User>('/profile', { method: 'PATCH', body: payload })
   },
 
   verifyEmail(token: string): Promise<void> {

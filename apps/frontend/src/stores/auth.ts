@@ -55,6 +55,11 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = await authApi.me()
   }
 
+  /** Обновление профиля (имя/email). При смене email сервер вернёт pendingEmail. */
+  async function updateProfile(payload: { displayName?: string; email?: string }): Promise<void> {
+    user.value = await authApi.updateProfile(payload)
+  }
+
   /** Повторный 401 после неудачного refresh: logout + тост + редирект на /login. */
   function handleSessionExpired(): void {
     reset()
@@ -122,6 +127,7 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     fetchMe,
+    updateProfile,
     ensureRestored,
     markEmailVerified,
     handleSessionExpired,

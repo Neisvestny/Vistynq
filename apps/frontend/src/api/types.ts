@@ -18,6 +18,8 @@ export interface User {
   displayName: string
   avatarUrl?: string | null
   emailVerified: boolean
+  /** Новый email, ожидающий подтверждения (PATCH /profile). */
+  pendingEmail?: string | null
 }
 
 /** Ответ login/refresh: access только в памяти, refresh — httpOnly cookie */

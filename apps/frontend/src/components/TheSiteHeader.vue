@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { Menu as MenuIcon } from 'lucide-vue-next'
 import UiButton from './ui/UiButton.vue'
 import UiSheet from './ui/UiSheet.vue'
+import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 
 const navLinks = [
@@ -11,6 +13,11 @@ const navLinks = [
 ]
 
 const ui = useUiStore()
+const auth = useAuthStore()
+
+onMounted(() => {
+  void auth.ensureRestored()
+})
 
 function closeSheet() {
   ui.closeMenu()
@@ -48,8 +55,13 @@ function closeSheet() {
       </nav>
 
       <div class="site-header__actions">
-        <UiButton variant="ghost" to="/login">Войти</UiButton>
-        <UiButton to="/register">Начать</UiButton>
+        <template v-if="auth.isAuthenticated">
+          <UiButton to="/dashboard">Открыть дашборд</UiButton>
+        </template>
+        <template v-else>
+          <UiButton variant="ghost" to="/login">Войти</UiButton>
+          <UiButton to="/register">Регистрация</UiButton>
+        </template>
       </div>
 
       <UiSheet v-model:open="ui.mobileMenuOpen" class="site-header__sheet" side="right">
@@ -62,8 +74,13 @@ function closeSheet() {
         </nav>
 
         <div class="site-sheet__actions">
-          <UiButton variant="ghost" to="/login" @click="closeSheet">Войти</UiButton>
-          <UiButton to="/register" @click="closeSheet">Начать</UiButton>
+          <template v-if="auth.isAuthenticated">
+            <UiButton to="/dashboard" @click="closeSheet">Открыть дашборд</UiButton>
+          </template>
+          <template v-else>
+            <UiButton variant="ghost" to="/login" @click="closeSheet">Войти</UiButton>
+            <UiButton to="/register" @click="closeSheet">Регистрация</UiButton>
+          </template>
         </div>
       </UiSheet>
 

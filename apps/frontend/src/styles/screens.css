@@ -76,6 +76,54 @@
   color: var(--color-text-muted);
 }
 
+.auth-form__resend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.auth-form__resend-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.auth-form__resend-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.auth-form__hint {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.auth-form__success {
+  color: var(--color-success, #2f9e44);
+  font-size: 0.85rem;
+}
+
+.auth-form__link-button {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.auth-form__link-button:hover {
+  text-decoration: underline;
+}
+
 /* --- Шапка приложения --- */
 
 .app-header {
@@ -193,6 +241,49 @@
 
 .stub-hint {
   color: var(--color-text-muted);
+}
+
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.profile-section__title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--color-text);
+}
+
+.profile-muted {
+  color: var(--color-text-muted);
+}
+
+.profile-pending {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 32rem;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 /* Баннер публичного read-only вида */
@@ -331,6 +422,23 @@
 .dashboard__invites-title {
   font-size: 1.1rem;
   font-weight: 600;
+}
+
+.dashboard__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.dashboard__pagination-info {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.dashboard__pagination-total {
+  color: var(--color-text-muted);
 }
 
 /* --- CanvasView (R14: read-only рендер графа) --- */
