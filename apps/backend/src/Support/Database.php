@@ -19,8 +19,10 @@ final class Database
 {
     private ?PDO $pdo = null;
 
-    public function __construct(private readonly Config $config)
-    {
+    public function __construct(
+        private readonly Config $config,
+        private readonly Logger $logger,
+    ) {
     }
 
     public function pdo(): PDO
@@ -77,7 +79,7 @@ final class Database
     public function ping(int $timeoutSeconds): ?string
     {
         if (!in_array('pgsql', PDO::getAvailableDrivers(), true)) {
-            error_log('[healthz] pdo_pgsql extension is not loaded');
+            $this->logger->error('healthz: pdo_pgsql extension is not loaded');
 
             return 'pdo_pgsql_missing';
         }
@@ -96,7 +98,10 @@ final class Database
             );
             $pdo->query('SELECT 1');
         } catch (Throwable $e) {
-            error_log('[healthz] database check failed: ' . $e->getMessage());
+            $this->logger->error('healthz: database check failed', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+            ]);
 
             return 'database_unreachable';
         }

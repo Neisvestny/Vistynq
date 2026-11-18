@@ -11,6 +11,8 @@ use Vistynq\Services\JwtService;
 use Vistynq\Services\RefreshTokenService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Database;
+use Vistynq\Support\Logger;
+use Vistynq\Support\RequestContext;
 
 final class RefreshTokenRotationTest extends TestCase
 {
@@ -35,7 +37,7 @@ final class RefreshTokenRotationTest extends TestCase
         EnvLoader::load(__DIR__ . '/../../.env');
 
         $this->config = new Config();
-        $this->db = new Database($this->config);
+        $this->db = new Database($this->config, new Logger($this->config, new RequestContext()));
         $this->refreshTokens = new RefreshTokenRepository($this->db);
         $this->users = new UserRepository($this->db);
         $jwt = new JwtService($this->config);

@@ -8,6 +8,8 @@ use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Middleware\ErrorHandlerMiddleware;
 use Vistynq\Support\ApiException;
+use Vistynq\Support\Logger;
+use Vistynq\Support\RequestContext;
 
 /**
  * Unit-тесты внешнего обработчика ошибок (R15): ApiException → её JSON
@@ -16,26 +18,14 @@ use Vistynq\Support\ApiException;
  */
 final class ErrorHandlerMiddlewareTest extends TestCase
 {
-    private string $logFile;
-    private ?string $originalLogSetting = null;
-
     protected function setUp(): void
     {
-        // error_log уводим в tmp-файл: middleware логирует через error_log(),
-        // и без этого тесты мусорили бы в stderr PHPUnit.
-        $this->logFile = tempnam(sys_get_temp_dir(), 'ehm-log-');
-        $this->originalLogSetting = ini_set('error_log', $this->logFile);
         // prod по умолчанию: «no stack leak» — основной контракт (R03).
         $this->setAppEnv('prod');
     }
 
     protected function tearDown(): void
     {
-        if ($this->originalLogSetting !== false) {
-            ini_set('error_log', (string) $this->originalLogSetting);
-        }
-        @unlink($this->logFile);
-
         $this->setAppEnv('test');
     }
 
@@ -94,11 +84,22 @@ final class ErrorHandlerMiddlewareTest extends TestCase
 
     public function testUnexpectedThrowableIsLogged(): void
     {
-        $this->process(static fn (): Response => throw new RuntimeException('boom-log-message'));
+        $requestId = 'req-log-1';
+        $lines = $this->processWithLog(
+            static fn (): Response => throw new RuntimeException('boom-log-message Bearer supersecrettoken'),
+            $requestId,
+        );
 
-        $log = (string) file_get_contents($this->logFile);
-        $this->assertStringContainsString('boom-log-message', $log, 'исключение должно попасть в error_log');
-        $this->assertStringContainsString('GET', $log, 'лог должен содержать метод запроса');
+        $this->assertNotEmpty($lines, 'исключение должно быть залогировано');
+        $entry = json_decode($lines[0], true);
+        $this->assertIsArray($entry);
+        $this->assertSame('error', $entry['level']);
+        $this->assertSame('Unhandled exception', $entry['message']);
+        $this->assertSame($requestId, $entry['requestId']);
+        $this->assertSame('GET', $entry['context']['method']);
+        $this->assertSame('/api/v1/test', $entry['context']['path']);
+        $this->assertStringContainsString('boom-log-message', (string) $entry['context']['error']);
+        $this->assertStringNotContainsString('supersecrettoken', $lines[0], 'секреты не должны утекать в лог');
     }
 
     // --- dev: стек для отладки; prod/test: без стека ---
@@ -148,10 +149,41 @@ final class ErrorHandlerMiddlewareTest extends TestCase
 
     private function process(callable $next): Response
     {
-        $middleware = new ErrorHandlerMiddleware(new Config());
+        $config = new Config();
+        $context = new RequestContext();
+        $logFile = tempnam(sys_get_temp_dir(), 'ehm-log-');
+        $middleware = new ErrorHandlerMiddleware($config, new Logger($config, $context, $logFile));
         $request = new Request('GET', '/api/v1/test', [], [], '', []);
 
-        return $middleware->process($request, $next);
+        try {
+            return $middleware->process($request, $next);
+        } finally {
+            @unlink($logFile);
+        }
+    }
+
+    /**
+     * Выполняет middleware и перехватывает JSON-строки лога.
+     *
+     * @return list<string>
+     */
+    private function processWithLog(callable $next, string $requestId = 'req-log'): array
+    {
+        $logFile = tempnam(sys_get_temp_dir(), 'ehm-log-');
+        $config = new Config();
+        $context = new RequestContext();
+        $context->setRequestId($requestId);
+        $middleware = new ErrorHandlerMiddleware($config, new Logger($config, $context, $logFile));
+        $request = new Request('GET', '/api/v1/test', [], [], '', []);
+
+        try {
+            $middleware->process($request, $next);
+            $contents = (string) file_get_contents($logFile);
+
+            return array_values(array_filter(explode(PHP_EOL, trim($contents))));
+        } finally {
+            @unlink($logFile);
+        }
     }
 
     /**

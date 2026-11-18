@@ -9,6 +9,7 @@ use Vistynq\Models\User;
 use Vistynq\Repositories\AuthTokenRepositoryInterface;
 use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Support\ApiException;
+use Vistynq\Support\Logger;
 
 final class AuthService
 {
@@ -26,6 +27,7 @@ final class AuthService
         private readonly MailServiceInterface $mail,
         private readonly RefreshTokenService $refreshTokens,
         private readonly InvitationService $invitations,
+        private readonly Logger $logger,
     ) {
         if (!extension_loaded('sodium')) {
             throw new RuntimeException('ext-sodium is required for argon2id password hashing');
@@ -121,7 +123,11 @@ final class AuthService
         try {
             $this->invitations->acceptPendingForEmail($email, $userId);
         } catch (\Throwable $e) {
-            error_log('[auth] invitation resolve failed: ' . $e->getMessage());
+            $this->logger->error('invitation resolve failed after email verification', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'userId' => $userId,
+            ]);
         }
     }
 

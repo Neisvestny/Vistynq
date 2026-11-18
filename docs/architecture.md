@@ -214,7 +214,7 @@ flowchart TD
 
 ## Ошибки и логирование
 
-Единый обработчик: `ApiException {httpStatus, code, message, details}` → JSON `{error: {...}}`; непокрытые исключения → 500 `INTERNAL` (в prod без стека). Логирование — error_log/stdout контейнера, одна строка с context json и `requestId`, без токенов и паролей. Валидация входных параметров — точечная в Controllers через `Support\Validator`, без «магии».
+Единый обработчик: `ApiException {httpStatus, code, message, details}` → JSON `{error: {...}}`; непокрытые исключения → 500 `INTERNAL` (в prod без стека). Логирование — `Support\Logger` (DI), одна JSON-строка в stderr/stdout контейнера с `time`, `level`, `message`, `requestId` и `context`; уровень задаётся `LOG_LEVEL`. Секреты (токены, пароли, cookies, Authorization) редактируются regex-ами. `RequestIdMiddleware` сохраняет id в `Support\RequestContext`, откуда его читает логгер. Валидация входных параметров — точечная в Controllers через `Support\Validator`, без «магии».
 
 ## Тестирование
 

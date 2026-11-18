@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Middleware\RequestIdMiddleware;
+use Vistynq\Support\RequestContext;
 
 /**
  * X-Request-Id: эхо валидного id клиента, генерация uuid при отсутствии/мусоре,
@@ -49,7 +50,8 @@ final class RequestIdMiddlewareTest extends TestCase
     public function testAttachesRequestIdToRequestAttributes(): void
     {
         $captured = null;
-        $middleware = new RequestIdMiddleware();
+        $context = new RequestContext();
+        $middleware = new RequestIdMiddleware($context);
         $middleware->process(
             $this->request('client-id-1'),
             function (Request $request) use (&$captured): Response {
@@ -60,11 +62,12 @@ final class RequestIdMiddlewareTest extends TestCase
         );
 
         $this->assertSame('client-id-1', $captured);
+        $this->assertSame('client-id-1', $context->requestId(), 'requestId сохраняется в RequestContext для логгера');
     }
 
     public function testHeaderIsSetOnErrorResponseToo(): void
     {
-        $middleware = new RequestIdMiddleware();
+        $middleware = new RequestIdMiddleware(new RequestContext());
         $response = $middleware->process(
             $this->request(null),
             static fn (): Response => Response::json(['error' => ['code' => 'INTERNAL']], 500),
@@ -76,7 +79,7 @@ final class RequestIdMiddlewareTest extends TestCase
 
     private function process(?string $incoming): Response
     {
-        $middleware = new RequestIdMiddleware();
+        $middleware = new RequestIdMiddleware(new RequestContext());
 
         return $middleware->process(
             $this->request($incoming),

@@ -188,7 +188,7 @@
 ### R20 · Логирование (P2, ← R03)
 
 - [x] `RequestId` middleware — эхо валидного `X-Request-Id` или uuid v4 на каждом ответе (включая ошибки), атрибут `requestId`
-- [ ] Logger: одна строка, json-контекст, без токенов и паролей — частично: нет, логирование через сырой `error_log`
+- [x] Logger: DI-инстанс, одна JSON-строка в stderr, `requestId` из `RequestContext`, редакция секретов, `LOG_LEVEL` (все `error_log` в `src/` заменены)
 
 ---
 

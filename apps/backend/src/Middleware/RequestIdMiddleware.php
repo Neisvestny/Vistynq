@@ -6,6 +6,7 @@ namespace Vistynq\Middleware;
 
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
+use Vistynq\Support\RequestContext;
 
 /**
  * Correlates every response with X-Request-Id (docs/architecture.md §middleware).
@@ -21,10 +22,15 @@ final class RequestIdMiddleware implements MiddlewareInterface
 {
     private const MAX_LENGTH = 128;
 
+    public function __construct(private readonly RequestContext $context)
+    {
+    }
+
     public function process(Request $request, callable $next): Response
     {
         $incoming = $request->header('X-Request-Id');
         $requestId = $this->isAcceptable($incoming) ? (string) $incoming : self::generate();
+        $this->context->setRequestId($requestId);
 
         return $next($request->withAttributes(['requestId' => $requestId]))
             ->withHeaders(['X-Request-Id' => $requestId]);

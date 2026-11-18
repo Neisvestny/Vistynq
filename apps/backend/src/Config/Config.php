@@ -27,6 +27,11 @@ final class Config
         return !$this->isDev();
     }
 
+    public function logLevel(): string
+    {
+        return strtolower(self::str('LOG_LEVEL', 'info'));
+    }
+
     public function appUrl(): string
     {
         return rtrim(self::str('APP_URL', 'http://localhost:8000'), '/');

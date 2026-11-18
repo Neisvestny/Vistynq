@@ -12,7 +12,7 @@ final class ConfigTest extends TestCase
 
     protected function setUp(): void
     {
-        foreach (['APP_ENV', 'APP_URL', 'FRONTEND_URL', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'JWT_SECRET', 'ACCESS_TTL', 'REFRESH_TTL', 'TRUSTED_PROXIES', 'COOKIE_SECURE', 'CORS_ORIGINS', 'SMTP_HOST', 'SMTP_PORT', 'STORAGE_DRIVER', 'LOCAL_STORAGE_PATH', 'S3_ENDPOINT', 'S3_PUBLIC_ENDPOINT', 'S3_PRESIGN_TTL', 'S3_REGION', 'S3_BUCKET', 'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'S3_USE_PATH_STYLE'] as $key) {
+        foreach (['APP_ENV', 'APP_URL', 'FRONTEND_URL', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASS', 'JWT_SECRET', 'ACCESS_TTL', 'REFRESH_TTL', 'TRUSTED_PROXIES', 'COOKIE_SECURE', 'CORS_ORIGINS', 'SMTP_HOST', 'SMTP_PORT', 'STORAGE_DRIVER', 'LOCAL_STORAGE_PATH', 'S3_ENDPOINT', 'S3_PUBLIC_ENDPOINT', 'S3_PRESIGN_TTL', 'S3_REGION', 'S3_BUCKET', 'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'S3_USE_PATH_STYLE', 'LOG_LEVEL'] as $key) {
             $this->savedEnv[$key] = getenv($key);
             putenv($key);
         }
@@ -65,6 +65,7 @@ final class ConfigTest extends TestCase
         $this->assertSame('', $config->cookieDomain());
         $this->assertFalse($config->cookieSecure());
         $this->assertSame([], $config->trustedProxies());
+        $this->assertSame('info', $config->logLevel());
     }
 
     public function testEnvOverrides(): void

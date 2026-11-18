@@ -22,6 +22,8 @@ use Vistynq\Services\JwtService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Container;
 use Vistynq\Support\ContainerFactory;
+use Vistynq\Support\Logger;
+use Vistynq\Support\RequestContext;
 
 final class Kernel
 {
@@ -60,7 +62,10 @@ final class Kernel
         try {
             $response = $pipeline($request);
         } catch (Throwable $e) {
-            error_log('[kernel] pipeline failure: ' . $e::class . ': ' . $e->getMessage());
+            $this->container->get(Logger::class)->error('kernel pipeline failure', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+            ]);
             $status = $e instanceof ApiException ? $e->httpStatus() : 500;
             $response = Response::json(['error' => ['code' => 'INTERNAL', 'message' => 'Внутренняя ошибка сервера']], $status);
         }
@@ -77,8 +82,8 @@ final class Kernel
     {
         /** @var list<MiddlewareInterface> $middleware */
         $middleware = [
-            new RequestIdMiddleware(),
-            new ErrorHandlerMiddleware($this->config),
+            new RequestIdMiddleware($this->container->get(RequestContext::class)),
+            new ErrorHandlerMiddleware($this->config, $this->container->get(Logger::class)),
             new CorsMiddleware($this->config),
             new RateLimitMiddleware($this->config),
             new JsonBodyMiddleware(),

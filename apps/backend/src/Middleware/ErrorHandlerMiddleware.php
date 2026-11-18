@@ -9,6 +9,7 @@ use Vistynq\Config\Config;
 use Vistynq\Http\Request;
 use Vistynq\Http\Response;
 use Vistynq\Support\ApiException;
+use Vistynq\Support\Logger;
 
 /**
  * Outermost middleware: ApiException -> its JSON payload with matching status;
@@ -17,8 +18,10 @@ use Vistynq\Support\ApiException;
  */
 final class ErrorHandlerMiddleware implements MiddlewareInterface
 {
-    public function __construct(private readonly Config $config)
-    {
+    public function __construct(
+        private readonly Config $config,
+        private readonly Logger $logger,
+    ) {
     }
 
     public function process(Request $request, callable $next): Response
@@ -28,15 +31,14 @@ final class ErrorHandlerMiddleware implements MiddlewareInterface
         } catch (ApiException $e) {
             return Response::json($e->toArray(), $e->httpStatus(), $e->extraHeaders());
         } catch (Throwable $e) {
-            error_log(sprintf(
-                '[%s %s] %s: %s in %s:%d',
-                $request->method(),
-                $request->path(),
-                $e::class,
-                $e->getMessage(),
-                $e->getFile(),
-                $e->getLine(),
-            ));
+            $this->logger->error('Unhandled exception', [
+                'method' => $request->method(),
+                'path' => $request->path(),
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
 
             $payload = [
                 'error' => [

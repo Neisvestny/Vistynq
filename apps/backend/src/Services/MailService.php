@@ -6,14 +6,17 @@ namespace Vistynq\Services;
 
 use PHPMailer\PHPMailer\PHPMailer;
 use Vistynq\Config\Config;
+use Vistynq\Support\Logger;
 
 /**
  * SMTP outbound mail (dev: Mailpit on SMTP_HOST:SMTP_PORT).
  */
 final class MailService implements MailServiceInterface
 {
-    public function __construct(private readonly Config $config)
-    {
+    public function __construct(
+        private readonly Config $config,
+        private readonly Logger $logger,
+    ) {
     }
 
     public function sendVerificationEmail(string $to, string $token): void
@@ -173,7 +176,12 @@ final class MailService implements MailServiceInterface
             $mail->send();
         } catch (\Throwable $e) {
             if (!$this->config->isProd()) {
-                error_log('[mail] SMTP send failed (non-prod, ignoring): ' . $e->getMessage());
+                $this->logger->warning('SMTP send failed (non-prod, ignoring)', [
+                    'exception' => $e::class,
+                    'error' => $e->getMessage(),
+                    'to' => $to,
+                ]);
+
                 return;
             }
             throw $e;

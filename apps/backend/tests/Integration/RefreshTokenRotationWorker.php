@@ -16,6 +16,8 @@ use Vistynq\Services\JwtService;
 use Vistynq\Services\RefreshTokenService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Database;
+use Vistynq\Support\Logger;
+use Vistynq\Support\RequestContext;
 
 $baseDir = __DIR__ . '/../..';
 require $baseDir . '/vendor/autoload.php';
@@ -32,7 +34,7 @@ if ($rawToken === '' || $resultFile === '') {
 
 try {
     $config = new Config();
-    $db = new Database($config);
+    $db = new Database($config, new Logger($config, new RequestContext()));
     $refreshTokens = new RefreshTokenRepository($db);
     $users = new UserRepository($db);
     $jwt = new JwtService($config);

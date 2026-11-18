@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Vistynq\Services\Storage;
 
 use Throwable;
+use Vistynq\Support\Logger;
 
 /**
  * Доменная обёртка над StorageInterface (docs/ROADMAP.md R17).
@@ -14,8 +15,10 @@ use Throwable;
  */
 final class StorageService
 {
-    public function __construct(private readonly StorageInterface $storage)
-    {
+    public function __construct(
+        private readonly StorageInterface $storage,
+        private readonly Logger $logger,
+    ) {
     }
 
     public function put(string $key, string $sourcePath, string $mime): void
@@ -49,7 +52,11 @@ final class StorageService
 
             return;
         } catch (Throwable $e) {
-            error_log('[storage] batch delete failed: ' . $e->getMessage());
+            $this->logger->error('storage batch delete failed', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'keys' => $keys,
+            ]);
         }
 
         // Батч мог упасть целиком или частично — пробуем по одному, чтобы
@@ -58,7 +65,11 @@ final class StorageService
             try {
                 $this->storage->delete($key);
             } catch (Throwable $e) {
-                error_log('[storage] delete failed for key ' . $key . ': ' . $e->getMessage());
+                $this->logger->error('storage delete failed', [
+                    'exception' => $e::class,
+                    'error' => $e->getMessage(),
+                    'key' => $key,
+                ]);
             }
         }
     }

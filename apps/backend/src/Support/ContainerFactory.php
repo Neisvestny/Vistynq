@@ -51,7 +51,15 @@ final class ContainerFactory
     public static function configure(Container $container, Config $config): void
     {
         $container->singleton(Config::class, static fn (): Config => $config);
-        $container->singleton(Database::class, static fn (Container $c): Database => new Database($c->get(Config::class)));
+        $container->singleton(RequestContext::class, static fn (): RequestContext => new RequestContext());
+        $container->singleton(Logger::class, static fn (Container $c): Logger => new Logger(
+            $c->get(Config::class),
+            $c->get(RequestContext::class),
+        ));
+        $container->singleton(Database::class, static fn (Container $c): Database => new Database(
+            $c->get(Config::class),
+            $c->get(Logger::class),
+        ));
 
         // Интерфейсы репозиториев (R17): сервисы и контроллеры зависят от
         // контрактов, unit-тесты подставляют фейки (R15).

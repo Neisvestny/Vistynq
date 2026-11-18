@@ -13,6 +13,7 @@ use Vistynq\Repositories\NoteRepositoryInterface;
 use Vistynq\Repositories\UserRepositoryInterface;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Database;
+use Vistynq\Support\Logger;
 
 /**
  * Приглашения и мгновенная выдача доступа (docs/api.md §Доступ,
@@ -37,6 +38,7 @@ final class InvitationService
         private readonly MailServiceInterface $mail,
         private readonly Database $db,
         private readonly Config $config,
+        private readonly Logger $logger,
     ) {
     }
 
@@ -185,7 +187,11 @@ final class InvitationService
         } catch (Throwable $e) {
             // Письмо — best-effort: доступ уже в БД, 500 на клиенте вызвал бы
             // повторный invite и 409.
-            error_log('[invite] granted mail failed: ' . $e->getMessage());
+            $this->logger->error('access granted mail failed', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'resourceType' => $resourceType,
+            ]);
         }
     }
 
@@ -195,7 +201,11 @@ final class InvitationService
         try {
             $this->mail->sendAccessInviteEmail($email, $resourceType, $title, $role, $link);
         } catch (Throwable $e) {
-            error_log('[invite] invite mail failed: ' . $e->getMessage());
+            $this->logger->error('access invite mail failed', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'resourceType' => $resourceType,
+            ]);
         }
     }
 
