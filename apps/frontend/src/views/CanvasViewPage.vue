@@ -13,7 +13,8 @@ import { ApiError } from '@/api/http'
 import { notesApi } from '@/api/notes'
 import { tagsApi } from '@/api/tags'
 import { notify } from '@/api/notify'
-import type { GraphNode, NoteDetail, Tag } from '@/api/types'
+import type { GraphNode, Note, NoteDetail, Tag } from '@/api/types'
+import ArchivePanel from '@/components/canvas/ArchivePanel.vue'
 import CanvasBoard from '@/components/canvas/CanvasBoard.vue'
 import CanvasSearch from '@/components/canvas/CanvasSearch.vue'
 import ContextMenu, { type ContextMenuItem } from '@/components/canvas/ContextMenu.vue'
@@ -26,14 +27,13 @@ import { useContextMenu } from '@/composables/useContextMenu'
 import { useGraph } from '@/composables/useGraph'
 import { useNodePositionSync } from '@/composables/useNodePositionSync'
 import type { SavePlan } from '@/composables/useNoteDraft'
-import { noteDetailToGraphNode } from '@/lib/noteMapping'
+import type { ArchiveChange } from '@/lib/archive'
+import { noteDetailToGraphNode, noteToGraphNode } from '@/lib/noteMapping'
 import { useCanvasStore } from '@/stores/canvas'
 import { useNotesStore } from '@/stores/notes'
 
 /** Tiptap тяжёлый — грузим панель редактора только при первом открытии (R28). */
-const NoteEditorModal = defineAsyncComponent(
-  () => import('@/components/note/NoteEditorModal.vue')
-)
+const NoteEditorModal = defineAsyncComponent(() => import('@/components/note/NoteEditorModal.vue'))
 
 type PaneMenuContext = { kind: 'pane'; flowPosition: XYPosition }
 type NodeMenuContext = { kind: 'node'; nodeId: string }
@@ -53,6 +53,9 @@ const importanceMenuOpen = ref(false)
 /** Панель редактора заметки (R28). */
 const editorOpen = ref(false)
 const editorNoteId = ref<string | null>(null)
+
+/** Панель архива (R29). */
+const archiveOpen = ref(false)
 
 const { flowNodes, flowEdges, visibleNodes, brokenEdgesCount } = useGraph({
   editableLayout: true,
@@ -178,9 +181,15 @@ function onSearchSelect(nodeId: string) {
 }
 
 function openEditor(nodeId: string) {
+  archiveOpen.value = false
   notesStore.select(nodeId)
   editorNoteId.value = nodeId
   editorOpen.value = true
+}
+
+function openArchive() {
+  editorOpen.value = false
+  archiveOpen.value = true
 }
 
 function onOpenAccess(noteId: string) {
@@ -194,34 +203,81 @@ function onOpenAccess(noteId: string) {
 }
 
 /**
- * После сохранения редактора (R28): сначала сбрасываем отложенную геометрию,
- * затем обновляем граф. Тело/теги/актуальность влияют на рёбра, поэтому для
- * них делаем тихий рефреш графа; остальные поля — локальный upsert ноды.
+ * Тихий рефреш графа после изменений, влияющих на рёбра/видимость (R28/R29).
+ * Сначала сбрасываем отложенную геометрию, иначе дебаунсированный PATCH
+ * позиции может перезаписать свежие данные.
+ */
+async function refreshGraphSilently(notifyOnError = true): Promise<boolean> {
+  const cid = canvasId.value
+  if (!cid) return false
+  await positionSync.flushAll()
+  try {
+    const graph = await canvasApi.graph(cid)
+    store.edges = graph.edges
+    store.tags = graph.tags
+    notesStore.setNodes(graph.nodes)
+    positionSync.syncFromNodes()
+    return true
+  } catch {
+    if (notifyOnError) {
+      notify({
+        title: 'Не удалось обновить граф',
+        description: 'Перезагрузите страницу, чтобы увидеть актуальное состояние',
+        status: 'error',
+      })
+    }
+    return false
+  }
+}
+
+/**
+ * После сохранения редактора (R28): тело/теги/актуальность влияют на рёбра,
+ * поэтому для них — рефреш графа; остальные поля — локальный upsert ноды.
  */
 async function onNoteSaved(detail: NoteDetail, plan: SavePlan): Promise<void> {
-  await positionSync.flushAll()
-
   const needsGraphRefresh =
     plan.bodyMd !== undefined ||
     plan.manifestPatch?.tagIds !== undefined ||
     plan.manifestPatch?.isRelevant !== undefined
-  const cid = canvasId.value
 
-  if (needsGraphRefresh && cid) {
-    try {
-      const graph = await canvasApi.graph(cid)
-      store.edges = graph.edges
-      store.tags = graph.tags
-      notesStore.setNodes(graph.nodes)
-      positionSync.syncFromNodes()
-      return
-    } catch {
-      // Тихий рефреш не должен ломать уже сохранённую заметку — падаем ниже
-      // к локальному обновлению ноды.
-    }
+  if (needsGraphRefresh) {
+    // Тихий рефреш не должен ломать уже сохранённую заметку — падаем ниже
+    // к локальному обновлению ноды.
+    if (await refreshGraphSilently(false)) return
+  } else {
+    await positionSync.flushAll()
   }
 
-  notesStore.upsertNode(noteDetailToGraphNode(detail, notesStore.getNodeById(detail.id), store.tags))
+  notesStore.upsertNode(
+    noteDetailToGraphNode(detail, notesStore.getNodeById(detail.id), store.tags)
+  )
+}
+
+/** Результат действия в архиве (R29) синхронизируем с графом. */
+async function onArchiveChange(change: ArchiveChange): Promise<void> {
+  switch (change.kind) {
+    case 'make-relevant':
+      notesStore.patchNode(change.noteId, { isRelevant: true })
+      ensureNodeVisible(change.noteId)
+      break
+
+    case 'soft-delete':
+      // Сервер оставляет рёбра state=removed с to=id — нужен авторитетный рефреш.
+      await refreshGraphSilently()
+      break
+
+    case 'restore':
+      // Нода возвращается в прежнюю позицию, рёбра removed → ok.
+      if (!(await refreshGraphSilently())) {
+        notesStore.upsertNode(noteToGraphNode(change.note, store.tags, userId.value ?? ''))
+      }
+      break
+
+    case 'purge':
+      // Рёбра получают to=null + label «ссылка удалена», меняется brokenEdgesCount.
+      await refreshGraphSilently()
+      break
+  }
 }
 
 function isAuthorOrCanvasOwner(node: GraphNode): boolean {
@@ -230,35 +286,8 @@ function isAuthorOrCanvasOwner(node: GraphNode): boolean {
   return store.canvas?.access.myRole === 'owner' || store.canvas?.ownerId === uid
 }
 
-function graphNodeFromNote(note: {
-  id: string
-  title?: string
-  importance?: number
-  isRelevant?: boolean
-  visibility?: 'public' | 'private'
-  x?: number
-  y?: number
-  width?: number
-  deletedAt?: string | null
-  authorId?: string
-}): GraphNode {
-  return {
-    id: note.id,
-    title: note.title ?? 'Без названия',
-    importance: note.importance ?? 3,
-    isRelevant: note.isRelevant ?? true,
-    visibility: note.visibility ?? 'public',
-    x: note.x ?? 0,
-    y: note.y ?? 0,
-    width: note.width ?? 220,
-    deletedAt: note.deletedAt ?? null,
-    tags: [],
-    authorId: note.authorId ?? userId.value ?? '',
-  }
-}
-
-function removeEdgesForNode(nodeId: string) {
-  store.edges = store.edges.filter((e) => e.from !== nodeId && e.to !== nodeId)
+function graphNodeFromNote(note: Note): GraphNode {
+  return noteToGraphNode(note, store.tags, userId.value ?? '')
 }
 
 async function createNoteAt(position: XYPosition) {
@@ -344,8 +373,8 @@ async function deleteNodeSoft(nodeId: string) {
   if (!window.confirm('Удалить заметку? Она попадёт в архив удалённых.')) return
   try {
     await notesApi.remove(nodeId)
-    notesStore.removeNode(nodeId)
-    removeEdgesForNode(nodeId)
+    // Сервер оставляет removed-рёбра с to=id → только авторитетный рефреш.
+    await refreshGraphSilently()
     notify({ title: 'Заметка удалена', status: 'success' })
   } catch (e) {
     notify({
@@ -618,6 +647,15 @@ onBeforeUnmount(() => {
         <CanvasSearch v-if="store.canvas" :canvas-id="store.canvas.id" @select="onSearchSelect" />
         <TagMenu v-model:open="tagMenuOpen" v-model:highlighted-tag="highlightedTag" />
         <ImportanceFilter v-model:open="importanceMenuOpen" />
+        <UiButton
+          v-if="canEditCanvas"
+          variant="ghost"
+          size="sm"
+          :disabled="loading"
+          @click="openArchive"
+        >
+          Архив
+        </UiButton>
       </div>
 
       <div class="canvas-view__meta">
@@ -705,6 +743,14 @@ onBeforeUnmount(() => {
         :note-id="editorNoteId"
         @saved="onNoteSaved"
         @open-access="onOpenAccess"
+      />
+
+      <!-- R29: архив неактуальных/удалённых заметок (≥editor) -->
+      <ArchivePanel
+        v-if="canEditCanvas && archiveOpen"
+        v-model:open="archiveOpen"
+        :canvas-id="canvasId"
+        @changed="onArchiveChange"
       />
     </div>
   </div>

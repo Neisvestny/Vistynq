@@ -413,6 +413,11 @@
   border-left: 1px solid var(--color-border);
 }
 
+/* R29: широкий вариант для списков с тегами и кнопками действий. */
+.ui-sheet__content--wide {
+  width: min(24rem, 92vw);
+}
+
 .ui-sheet__title {
   padding-right: var(--space-6);
   font-size: 1.1rem;

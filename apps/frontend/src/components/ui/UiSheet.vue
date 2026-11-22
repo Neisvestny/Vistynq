@@ -1,17 +1,13 @@
 <script setup lang="ts">
-import {
-  DialogContent,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from 'reka-ui'
+import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 
 const props = withDefaults(
   defineProps<{
     open?: boolean
     side?: 'left' | 'right'
     title?: string
+    /** Расширенная панель для списков с тегами и кнопками (архив, R29). */
+    wide?: boolean
     /**
      * Не закрывать панель автоматически (Esc/клика вне/✕), а запросить
      * закрытие через событие `close-request`. Используется редактором
@@ -23,6 +19,7 @@ const props = withDefaults(
     open: false,
     side: 'left',
     title: undefined,
+    wide: false,
     preventClose: false,
   }
 )
@@ -65,7 +62,7 @@ function onDismiss(event: { preventDefault: () => void }): void {
       <Transition :name="`sheet-panel--${side}`">
         <DialogContent
           class="ui-sheet__content"
-          :class="`ui-sheet__content--${side}`"
+          :class="[`ui-sheet__content--${side}`, { 'ui-sheet__content--wide': wide }]"
           :aria-describedby="undefined"
           @escape-key-down="onDismiss"
           @pointer-down-outside="onDismiss"
