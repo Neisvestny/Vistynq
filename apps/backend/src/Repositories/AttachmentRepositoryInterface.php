@@ -58,4 +58,11 @@ interface AttachmentRepositoryInterface
      * @return list<string>
      */
     public function s3KeysByCanvasId(string $canvasId): array;
+
+    /**
+     * Вложения заметки для NoteDetail/редактора, свежие строки из БД.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function findByNoteId(string $noteId): array;
 }

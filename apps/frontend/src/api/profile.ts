@@ -1,4 +1,4 @@
-import { request } from './http'
+import { request, type UploadProgress } from './http'
 import type { User } from './types'
 
 export interface UpdateProfilePayload {
@@ -13,10 +13,17 @@ export const profileApi = {
   },
 
   /** Загрузка аватара (image ≤5 МБ). */
-  uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
+  uploadAvatar(
+    file: File,
+    onUploadProgress?: (progress: UploadProgress) => void
+  ): Promise<{ avatarUrl: string }> {
     const form = new FormData()
     form.append('file', file)
-    return request<{ avatarUrl: string }>('/profile/avatar', { method: 'POST', body: form })
+    return request<{ avatarUrl: string }>('/profile/avatar', {
+      method: 'POST',
+      body: form,
+      onUploadProgress,
+    })
   },
 
   /** Удаление аватара. */

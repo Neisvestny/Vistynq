@@ -28,6 +28,13 @@ export class ApiError extends Error {
   }
 }
 
+export interface UploadProgress {
+  loaded: number
+  total: number
+  /** 0..100, или 0 если total неизвестен. */
+  percent: number
+}
+
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   /** JSON-объект (сериализуется) или FormData для multipart-запросов. */
@@ -36,6 +43,8 @@ export interface RequestOptions {
   auth?: boolean
   query?: Record<string, string | number | boolean | null | undefined>
   headers?: Record<string, string>
+  /** Прогресс загрузки тела запроса (multipart). Включает XHR-транспорт. */
+  onUploadProgress?: (progress: UploadProgress) => void
 }
 
 /* ------------------------------------------------------------------ */
@@ -145,7 +154,9 @@ async function execute<T>(
 
   let res: Response
   try {
-    res = await fetchWithNetworkRetry(url, method, headers, body)
+    res = options.onUploadProgress
+      ? await xhrRequest(url, method, headers, body, options.onUploadProgress)
+      : await fetchWithNetworkRetry(url, method, headers, body)
   } catch {
     throw ApiError.network()
   }
@@ -178,6 +189,54 @@ async function execute<T>(
   }
 
   return JSON.parse(text) as T
+}
+
+function xhrRequest(
+  url: string,
+  method: string,
+  headers: Record<string, string>,
+  body: BodyInit | undefined,
+  onUploadProgress: (progress: UploadProgress) => void
+): Promise<Response> {
+  return new Promise<Response>((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open(method, url)
+    xhr.withCredentials = true
+    xhr.responseType = 'text'
+
+    for (const [key, value] of Object.entries(headers)) {
+      xhr.setRequestHeader(key, value)
+    }
+
+    xhr.upload.onprogress = (event) => {
+      const total = event.lengthComputable ? event.total : 0
+      const loaded = event.loaded
+      const percent = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0
+      onUploadProgress({ loaded, total, percent })
+    }
+
+    xhr.onerror = () => reject(new Error('Network error'))
+    xhr.onabort = () => reject(new Error('Network error'))
+    xhr.onload = () => {
+      const responseHeaders = new Headers()
+      const rawHeaders = xhr.getAllResponseHeaders()
+      if (rawHeaders) {
+        for (const line of rawHeaders.trim().split(/[\r\n]+/)) {
+          const idx = line.indexOf(': ')
+          if (idx > 0) responseHeaders.set(line.slice(0, idx), line.slice(idx + 2))
+        }
+      }
+      resolve(
+        new Response(xhr.responseText, {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          headers: responseHeaders,
+        })
+      )
+    }
+
+    xhr.send((body as XMLHttpRequestBodyInit | null | undefined) ?? null)
+  })
 }
 
 /** GET-запросы повторяются один раз при сетевой ошибке. */

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
+use Vistynq\Models\Attachment;
 use Vistynq\Models\Note;
 use Vistynq\Repositories\AttachmentRepositoryInterface;
 use Vistynq\Repositories\DeletedNoteRepositoryInterface;
@@ -195,6 +196,7 @@ final class NoteService
         return Note::fromRow($ctx['note'], $this->tagIds($noteId))->toDetailArray(
             (string) $ctx['note']['body_md'],
             $this->access->describeNoteRole($ctx),
+            $this->attachmentPayloads($noteId),
         );
     }
 
@@ -398,7 +400,23 @@ final class NoteService
         return Note::fromRow($ctx['note'], $this->tagIds($noteId))->toDetailArray(
             (string) $ctx['note']['body_md'],
             $this->access->describeNoteRole($ctx),
+            $this->attachmentPayloads($noteId),
         );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function attachmentPayloads(string $noteId): array
+    {
+        $rows = $this->attachments->findByNoteId($noteId);
+        $payloads = [];
+        foreach ($rows as $row) {
+            $url = $this->storage->url((string) $row['s3_key'])['url'];
+            $payloads[] = Attachment::fromRow($row)->toArray($url);
+        }
+
+        return $payloads;
     }
 
     /**

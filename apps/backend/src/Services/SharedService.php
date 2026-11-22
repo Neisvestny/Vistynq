@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Vistynq\Services;
 
+use Vistynq\Models\Attachment;
 use Vistynq\Models\Canvas;
 use Vistynq\Models\Note;
+use Vistynq\Repositories\AttachmentRepositoryInterface;
 use Vistynq\Repositories\CanvasRepositoryInterface;
 use Vistynq\Repositories\NoteRepositoryInterface;
+use Vistynq\Services\Storage\StorageService;
 use Vistynq\Support\ApiException;
 use Vistynq\Support\Validator;
 
@@ -27,6 +30,8 @@ final class SharedService
         private readonly NoteRepositoryInterface $notes,
         private readonly GraphService $graph,
         private readonly MarkdownRenderer $renderer,
+        private readonly AttachmentRepositoryInterface $attachments,
+        private readonly StorageService $storage,
     ) {
     }
 
@@ -96,8 +101,14 @@ final class SharedService
         $bodyMd = (string) $row['body_md'];
         $resolved = $this->resolvePublicTargets($canvasId, $this->renderer->extractTargets($bodyMd));
 
+        $attachments = [];
+        foreach ($this->attachments->findByNoteId($noteId) as $attachmentRow) {
+            $url = $this->storage->url((string) $attachmentRow['s3_key'])['url'];
+            $attachments[] = Attachment::fromRow($attachmentRow)->toArray($url);
+        }
+
         return [
-            'note' => Note::fromRow($row, $tagIds)->toDetailArray($bodyMd, 'viewer'),
+            'note' => Note::fromRow($row, $tagIds)->toDetailArray($bodyMd, 'viewer', $attachments),
             'bodyHtml' => $this->renderer->render($bodyMd, $resolved, $slug),
         ];
     }

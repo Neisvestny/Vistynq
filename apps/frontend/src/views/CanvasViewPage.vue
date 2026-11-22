@@ -81,6 +81,8 @@ const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null)
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const importAt = ref<XYPosition | null>(null)
+const canvasFileDragDepth = ref(0)
+const isCanvasFileDragging = computed(() => canvasFileDragDepth.value > 0)
 
 const canvasId = computed(() => store.canvas?.id ?? null)
 const positionSync = useNodePositionSync(canvasId)
@@ -596,14 +598,9 @@ function triggerImportAt(position: XYPosition) {
   fileInputRef.value?.click()
 }
 
-async function onImportFileChange(event: Event) {
+async function importTextFileAt(file: File, pos: XYPosition | null) {
   const cid = store.canvas?.id
-  const input = event.target as HTMLInputElement | null
-  const file = input?.files?.[0]
-  const pos = importAt.value
-  if (input) input.value = ''
-  importAt.value = null
-  if (!cid || !file) return
+  if (!cid) return
   try {
     const note = await notesApi.createFromText(cid, {
       file,
@@ -617,6 +614,91 @@ async function onImportFileChange(event: Event) {
     notify({
       title: 'Не удалось импортировать файл',
       description: e instanceof ApiError ? e.message : undefined,
+      status: 'error',
+    })
+  }
+}
+
+async function onImportFileChange(event: Event) {
+  const input = event.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+  const pos = importAt.value
+  if (input) input.value = ''
+  importAt.value = null
+  if (!file) return
+  await importTextFileAt(file, pos)
+}
+
+function canvasDropPosition(event: DragEvent): XYPosition | null {
+  const board = boardRef.value as unknown as {
+    screenToFlowCoordinate?: (p: { x: number; y: number }) => XYPosition
+  } | null
+  if (board?.screenToFlowCoordinate) {
+    return board.screenToFlowCoordinate({ x: event.clientX, y: event.clientY })
+  }
+  return null
+}
+
+function hasFileDrag(event: DragEvent): boolean {
+  return Array.from(event.dataTransfer?.types ?? []).includes('Files')
+}
+
+function onCanvasDragEnter(event: DragEvent) {
+  if (!hasFileDrag(event)) return
+  event.preventDefault()
+  canvasFileDragDepth.value += 1
+}
+
+function onCanvasDragOver(event: DragEvent) {
+  if (!hasFileDrag(event)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+}
+
+function onCanvasDragLeave(event: DragEvent) {
+  if (!hasFileDrag(event)) return
+  event.preventDefault()
+  canvasFileDragDepth.value = Math.max(0, canvasFileDragDepth.value - 1)
+}
+
+async function onCanvasDrop(event: DragEvent) {
+  if (!hasFileDrag(event)) return
+  event.preventDefault()
+  canvasFileDragDepth.value = 0
+
+  const files = Array.from(event.dataTransfer?.files ?? [])
+  if (files.length === 0) return
+
+  const pos = canvasDropPosition(event)
+
+  for (const file of files) {
+    const name = file.name.toLowerCase()
+    const type = file.type.toLowerCase()
+    const isText = name.endsWith('.md') || name.endsWith('.txt')
+    const isImage = type.startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(name)
+    const isAudio = type.startsWith('audio/') || /\.(mp3|ogg|wav)$/i.test(name)
+
+    if (isText) {
+      if (!canEditCanvas.value) {
+        notify({
+          title: 'Недостаточно прав',
+          description: 'Импортировать файл может только редактор канваса',
+          status: 'error',
+        })
+        continue
+      }
+      await importTextFileAt(file, pos)
+      continue
+    }
+
+    if (isImage || isAudio) {
+      notify({ title: 'Файлы можно добавить внутри заметки', status: 'default' })
+      continue
+    }
+
+    notify({
+      title: 'Неподдерживаемый файл',
+      description: 'На канвас можно перетащить только .md или .txt',
       status: 'error',
     })
   }
@@ -919,7 +1001,19 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Граф -->
-    <div v-else class="canvas-view__board">
+    <div
+      v-else
+      class="canvas-view__board"
+      @dragenter="onCanvasDragEnter"
+      @dragover="onCanvasDragOver"
+      @dragleave="onCanvasDragLeave"
+      @drop="onCanvasDrop"
+    >
+      <div v-if="isCanvasFileDragging" class="canvas-view__drop-overlay" aria-hidden="true">
+        <div class="canvas-view__drop-overlay-card">
+          Перетащите .md или .txt, чтобы создать заметку
+        </div>
+      </div>
       <input
         ref="fileInputRef"
         type="file"

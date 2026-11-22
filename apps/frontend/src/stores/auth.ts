@@ -78,6 +78,12 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = await authApi.updateProfile(payload)
   }
 
+  function setAvatarUrl(avatarUrl: string | null): void {
+    if (user.value) {
+      user.value = { ...user.value, avatarUrl }
+    }
+  }
+
   /** Повторный 401 после неудачного refresh: logout + тост + редирект на /login. */
   function handleSessionExpired(): void {
     reset()
@@ -147,6 +153,7 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession,
     fetchMe,
     updateProfile,
+    setAvatarUrl,
     ensureRestored,
     markEmailVerified,
     handleSessionExpired,

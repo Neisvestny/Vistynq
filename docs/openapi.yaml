@@ -126,6 +126,10 @@ components:
           properties:
             bodyMd: { type: string, description: "markdown-исходник с [[wikilinks]]" }
             myRole: { type: string, enum: [owner, editor, viewer], description: "owner — автор заметки или владелец канваса" }
+            attachments:
+              type: array
+              items: { $ref: '#/components/schemas/Attachment' }
+              description: "Файлы заметки (image/audio) с актуальным URL"
     SearchHit:
       type: object
       properties:

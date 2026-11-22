@@ -129,6 +129,7 @@ export interface Note {
 export interface NoteDetail extends Note {
   bodyMd: string
   myRole: 'owner' | 'editor' | 'viewer'
+  attachments: Attachment[]
 }
 
 /** docs/openapi.yaml → SearchHit */

@@ -44,8 +44,8 @@ export interface UseGraphOptions {
   interactive?: boolean
 }
 
-export function isGhostNodeData(data: CanvasFlowNodeData): data is GhostNodeData {
-  return (data as GhostNodeData).kind === 'ghost'
+export function isGhostNodeData(data: unknown): data is GhostNodeData {
+  return Boolean(data) && (data as GhostNodeData).kind === 'ghost'
 }
 
 function noteClass(
@@ -272,31 +272,30 @@ export function useGraph(options: UseGraphOptions = {}) {
             ? { opacity: 0.15 }
             : undefined
 
-      return [
-        {
-          id: edge.id,
-          source: edge.from,
-          target,
-          type: 'linkEdge',
-          selectable: canEdit && edge.type === 'direct',
-          focusable: canEdit && edge.type === 'direct',
-          deletable: false,
-          selected: isSelected,
-          markerEnd: dangling ? undefined : MarkerType.ArrowClosed,
-          class: classes,
-          ...(style ? { style } : {}),
-          data: {
-            edgeId: edge.id,
-            edgeType: edge.type,
-            state: edge.state,
-            from: edge.from,
-            to: edge.to,
-            label: edge.label,
-            dangling,
-            canRestore: canEdit,
-          },
-        } satisfies Edge<LinkEdgeData>,
-      ]
+      const edgeNode = {
+        id: edge.id,
+        source: edge.from,
+        target,
+        type: 'linkEdge',
+        selectable: canEdit && edge.type === 'direct',
+        focusable: canEdit && edge.type === 'direct',
+        deletable: false,
+        selected: isSelected,
+        markerEnd: dangling ? undefined : MarkerType.ArrowClosed,
+        class: classes,
+        ...(style ? { style } : {}),
+        data: {
+          edgeId: edge.id,
+          edgeType: edge.type,
+          state: edge.state,
+          from: edge.from,
+          to: edge.to,
+          label: edge.label,
+          dangling,
+          canRestore: canEdit,
+        },
+      } as unknown as Edge<LinkEdgeData>
+      return [edgeNode]
     })
   })
 

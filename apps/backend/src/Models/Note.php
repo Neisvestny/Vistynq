@@ -91,13 +91,19 @@ final class Note
     }
 
     /**
-     * Detail shape (docs/openapi.yaml → NoteDetail = Note + bodyMd + myRole).
+     * Detail shape (docs/openapi.yaml → NoteDetail = Note + bodyMd + myRole + attachments).
+     *
+     * @param list<array<string, mixed>> $attachments
      *
      * @return array<string, mixed>
      */
-    public function toDetailArray(string $bodyMd, string $myRole): array
+    public function toDetailArray(string $bodyMd, string $myRole, array $attachments = []): array
     {
-        return array_merge($this->toArray(), ['bodyMd' => $bodyMd, 'myRole' => $myRole]);
+        return array_merge($this->toArray(), [
+            'bodyMd' => $bodyMd,
+            'myRole' => $myRole,
+            'attachments' => array_values($attachments),
+        ]);
     }
 
     /**

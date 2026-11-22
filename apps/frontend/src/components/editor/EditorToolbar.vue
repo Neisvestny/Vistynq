@@ -7,8 +7,16 @@
 import type { Editor } from '@tiptap/vue-3'
 import { notify } from '@/api/notify'
 
-const props = defineProps<{
-  editor?: Editor
+const props = withDefaults(
+  defineProps<{
+    editor?: Editor
+    canUploadImage?: boolean
+  }>(),
+  { editor: undefined, canUploadImage: false }
+)
+
+const emit = defineEmits<{
+  'pick-image': []
 }>()
 
 const headingLevels = [1, 2, 3] as const
@@ -148,8 +156,9 @@ function setLink(): void {
       <button
         type="button"
         class="editor-toolbar__button"
-        title="Картинка — загрузка файлов появится в R31"
-        disabled
+        :title="canUploadImage ? 'Вставить картинку' : 'Загрузка картинок недоступна'"
+        :disabled="!editor || !canUploadImage"
+        @click="emit('pick-image')"
       >
         🖼
       </button>

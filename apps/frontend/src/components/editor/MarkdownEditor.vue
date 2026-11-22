@@ -7,6 +7,7 @@
 import { ref, watch } from 'vue'
 import { EditorContent, useEditor, type Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
+import Image from '@tiptap/extension-image'
 import { Markdown } from '@tiptap/markdown'
 
 import EditorToolbar from '@/components/editor/EditorToolbar.vue'
@@ -30,13 +31,16 @@ const props = withDefaults(
     editable?: boolean
     noteCandidates?: NoteCandidate[]
     currentNoteId?: string | null
+    canUploadFiles?: boolean
   }>(),
-  { editable: true, noteCandidates: () => [], currentNoteId: null }
+  { editable: true, noteCandidates: () => [], currentNoteId: null, canUploadFiles: false }
 )
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   ready: [editor: Editor]
+  'files-drop': [payload: { files: File[]; pos: number | null }]
+  'pick-image': []
 }>()
 
 const prepared = prepareMarkdownForEditor(props.modelValue)
@@ -57,6 +61,19 @@ function getWikiLinkItems(query: string): WikiLinkItem[] {
     .map((note) => ({ id: note.id, title: note.title || 'Без названия' }))
 }
 
+function filesFromDataTransfer(data: DataTransfer | null): File[] {
+  if (!data?.files?.length) return []
+  return Array.from(data.files)
+}
+
+function dropPos(
+  view: { posAtCoords: (coords: { left: number; top: number }) => { pos: number } | null },
+  event: DragEvent
+): number | null {
+  const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
+  return coords?.pos ?? null
+}
+
 const editor = useEditor({
   extensions: [
     StarterKit.configure({
@@ -67,6 +84,11 @@ const editor = useEditor({
         protocols: ['http', 'https', 'mailto'],
         HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' },
       },
+    }),
+    Image.configure({
+      inline: false,
+      allowBase64: false,
+      HTMLAttributes: { loading: 'lazy' },
     }),
     WikiLink,
     WikiLinkSuggestion.configure({
@@ -81,6 +103,22 @@ const editor = useEditor({
     attributes: {
       class: 'note-editor__prose',
       'aria-label': 'Текст заметки',
+    },
+    handleDrop: (view, event, _slice, moved) => {
+      if (moved || !props.editable) return false
+      const files = filesFromDataTransfer(event.dataTransfer)
+      if (files.length === 0) return false
+      event.preventDefault()
+      emit('files-drop', { files, pos: dropPos(view, event) })
+      return true
+    },
+    handlePaste: (_view, event) => {
+      if (!props.editable) return false
+      const files = filesFromDataTransfer(event.clipboardData)
+      if (files.length === 0) return false
+      event.preventDefault()
+      emit('files-drop', { files, pos: null })
+      return true
     },
   },
   onUpdate: ({ editor: instance }) => {
@@ -124,7 +162,12 @@ watch(
 
 <template>
   <div class="markdown-editor" :class="{ 'markdown-editor--readonly': !editable }">
-    <EditorToolbar v-if="editable" :editor="editor" />
+    <EditorToolbar
+      v-if="editable"
+      :editor="editor"
+      :can-upload-image="canUploadFiles"
+      @pick-image="emit('pick-image')"
+    />
     <EditorContent class="markdown-editor__content" :editor="editor" />
     <p v-if="!editable" class="markdown-editor__readonly">Только чтение</p>
   </div>
@@ -223,5 +266,14 @@ watch(
 .markdown-editor :deep(.note-editor__prose a) {
   color: var(--color-accent);
   text-decoration: underline;
+}
+
+.markdown-editor :deep(.note-editor__prose img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
 }
 </style>

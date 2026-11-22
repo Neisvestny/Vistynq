@@ -103,4 +103,20 @@ final class AttachmentRepository implements AttachmentRepositoryInterface
 
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
+
+    public function findByNoteId(string $noteId): array
+    {
+        $stmt = $this->db->pdo()->prepare(
+            'SELECT *
+               FROM attachments
+              WHERE note_id = :note_id
+              ORDER BY created_at ASC, id ASC',
+        );
+        $stmt->execute(['note_id' => $noteId]);
+
+        /** @var list<array<string, mixed>> $rows */
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        return $rows;
+    }
 }

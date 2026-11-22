@@ -5,14 +5,17 @@
  * read-only режим и заглушка кнопки «Доступ» (R32).
  */
 import { computed, ref, watch } from 'vue'
+import type { Editor } from '@tiptap/vue-3'
 import { accessApi } from '@/api/access'
+import { attachmentsApi } from '@/api/attachments'
 import { ApiError } from '@/api/http'
 import { notify } from '@/api/notify'
 import { notesApi } from '@/api/notes'
 import { tagsApi } from '@/api/tags'
-import type { NoteDetail, Tag } from '@/api/types'
+import type { Attachment, NoteDetail, Tag } from '@/api/types'
 import MarkdownEditor from '@/components/editor/MarkdownEditor.vue'
 import ManifestForm from '@/components/note/ManifestForm.vue'
+import NoteFilesSection, { type PendingUpload } from '@/components/note/NoteFilesSection.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiSheet from '@/components/ui/UiSheet.vue'
@@ -54,8 +57,19 @@ const baseline = ref<NoteDraft>(emptyDraft())
 const loading = ref(false)
 const saving = ref(false)
 const loadError = ref<ApiError | null>(null)
+const attachments = ref<Attachment[]>([])
+const pendingUploads = ref<PendingUpload[]>([])
+const editorRef = ref<Editor | null>(null)
+const imageInputRef = ref<HTMLInputElement | null>(null)
 let requestSeq = 0
 let confirmingClose = false
+
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024
+const AUDIO_MAX_BYTES = 25 * 1024 * 1024
+const TEXT_IMPORT_MAX_BYTES = 1024 * 1024
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp']
+const AUDIO_EXTS = ['mp3', 'ogg', 'wav']
+const TEXT_EXTS = ['md', 'txt']
 
 const side = computed<NoteEditorSide>(() => props.side ?? uiStore.noteEditorSide)
 const dirty = computed(() => isDraftDirty(baseline.value, draft.value))
@@ -93,6 +107,7 @@ function cloneDraft(value: NoteDraft): NoteDraft {
 
 function applyDetail(next: NoteDetail): void {
   detail.value = next
+  attachments.value = [...(next.attachments ?? [])]
   const initialized = draftFromDetail(next)
   baseline.value = initialized
   draft.value = cloneDraft(initialized)
@@ -120,6 +135,9 @@ watch(
     if (!open || !noteId) {
       detail.value = null
       loadError.value = null
+      attachments.value = []
+      pendingUploads.value = []
+      editorRef.value = null
       return
     }
     void loadNote(noteId)
@@ -210,6 +228,199 @@ function onSheetOpenChange(value: boolean): void {
 function onOpenAccess(): void {
   if (detail.value) emit('open-access', detail.value.id)
 }
+
+function onEditorReady(editor: Editor): void {
+  editorRef.value = editor
+}
+
+function extOf(name: string): string {
+  const idx = name.lastIndexOf('.')
+  return idx >= 0 ? name.slice(idx + 1).toLowerCase() : ''
+}
+
+function fileKind(file: File): 'image' | 'audio' | 'text' | 'unsupported' {
+  const ext = extOf(file.name)
+  const type = file.type.toLowerCase()
+  const imageMimes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+  const audioMimes = [
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/ogg',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/wave',
+  ]
+  const textMimes = ['text/plain', 'text/markdown', 'text/x-markdown']
+
+  if (IMAGE_EXTS.includes(ext) || imageMimes.includes(type)) return 'image'
+  if (AUDIO_EXTS.includes(ext) || audioMimes.includes(type)) return 'audio'
+  if (TEXT_EXTS.includes(ext) || textMimes.includes(type)) return 'text'
+  if (type.startsWith('image/')) return 'unsupported'
+  if (type.startsWith('audio/')) return 'unsupported'
+  return 'unsupported'
+}
+
+function validateUploadFile(file: File, kind: 'image' | 'audio'): string | null {
+  if (kind === 'image' && file.size > IMAGE_MAX_BYTES)
+    return 'Изображение должно быть не больше 5 МБ'
+  if (kind === 'audio' && file.size > AUDIO_MAX_BYTES) return 'Аудио должно быть не больше 25 МБ'
+  return null
+}
+
+function clampedPos(pos: number | null): number | null {
+  if (typeof pos !== 'number') return null
+  const editor = editorRef.value
+  if (!editor) return null
+  const max = editor.state.doc.content.size
+  return Math.max(0, Math.min(pos, max))
+}
+
+function insertImageAt(pos: number | null, src: string, alt: string): void {
+  const editor = editorRef.value
+  if (!editor) return
+  const chain = editor.chain().focus()
+  const safePos = clampedPos(pos)
+  const content = { type: 'image', attrs: { src, alt } }
+  if (safePos !== null) chain.insertContentAt(safePos, content).run()
+  else chain.insertContent(content).run()
+}
+
+function insertTextAt(pos: number | null, text: string): void {
+  const editor = editorRef.value
+  if (!editor) return
+  const chain = editor.chain().focus()
+  const safePos = clampedPos(pos)
+  if (safePos !== null) chain.insertContentAt(safePos, text).run()
+  else chain.insertContent(text).run()
+}
+
+async function uploadAttachmentFile(
+  file: File,
+  kind: 'image' | 'audio',
+  pos: number | null
+): Promise<void> {
+  const noteId = detail.value?.id
+  if (!noteId || readOnly.value) return
+
+  const validationError = validateUploadFile(file, kind)
+  if (validationError) {
+    notify({ title: 'Файл не загружен', description: validationError, status: 'error' })
+    return
+  }
+
+  const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const pending: PendingUpload = { id: uploadId, file, kind, progress: 0, error: null }
+  pendingUploads.value = [...pendingUploads.value, pending]
+
+  try {
+    const attachment = await attachmentsApi.upload(noteId, file, (p) => {
+      pendingUploads.value = pendingUploads.value.map((u) =>
+        u.id === uploadId ? { ...u, progress: p.percent } : u
+      )
+    })
+    attachments.value = [...attachments.value, attachment]
+    pendingUploads.value = pendingUploads.value.filter((u) => u.id !== uploadId)
+
+    if (kind === 'image') {
+      insertImageAt(pos, attachment.url, attachment.filename)
+      notify({ title: 'Изображение добавлено', status: 'success' })
+    } else {
+      notify({ title: 'Аудио добавлено', status: 'success' })
+    }
+  } catch (error) {
+    const message = error instanceof ApiError ? error.message : 'Не удалось загрузить файл'
+    pendingUploads.value = pendingUploads.value.map((u) =>
+      u.id === uploadId ? { ...u, error: message, progress: 0 } : u
+    )
+    notify({ title: 'Файл не загружен', description: message, status: 'error' })
+  }
+}
+
+async function handleEditorFilesDrop(payload: {
+  files: File[]
+  pos: number | null
+}): Promise<void> {
+  if (readOnly.value || !detail.value) return
+
+  for (const file of payload.files) {
+    const kind = fileKind(file)
+    if (kind === 'image' || kind === 'audio') {
+      await uploadAttachmentFile(file, kind, payload.pos)
+    } else if (kind === 'text') {
+      if (file.size > TEXT_IMPORT_MAX_BYTES) {
+        notify({
+          title: 'Файл слишком большой',
+          description: 'Файл .md/.txt должен быть не больше 1 МБ',
+          status: 'error',
+        })
+        continue
+      }
+      try {
+        const text = await file.text()
+        insertTextAt(payload.pos, text)
+        notify({ title: 'Текст вставлен из файла', status: 'success' })
+      } catch {
+        notify({ title: 'Не удалось прочитать файл', status: 'error' })
+      }
+    } else {
+      notify({
+        title: 'Неподдерживаемый файл',
+        description: 'В редактор можно добавить картинку, аудио или вставить .md/.txt как текст',
+        status: 'error',
+      })
+    }
+  }
+}
+
+function onPickImage(): void {
+  if (readOnly.value) return
+  imageInputRef.value?.click()
+}
+
+async function onImageInputChange(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement | null
+  const files = Array.from(input?.files ?? [])
+  if (input) input.value = ''
+  for (const file of files) {
+    const kind = fileKind(file)
+    if (kind === 'image') {
+      await uploadAttachmentFile(file, 'image', null)
+    } else {
+      notify({ title: 'Можно выбрать только изображение', status: 'error' })
+    }
+  }
+}
+
+async function onDeleteAttachment(id: string): Promise<void> {
+  const previous = attachments.value
+  attachments.value = attachments.value.filter((a) => a.id !== id)
+  try {
+    await attachmentsApi.remove(id)
+    notify({ title: 'Файл удалён', status: 'success' })
+  } catch (error) {
+    attachments.value = previous
+    notify({
+      title: 'Не удалось удалить файл',
+      description: error instanceof ApiError ? error.message : undefined,
+      status: 'error',
+    })
+  }
+}
+
+function dismissPendingUpload(id: string): void {
+  pendingUploads.value = pendingUploads.value.filter((u) => u.id !== id)
+}
+
+async function onMediaError(attachment: Attachment): Promise<void> {
+  try {
+    const refreshed = await attachmentsApi.getUrl(attachment.id)
+    attachments.value = attachments.value.map((a) =>
+      a.id === attachment.id ? { ...a, url: refreshed.url } : a
+    )
+  } catch {
+    // Тихо: медиа может быть недоступно из-за прав/удаления.
+  }
+}
 </script>
 
 <template>
@@ -275,8 +486,29 @@ function onOpenAccess(): void {
           :editable="!readOnly"
           :note-candidates="noteCandidates"
           :current-note-id="detail.id"
+          :can-upload-files="!readOnly"
+          @ready="onEditorReady"
+          @files-drop="handleEditorFilesDrop"
+          @pick-image="onPickImage"
+        />
+        <input
+          ref="imageInputRef"
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          class="note-editor__file-input"
+          multiple
+          @change="onImageInputChange"
         />
       </section>
+
+      <NoteFilesSection
+        :attachments="attachments"
+        :pending-uploads="pendingUploads"
+        :can-edit="!readOnly"
+        @delete="onDeleteAttachment"
+        @dismiss-upload="dismissPendingUpload"
+        @media-error="onMediaError"
+      />
     </template>
 
     <template #footer>
@@ -361,5 +593,9 @@ function onOpenAccess(): void {
 .note-editor__dirty {
   color: var(--color-text-muted);
   font-size: 0.8rem;
+}
+
+.note-editor__file-input {
+  display: none;
 }
 </style>

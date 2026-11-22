@@ -114,7 +114,7 @@
 | POST | `/canvases/{id}/notes` | ≥editor канваса | `{title?, x?, y?}` → 201 Note (автор — вызывающий; `visibility: public`) |
 | POST | `/canvases/{id}/notes/from-text` | ≥editor канваса | multipart: `file` (.md/.txt ≤1 МБ), поля `title?`, `x?`, `y?` → 201 Note; тело файла → `bodyMd`, заголовок — из поля, иначе из имени файла |
 | POST | `/canvases/{id}/notes/derive` | ≥editor канваса | «создать от этой заметки»: `{parentNoteId, x?, y?}` → 201 `{note, link}`; родитель → новая |
-| GET | `/notes/{id}` | ≥viewer | 200 NoteDetail — плоский объект: Note + `{bodyMd, myRole}` |
+| GET | `/notes/{id}` | ≥viewer | 200 NoteDetail — плоский объект: Note + `{bodyMd, myRole, attachments}`; `attachments` — файлы заметки (image/audio) с актуальным `url` |
 | PATCH | `/notes/{id}` | редактор заметки | манифест: `{title?, importance?, isRelevant?, tagIds?}` → 200 NoteDetail; `isRelevant:false` — в архив «неактуально», `true` — возврат; `tagIds` — только существующие теги этого канваса. Назначать теги может и editor заметки |
 | PUT | `/notes/{id}/body` | редактор заметки | `{bodyMd}` → 200 NoteDetail; сервер перепарсит `indirect_links` |
 | DELETE | `/notes/{id}` | owner/author, ≥editor канваса | soft delete (`deletedAt`) → 204 |

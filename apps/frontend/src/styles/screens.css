@@ -286,6 +286,76 @@
   flex-wrap: wrap;
 }
 
+.profile-avatar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.profile-avatar__preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.profile-avatar__image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-avatar__initial {
+  color: var(--color-accent-strong);
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.profile-avatar__controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.profile-avatar__hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.profile-avatar__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.profile-avatar__progress {
+  width: min(240px, 100%);
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-border);
+}
+
+.profile-avatar__progress-bar {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 0.15s ease;
+}
+
+.profile-avatar__input {
+  display: none;
+}
+
 /* Баннер публичного read-only вида */
 .shared-banner {
   display: flex;
@@ -621,6 +691,32 @@
 
 .canvas-view__file-input {
   display: none;
+}
+
+.canvas-view__board {
+  position: relative;
+}
+
+.canvas-view__drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  pointer-events: none;
+}
+
+.canvas-view__drop-overlay-card {
+  padding: var(--space-4) var(--space-5);
+  border: 2px dashed var(--color-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
 }
 
 /* R29: панель архива (неактуальные / удалённые) */

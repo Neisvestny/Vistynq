@@ -1,11 +1,13 @@
 <script setup lang="ts">
-/** Профиль (R23): имя, email, pendingEmail и базовое редактирование. */
-import { onMounted, reactive, ref, watch } from 'vue'
+/** Профиль: имя, email, pendingEmail, аватар. */
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import { useAuthStore } from '@/stores/auth'
+import { ApiError } from '@/api/http'
+import { profileApi } from '@/api/profile'
 import { applyApiError, isValidEmail } from '@/api/errors'
 import { notify } from '@/api/notify'
 
@@ -19,6 +21,16 @@ const form = reactive({
 
 const saving = ref(false)
 const errors = ref<Record<string, string>>({})
+const avatarUploading = ref(false)
+const avatarProgress = ref(0)
+const avatarDeleting = ref(false)
+const avatarInputRef = ref<HTMLInputElement | null>(null)
+
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024
+const AVATAR_ACCEPT = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+
+const avatarUrl = computed(() => auth.user?.avatarUrl ?? null)
+const avatarInitial = computed(() => (auth.user?.displayName?.trim()?.[0] ?? 'U').toUpperCase())
 
 function syncForm() {
   form.displayName = auth.user?.displayName ?? ''
@@ -40,6 +52,72 @@ onMounted(async () => {
     }
   }
 })
+
+function pickAvatar(): void {
+  if (avatarUploading.value || avatarDeleting.value) return
+  avatarInputRef.value?.click()
+}
+
+async function onAvatarChange(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+  if (input) input.value = ''
+  if (!file) return
+
+  if (!AVATAR_ACCEPT.includes(file.type) && !/\.(png|jpe?g|gif|webp)$/i.test(file.name)) {
+    notify({
+      title: 'Неподдерживаемый формат',
+      description: 'Выберите изображение PNG, JPG, GIF или WebP',
+      status: 'error',
+    })
+    return
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    notify({
+      title: 'Файл слишком большой',
+      description: 'Аватар должен быть не больше 5 МБ',
+      status: 'error',
+    })
+    return
+  }
+
+  avatarUploading.value = true
+  avatarProgress.value = 0
+  try {
+    const result = await profileApi.uploadAvatar(file, (p) => {
+      avatarProgress.value = p.percent
+    })
+    auth.setAvatarUrl(result.avatarUrl)
+    notify({ title: 'Аватар обновлён', status: 'success' })
+  } catch (error) {
+    notify({
+      title: 'Не удалось загрузить аватар',
+      description: error instanceof ApiError ? error.message : undefined,
+      status: 'error',
+    })
+  } finally {
+    avatarUploading.value = false
+    avatarProgress.value = 0
+  }
+}
+
+async function onDeleteAvatar(): Promise<void> {
+  if (avatarDeleting.value || avatarUploading.value || !avatarUrl.value) return
+  avatarDeleting.value = true
+  try {
+    await profileApi.deleteAvatar()
+    auth.setAvatarUrl(null)
+    notify({ title: 'Аватар удалён', status: 'success' })
+  } catch (error) {
+    notify({
+      title: 'Не удалось удалить аватар',
+      description: error instanceof ApiError ? error.message : undefined,
+      status: 'error',
+    })
+  } finally {
+    avatarDeleting.value = false
+  }
+}
 
 async function onSave() {
   if (saving.value || !auth.user) return
@@ -99,6 +177,67 @@ async function onLogout() {
       <UiCard>
         <div class="profile-section">
           <h2 class="profile-section__title">Аккаунт</h2>
+
+          <div class="profile-avatar">
+            <div
+              class="profile-avatar__preview"
+              :aria-label="avatarUrl ? 'Аватар пользователя' : 'Аватар не задан'"
+            >
+              <img v-if="avatarUrl" :src="avatarUrl" alt="Аватар" class="profile-avatar__image" />
+              <span v-else class="profile-avatar__initial">{{ avatarInitial }}</span>
+            </div>
+
+            <div class="profile-avatar__controls">
+              <p class="profile-avatar__hint">PNG, JPG, GIF или WebP, до 5 МБ</p>
+              <div class="profile-avatar__actions">
+                <UiButton
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="avatarUploading || avatarDeleting"
+                  @click="pickAvatar"
+                >
+                  {{
+                    avatarUploading
+                      ? `Загрузка… ${avatarProgress}%`
+                      : avatarUrl
+                        ? 'Заменить аватар'
+                        : 'Загрузить аватар'
+                  }}
+                </UiButton>
+                <UiButton
+                  v-if="avatarUrl"
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="avatarUploading || avatarDeleting"
+                  @click="onDeleteAvatar"
+                >
+                  {{ avatarDeleting ? 'Удаление…' : 'Удалить' }}
+                </UiButton>
+              </div>
+              <div
+                v-if="avatarUploading"
+                class="profile-avatar__progress"
+                role="progressbar"
+                :aria-valuenow="avatarProgress"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              >
+                <div
+                  class="profile-avatar__progress-bar"
+                  :style="{ width: `${avatarProgress}%` }"
+                />
+              </div>
+              <input
+                ref="avatarInputRef"
+                type="file"
+                class="profile-avatar__input"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                @change="onAvatarChange"
+              />
+            </div>
+          </div>
 
           <div class="profile-info">
             <p>
