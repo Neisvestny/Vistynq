@@ -5,6 +5,7 @@ import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { mount } from '@vue/test-utils'
+import { createTestI18n } from '@/test/i18n'
 import { WikiLink } from '../WikiLink'
 import WikiLinkChip from '../WikiLinkChip.vue'
 
@@ -28,12 +29,12 @@ afterEach(() => {
 
 describe('WikiLink editor integration', () => {
   it('parses wikilink markdown into wikiLink node', () => {
-    const editor = createEditor('См. [[note-1|Заметка 1]]')
+    const editor = createEditor('See [[note-1|Zametka 1]]')
     const json = editor.getJSON()
     const paragraph = json.content?.[0]
     const wikiNode = paragraph?.content?.find((n: any) => n.type === 'wikiLink')
     expect(wikiNode).toBeTruthy()
-    expect(wikiNode?.attrs).toMatchObject({ noteId: 'note-1', label: 'Заметка 1' })
+    expect(wikiNode?.attrs).toMatchObject({ noteId: 'note-1', label: 'Zametka 1' })
   })
 
   it('parses wikilink without label', () => {
@@ -43,16 +44,16 @@ describe('WikiLink editor integration', () => {
   })
 
   it('round-trips markdown with multiple wikilinks', () => {
-    const md = 'Текст [[id-1|Первая]] и [[id-2|Вторая]]\n'
+    const md = 'Tekst [[id-1|Pervaya]] i [[id-2|Vtoraya]]\n'
     const editor = createEditor(md)
-    expect(editor.getMarkdown()).toContain('[[id-1|Первая]]')
-    expect(editor.getMarkdown()).toContain('[[id-2|Вторая]]')
+    expect(editor.getMarkdown()).toContain('[[id-1|Pervaya]]')
+    expect(editor.getMarkdown()).toContain('[[id-2|Vtoraya]]')
   })
 
   it('setWikiLink command inserts node and serializes to markdown', () => {
     const editor = createEditor('')
-    editor.commands.setWikiLink({ noteId: 'note-1', label: 'Заметка 1' })
-    expect(editor.getMarkdown()).toContain('[[note-1|Заметка 1]]')
+    editor.commands.setWikiLink({ noteId: 'note-1', label: 'Zametka 1' })
+    expect(editor.getMarkdown()).toContain('[[note-1|Zametka 1]]')
   })
 
   it('setWikiLink falls back label to noteId', () => {
@@ -96,6 +97,7 @@ describe('WikiLinkChip component', () => {
         deleteNode: () => undefined,
       } as any,
       global: {
+        plugins: [createTestI18n('en')],
         stubs: {
           NodeViewWrapper: {
             template: '<span class="node-view-wrapper"><slot /></span>',
@@ -112,6 +114,6 @@ describe('WikiLinkChip component', () => {
 
   it('falls back to noteId then to default label', () => {
     expect(mountChip({ noteId: 'n1', label: '' }).text()).toContain('n1')
-    expect(mountChip({ noteId: '', label: '' }).text()).toContain('ссылка')
+    expect(mountChip({ noteId: '', label: '' }).text()).toContain('link')
   })
 })

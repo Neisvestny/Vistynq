@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useNotesStore } from '@/stores/notes'
 
@@ -15,16 +16,20 @@ const emit = defineEmits<{
   close: []
 }>()
 
+const { t } = useI18n()
 const notesStore = useNotesStore()
 const rootEl = ref<HTMLElement | null>(null)
 
-const levels = [
-  { level: 1, label: '1 — низкая' },
-  { level: 2, label: '2' },
-  { level: 3, label: '3 — обычная' },
-  { level: 4, label: '4' },
-  { level: 5, label: '5 — высокая' },
-] as const
+const levels = computed(
+  () =>
+    [
+      { level: 1, label: t('importance.l1') },
+      { level: 2, label: t('importance.l2') },
+      { level: 3, label: t('importance.l3') },
+      { level: 4, label: t('importance.l4') },
+      { level: 5, label: t('importance.l5') },
+    ] as const
+)
 
 const isOpen = computed(() => props.open)
 
@@ -80,18 +85,20 @@ onBeforeUnmount(() => {
       aria-haspopup="dialog"
       @click="toggleOpen"
     >
-      Важность
+      {{ t('importance.title') }}
     </UiButton>
 
     <div
       v-if="isOpen"
       class="canvas-popover__panel importance-filter"
       role="dialog"
-      aria-label="Фильтр важности"
+      :aria-label="t('importance.aria')"
     >
       <div class="importance-filter__header">
-        <span class="importance-filter__title">Важность</span>
-        <button type="button" class="importance-filter__reset" @click="onReset">Сбросить</button>
+        <span class="importance-filter__title">{{ t('importance.title') }}</span>
+        <button type="button" class="importance-filter__reset" @click="onReset">
+          {{ t('importance.reset') }}
+        </button>
       </div>
 
       <ul class="importance-filter__list">
@@ -115,10 +122,10 @@ onBeforeUnmount(() => {
 
       <label class="importance-filter__label importance-filter__label--toggle">
         <input type="checkbox" :checked="notesStore.showIrrelevant" @change="onToggleIrrelevant" />
-        <span>Показывать неактуальные</span>
+        <span>{{ t('importance.showIrrelevant') }}</span>
       </label>
 
-      <p class="importance-filter__hint">Фильтр применяется локально и не меняет данные.</p>
+      <p class="importance-filter__hint">{{ t('importance.hint') }}</p>
     </div>
   </div>
 </template>

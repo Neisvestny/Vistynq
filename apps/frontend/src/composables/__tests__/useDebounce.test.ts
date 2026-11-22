@@ -11,7 +11,7 @@ describe('useDebounce', () => {
     vi.useRealTimers()
   })
 
-  it('useDebounceFn вызывает функцию один раз после задержки с последними аргументами', () => {
+  it('useDebounceFn vyzyvaet funktsiyu odin raz posle zaderzhki s poslednimi argumentami', () => {
     const fn = vi.fn()
     const { run } = useDebounceFn(fn, 300)
 
@@ -25,7 +25,7 @@ describe('useDebounce', () => {
     expect(fn).toHaveBeenCalledWith('b')
   })
 
-  it('cancel предотвращает вызов, flush выполняет немедленно', () => {
+  it('cancel predotvrashchaet vyzov, flush vypolnyaet nemedlenno', () => {
     const fn = vi.fn()
     const debounced = useDebounceFn(fn, 300)
 
@@ -40,7 +40,7 @@ describe('useDebounce', () => {
     expect(fn).toHaveBeenCalledWith(2)
   })
 
-  it('useDebouncedRef обновляет значение после задержки', async () => {
+  it('useDebouncedRef obnovlyaet znachenie posle zaderzhki', async () => {
     const source = ref(1)
     const debounced = useDebouncedRef(source, 200)
 

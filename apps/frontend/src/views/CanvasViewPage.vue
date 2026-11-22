@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * CanvasView (docs/ui-ux.md §2) — страница канваса: загрузка/ошибки/шапка,
- * интерактивный рендер графа (R25), drag/resize + persist (R26),
- * меню/фильтры/поиск/теги (R27).
+ * CanvasView (docs/ui-ux.md §2) - canvas page: loading/errors/header,
+ * interactive graph render (R25), drag/resize + persist (R26),
+ * menus/filters/search/tags (R27).
  */
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -35,8 +35,9 @@ import type { ArchiveChange } from '@/lib/archive'
 import { noteDetailToGraphNode, noteToGraphNode } from '@/lib/noteMapping'
 import { useCanvasStore } from '@/stores/canvas'
 import { useNotesStore } from '@/stores/notes'
+import { useI18n } from 'vue-i18n'
 
-/** Tiptap тяжёлый — грузим панель редактора только при первом открытии (R28). */
+/** Tiptap is heavy - load editor panel only on first open (R28). */
 const NoteEditorModal = defineAsyncComponent(() => import('@/components/note/NoteEditorModal.vue'))
 
 type PaneMenuContext = { kind: 'pane'; flowPosition: XYPosition }
@@ -44,6 +45,7 @@ type NodeMenuContext = { kind: 'node'; nodeId: string }
 type EdgeMenuContext = { kind: 'edge'; edgeId: string }
 type MenuContext = PaneMenuContext | NodeMenuContext | EdgeMenuContext
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -55,23 +57,25 @@ const highlightedTag = ref<string | null>(null)
 const tagMenuOpen = ref(false)
 const importanceMenuOpen = ref(false)
 
-/** Панель редактора заметки (R28). */
+/** Note editor panel (R28). */
 const editorOpen = ref(false)
 const editorNoteId = ref<string | null>(null)
 
-/** Панель архива (R29). */
+/** Archive panel (R29). */
 const archiveOpen = ref(false)
 const canvasAccessOpen = ref(false)
 const noteAccessOpen = ref(false)
 const noteAccessId = ref<string | null>(null)
 const noteAccessVisibility = ref<'public' | 'private'>('public')
 
-/** Режим связывания (R30). */
+/** Linking mode (R30). */
 const linkingSourceId = ref<string | null>(null)
 const linkingPending = ref(false)
 
-/** Выбранное ребро (R30). */
+/** Selected edge (R30). */
 const selectedEdgeId = ref<string | null>(null)
+/** Selected node (R34 hotkeys). */
+const selectedNodeId = ref<string | null>(null)
 
 const { flowNodes, flowEdges, visibleNodes, brokenEdgesCount } = useGraph({
   editableLayout: true,
@@ -82,6 +86,7 @@ const { flowNodes, flowEdges, visibleNodes, brokenEdgesCount } = useGraph({
 })
 
 const boardRef = ref<InstanceType<typeof CanvasBoard> | null>(null)
+const canvasSearchRef = ref<InstanceType<typeof CanvasSearch> | null>(null)
 const contextMenu = useContextMenu<MenuContext>()
 const contextMenuRef = ref<InstanceType<typeof ContextMenu> | null>(null)
 
@@ -93,7 +98,7 @@ const isCanvasFileDragging = computed(() => canvasFileDragDepth.value > 0)
 const canvasId = computed(() => store.canvas?.id ?? null)
 const positionSync = useNodePositionSync(canvasId)
 
-/** Псевдонимы store для шаблона (v-if сузит тип, как с локальными ref). */
+/** Store aliases for template (v-if narrows type like local refs). */
 const graph = computed(() => store.canvas)
 const loading = computed(() => store.loading)
 const error = computed(() => store.error)
@@ -108,11 +113,11 @@ const canLayoutInteract = computed(() => {
 const roleLabel = computed(() => {
   switch (store.canvas?.access.myRole) {
     case 'owner':
-      return 'Владелец'
+      return t('common.owner')
     case 'editor':
-      return 'Редактор'
+      return t('common.editor')
     case 'viewer':
-      return 'Зритель'
+      return t('common.viewer')
     default:
       return ''
   }
@@ -138,7 +143,7 @@ function applyPositionChange(id: string, position?: XYPosition) {
 function onNodesChange(changes: NodeChange[]) {
   for (const change of changes) {
     if (change.type === 'position' && change.position) {
-      // Во время drag обновляем локально и дебаунсим сохранение.
+      // During drag, update locally and debounce persistence.
       if (change.dragging) {
         positionSync.beginGesture(change.id)
         notesStore.updateNodeGeometry(change.id, { x: change.position.x, y: change.position.y })
@@ -148,7 +153,7 @@ function onNodesChange(changes: NodeChange[]) {
       }
     }
     if (change.type === 'dimensions' && change.dimensions && change.resizing) {
-      // Промежуточный resize: обновляем ширину локально, persist — на resize-end.
+      // Intermediate resize: update width locally, persist on resize-end.
       notesStore.updateNodeGeometry(change.id, { width: change.dimensions.width })
     }
   }
@@ -196,7 +201,7 @@ function ensureNodeVisible(nodeId: string) {
 function onSearchSelect(nodeId: string) {
   ensureNodeVisible(nodeId)
   notesStore.select(nodeId)
-  // Дадим Vue отрендерить ноду, если она была скрыта фильтрами.
+  // Let Vue render the node if it was hidden by filters.
   requestAnimationFrame(() => {
     boardRef.value?.focusNode(nodeId)
   })
@@ -251,9 +256,9 @@ function onEditorVisibilityChanged(noteId: string, visibility: 'public' | 'priva
 }
 
 /**
- * Тихий рефреш графа после изменений, влияющих на рёбра/видимость (R28/R29).
- * Сначала сбрасываем отложенную геометрию, иначе дебаунсированный PATCH
- * позиции может перезаписать свежие данные.
+ * Silent graph refresh after changes affecting edges/visibility (R28/R29).
+ * Flush pending geometry first, otherwise a debounced position PATCH
+ * may overwrite fresh data.
  */
 async function refreshGraphSilently(notifyOnError = true): Promise<boolean> {
   const cid = canvasId.value
@@ -269,8 +274,8 @@ async function refreshGraphSilently(notifyOnError = true): Promise<boolean> {
   } catch {
     if (notifyOnError) {
       notify({
-        title: 'Не удалось обновить граф',
-        description: 'Перезагрузите страницу, чтобы увидеть актуальное состояние',
+        title: t('canvas.refreshError'),
+        description: t('canvas.refreshErrorDescription'),
         status: 'error',
       })
     }
@@ -279,8 +284,8 @@ async function refreshGraphSilently(notifyOnError = true): Promise<boolean> {
 }
 
 /**
- * После сохранения редактора (R28): тело/теги/актуальность влияют на рёбра,
- * поэтому для них — рефреш графа; остальные поля — локальный upsert ноды.
+ * After editor save (R28): body/tags/relevance affect edges,
+ * so refresh graph for them; other fields use a local node upsert.
  */
 async function onNoteSaved(detail: NoteDetail, plan: SavePlan): Promise<void> {
   const needsGraphRefresh =
@@ -289,8 +294,8 @@ async function onNoteSaved(detail: NoteDetail, plan: SavePlan): Promise<void> {
     plan.manifestPatch?.isRelevant !== undefined
 
   if (needsGraphRefresh) {
-    // Тихий рефреш не должен ломать уже сохранённую заметку — падаем ниже
-    // к локальному обновлению ноды.
+    // Silent refresh must not break an already saved note - fall back
+    // to local node update.
     if (await refreshGraphSilently(false)) return
   } else {
     await positionSync.flushAll()
@@ -301,7 +306,7 @@ async function onNoteSaved(detail: NoteDetail, plan: SavePlan): Promise<void> {
   )
 }
 
-/** Результат действия в архиве (R29) синхронизируем с графом. */
+/** Sync archive action result with the graph (R29). */
 async function onArchiveChange(change: ArchiveChange): Promise<void> {
   switch (change.kind) {
     case 'make-relevant':
@@ -310,19 +315,19 @@ async function onArchiveChange(change: ArchiveChange): Promise<void> {
       break
 
     case 'soft-delete':
-      // Сервер оставляет рёбра state=removed с to=id — нужен авторитетный рефреш.
+      // Server keeps edges state=removed with to=id - authoritative refresh needed.
       await refreshGraphSilently()
       break
 
     case 'restore':
-      // Нода возвращается в прежнюю позицию, рёбра removed → ok.
+      // Node returns to previous position, removed edges become ok.
       if (!(await refreshGraphSilently())) {
         notesStore.upsertNode(noteToGraphNode(change.note, store.tags, userId.value ?? ''))
       }
       break
 
     case 'purge':
-      // Рёбра получают to=null + label «ссылка удалена», меняется brokenEdgesCount.
+      // Edges get to=null + deleted-link label, brokenEdgesCount changes.
       await refreshGraphSilently()
       break
   }
@@ -348,10 +353,10 @@ async function createNoteAt(position: XYPosition) {
     })
     notesStore.upsertNode(graphNodeFromNote(note))
     notesStore.select(note.id)
-    notify({ title: 'Заметка создана', status: 'success' })
+    notify({ title: t('canvas.noteCreatedSimple'), status: 'success' })
   } catch (e) {
     notify({
-      title: 'Не удалось создать заметку',
+      title: t('canvas.noteCreateFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -381,7 +386,7 @@ async function completeLinking(targetNodeId: string) {
   if (targetNodeId.startsWith('ghost:') || targetNodeId.startsWith('dangling:')) return
   if (!notesStore.getNodeById(targetNodeId)) return
   if (sourceId === targetNodeId) {
-    notify({ title: 'Нельзя связать заметку саму с собой', status: 'error' })
+    notify({ title: t('canvas.cannotLinkSelf'), status: 'error' })
     return
   }
 
@@ -389,7 +394,7 @@ async function completeLinking(targetNodeId: string) {
     (e) => e.type === 'direct' && e.state === 'ok' && e.from === sourceId && e.to === targetNodeId
   )
   if (exists) {
-    notify({ title: 'Такая ссылка уже существует', status: 'error' })
+    notify({ title: t('canvas.linkExists'), status: 'error' })
     cancelLinking()
     return
   }
@@ -408,11 +413,11 @@ async function completeLinking(targetNodeId: string) {
         label: null,
       },
     ]
-    notify({ title: 'Ссылка создана', status: 'success' })
+    notify({ title: t('canvas.linkCreated'), status: 'success' })
     cancelLinking()
   } catch (e) {
     notify({
-      title: 'Не удалось создать ссылку',
+      title: t('canvas.linkCreateFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -444,10 +449,10 @@ async function deriveFromNode(nodeId: string) {
       },
     ]
     notesStore.select(res.note.id)
-    notify({ title: 'Заметка создана от текущей', status: 'success' })
+    notify({ title: t('canvas.noteCreatedFrom'), status: 'success' })
   } catch (e) {
     notify({
-      title: 'Не удалось создать заметку',
+      title: t('canvas.noteCreateFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -475,7 +480,7 @@ async function reverseSelectedEdge(edgeId: string) {
     selectedEdgeId.value = edgeId
   } catch (e) {
     notify({
-      title: 'Не удалось развернуть связь',
+      title: t('canvas.linkReverseFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -490,7 +495,7 @@ async function deleteSelectedEdge(edgeId: string) {
     if (selectedEdgeId.value === edgeId) selectedEdgeId.value = null
   } catch (e) {
     notify({
-      title: 'Не удалось удалить связь',
+      title: t('canvas.linkDeleteFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -502,19 +507,19 @@ async function restoreGhostNote(noteId: string) {
   try {
     await notesApi.restore(noteId)
     await refreshGraphSilently()
-    notify({ title: 'Заметка восстановлена', status: 'success' })
+    notify({ title: t('canvas.noteRestored'), status: 'success' })
   } catch (e) {
     if (e instanceof ApiError && e.status === 410) {
       notify({
-        title: 'Заметка удалена навсегда',
-        description: 'Восстановить её нельзя',
+        title: t('canvas.notePurged'),
+        description: t('canvas.notePurgedDescription'),
         status: 'error',
       })
       await refreshGraphSilently()
       return
     }
     notify({
-      title: 'Не удалось восстановить заметку',
+      title: t('canvas.noteRestoreFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -527,7 +532,7 @@ async function setImportance(nodeId: string, importance: number) {
     notesStore.patchNode(nodeId, { importance })
   } catch (e) {
     notify({
-      title: 'Не удалось изменить важность',
+      title: t('canvas.importanceFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -540,7 +545,7 @@ async function setNodeRelevant(nodeId: string, isRelevant: boolean) {
     notesStore.patchNode(nodeId, { isRelevant })
   } catch (e) {
     notify({
-      title: 'Не удалось обновить статус заметки',
+      title: t('canvas.noteStatusFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -548,15 +553,15 @@ async function setNodeRelevant(nodeId: string, isRelevant: boolean) {
 }
 
 async function deleteNodeSoft(nodeId: string) {
-  if (!window.confirm('Удалить заметку? Она попадёт в архив удалённых.')) return
+  if (!window.confirm(t('canvas.noteDeleteConfirm'))) return
   try {
     await notesApi.remove(nodeId)
-    // Сервер оставляет removed-рёбра с to=id → только авторитетный рефреш.
+    // Server keeps removed edges with to=id - authoritative refresh only.
     await refreshGraphSilently()
-    notify({ title: 'Заметка удалена', status: 'success' })
+    notify({ title: t('canvas.noteDeleted'), status: 'success' })
   } catch (e) {
     notify({
-      title: 'Не удалось удалить заметку',
+      title: t('canvas.noteDeleteFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -569,12 +574,12 @@ async function toggleVisibility(node: GraphNode) {
     await accessApi.setNoteVisibility(node.id, next)
     notesStore.patchNode(node.id, { visibility: next })
     notify({
-      title: next === 'private' ? 'Заметка стала приватной' : 'Заметка стала публичной',
+      title: next === 'private' ? t('canvas.visibilityPrivate') : t('canvas.visibilityPublic'),
       status: 'success',
     })
   } catch (e) {
     notify({
-      title: 'Не удалось изменить видимость',
+      title: t('canvas.visibilityFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -596,7 +601,7 @@ async function toggleNodeTag(node: GraphNode, tag: Tag, assigned: boolean) {
     notesStore.patchNode(node.id, { tags: names })
   } catch (e) {
     notify({
-      title: 'Не удалось обновить теги',
+      title: t('canvas.tagsUpdateFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -606,7 +611,7 @@ async function toggleNodeTag(node: GraphNode, tag: Tag, assigned: boolean) {
 async function createAndAssignTag(node: GraphNode) {
   const cid = store.canvas?.id
   if (!cid) return
-  const name = window.prompt('Название нового тега')
+  const name = window.prompt(t('canvas.newTagPrompt'))
   if (!name || !name.trim()) return
   try {
     const tag = await tagsApi.create(cid, { name: name.trim() })
@@ -615,10 +620,10 @@ async function createAndAssignTag(node: GraphNode) {
     await notesApi.updateManifest(node.id, { tagIds: ids })
     const names = store.tags.filter((t) => ids.includes(t.id)).map((t) => t.name)
     notesStore.patchNode(node.id, { tags: names })
-    notify({ title: 'Тег создан и назначен', status: 'success' })
+    notify({ title: t('canvas.tagCreatedAssigned'), status: 'success' })
   } catch (e) {
     notify({
-      title: 'Не удалось создать тег',
+      title: t('canvas.tagCreateFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -641,10 +646,10 @@ async function importTextFileAt(file: File, pos: XYPosition | null) {
     })
     notesStore.upsertNode(graphNodeFromNote(note))
     notesStore.select(note.id)
-    notify({ title: 'Файл импортирован как заметка', status: 'success' })
+    notify({ title: t('canvas.fileImported'), status: 'success' })
   } catch (e) {
     notify({
-      title: 'Не удалось импортировать файл',
+      title: t('canvas.fileImportFailed'),
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -713,8 +718,8 @@ async function onCanvasDrop(event: DragEvent) {
     if (isText) {
       if (!canEditCanvas.value) {
         notify({
-          title: 'Недостаточно прав',
-          description: 'Импортировать файл может только редактор канваса',
+          title: t('canvas.insufficientRights'),
+          description: t('canvas.importEditorOnly'),
           status: 'error',
         })
         continue
@@ -724,13 +729,13 @@ async function onCanvasDrop(event: DragEvent) {
     }
 
     if (isImage || isAudio) {
-      notify({ title: 'Файлы можно добавить внутри заметки', status: 'default' })
+      notify({ title: t('canvas.filesInNote'), status: 'default' })
       continue
     }
 
     notify({
-      title: 'Неподдерживаемый файл',
-      description: 'На канвас можно перетащить только .md или .txt',
+      title: t('canvas.unsupportedFile'),
+      description: t('canvas.unsupportedFileDescription'),
       status: 'error',
     })
   }
@@ -742,7 +747,7 @@ function buildNodeMenu(node: GraphNode): ContextMenuItem[] {
     return [
       {
         id: 'open',
-        label: 'Открыть',
+        label: t('common.open'),
         onSelect: () => openEditor(node.id),
       },
     ]
@@ -758,12 +763,12 @@ function buildNodeMenu(node: GraphNode): ContextMenuItem[] {
       onSelect: () => toggleNodeTag(node, tag, tagNames.has(tag.name)),
     })),
     { id: 'tag-sep', label: '', separator: true },
-    { id: 'tag-new', label: 'Новый тег…', onSelect: () => createAndAssignTag(node) },
+    { id: 'tag-new', label: t('canvas.newTagMenu'), onSelect: () => createAndAssignTag(node) },
   ]
 
   const importanceChildren: ContextMenuItem[] = [1, 2, 3, 4, 5].map((level) => ({
     id: `imp-${level}`,
-    label: `Важность ${level}`,
+    label: t('canvas.importanceLevel', { level }),
     checked: clampImportance(node.importance) === level,
     onSelect: () => setImportance(node.id, level),
   }))
@@ -771,27 +776,27 @@ function buildNodeMenu(node: GraphNode): ContextMenuItem[] {
   const items: ContextMenuItem[] = [
     {
       id: 'open',
-      label: 'Открыть',
+      label: t('common.open'),
       onSelect: () => openEditor(node.id),
     },
-    { id: 'derive', label: 'Создать от этой заметки', onSelect: () => deriveFromNode(node.id) },
+    { id: 'derive', label: t('canvas.deriveFromNote'), onSelect: () => deriveFromNode(node.id) },
     {
       id: 'link',
-      label: 'Ссылка на другую заметку…',
+      label: t('canvas.linkToAnother'),
       onSelect: () => startLinking(node.id),
     },
-    { id: 'tags', label: 'Теги', children: tagChildren },
-    { id: 'importance', label: 'Важность', children: importanceChildren },
+    { id: 'tags', label: t('tags.title'), children: tagChildren },
+    { id: 'importance', label: t('importance.title'), children: importanceChildren },
   ]
 
   if (canManageAccess) {
     const visLabel =
-      (node.visibility ?? 'public') === 'public' ? 'Сделать приватной' : 'Сделать публичной'
+      (node.visibility ?? 'public') === 'public' ? t('canvas.makePrivate') : t('canvas.makePublic')
     items.push(
       { id: 'visibility', label: visLabel, onSelect: () => toggleVisibility(node) },
       {
         id: 'access',
-        label: 'Доступ…',
+        label: t('canvas.accessEllipsis'),
         onSelect: () => openNoteAccess(node.id),
       }
     )
@@ -800,10 +805,15 @@ function buildNodeMenu(node: GraphNode): ContextMenuItem[] {
   items.push(
     {
       id: 'irrelevant',
-      label: 'Поместить в архив «неактуально»',
+      label: t('canvas.markIrrelevant'),
       onSelect: () => setNodeRelevant(node.id, false),
     },
-    { id: 'delete', label: 'Удалить', danger: true, onSelect: () => deleteNodeSoft(node.id) }
+    {
+      id: 'delete',
+      label: t('common.delete'),
+      danger: true,
+      onSelect: () => deleteNodeSoft(node.id),
+    }
   )
 
   return items
@@ -814,12 +824,12 @@ function buildEdgeMenu(edge: GraphEdge): ContextMenuItem[] {
   return [
     {
       id: 'reverse',
-      label: 'Развернуть направление',
+      label: t('canvas.reverseDirection'),
       onSelect: () => reverseSelectedEdge(edge.id),
     },
     {
       id: 'delete-link',
-      label: 'Удалить связь',
+      label: t('canvas.deleteLink'),
       danger: true,
       onSelect: () => deleteSelectedEdge(edge.id),
     },
@@ -830,11 +840,15 @@ function buildPaneMenu(flowPosition: XYPosition): ContextMenuItem[] {
   const items: ContextMenuItem[] = []
   if (canEditCanvas.value) {
     items.push(
-      { id: 'create', label: 'Создать заметку', onSelect: () => createNoteAt(flowPosition) },
-      { id: 'import', label: 'Импортировать файл…', onSelect: () => triggerImportAt(flowPosition) }
+      { id: 'create', label: t('canvas.createNote'), onSelect: () => createNoteAt(flowPosition) },
+      { id: 'import', label: t('canvas.importFile'), onSelect: () => triggerImportAt(flowPosition) }
     )
   }
-  items.push({ id: 'zoom-center', label: 'Зум в центр', onSelect: () => boardRef.value?.fitAll() })
+  items.push({
+    id: 'zoom-center',
+    label: t('canvas.zoomCenter'),
+    onSelect: () => boardRef.value?.fitAll(),
+  })
   return items
 }
 
@@ -874,6 +888,7 @@ watch(
 function onPaneContextMenu(payload: { event: MouseEvent; flowPosition: XYPosition }) {
   cancelLinking()
   selectedEdgeId.value = null
+  selectedNodeId.value = null
   const items = buildPaneMenu(payload.flowPosition)
   if (items.length === 0) return
   contextMenu.open(payload.event, { kind: 'pane', flowPosition: payload.flowPosition })
@@ -881,16 +896,19 @@ function onPaneContextMenu(payload: { event: MouseEvent; flowPosition: XYPositio
 
 function onPaneClick() {
   selectedEdgeId.value = null
+  selectedNodeId.value = null
   if (linkingSourceId.value) cancelLinking()
 }
 
 function onNodeContextMenu(payload: { event: MouseEvent; nodeId: string }) {
   selectedEdgeId.value = null
+  selectedNodeId.value = payload.nodeId
   contextMenu.open(payload.event, { kind: 'node', nodeId: payload.nodeId })
 }
 
 function onNodeClick(payload: { event: MouseEvent; nodeId: string }) {
   selectedEdgeId.value = null
+  selectedNodeId.value = payload.nodeId
   if (linkingSourceId.value) {
     void completeLinking(payload.nodeId)
   }
@@ -920,6 +938,16 @@ function onGhostRestore(noteId: string) {
 }
 
 function onGlobalKeydown(event: KeyboardEvent) {
+  const typing = isTypingTarget(event.target) || isTypingTarget(document.activeElement)
+
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+    if (typing) return
+    if (error.value || loading.value || !store.canvas) return
+    event.preventDefault()
+    canvasSearchRef.value?.focus()
+    return
+  }
+
   if (event.key === 'Escape') {
     if (contextMenu.state.open) return
     if (linkingSourceId.value) {
@@ -932,12 +960,19 @@ function onGlobalKeydown(event: KeyboardEvent) {
   if (event.key !== 'Delete') return
   if (!canEditCanvas.value) return
   if (contextMenu.state.open) return
-  if (isTypingTarget(event.target) || isTypingTarget(document.activeElement)) return
+  if (typing) return
 
   const edge = selectedEdge.value
-  if (!edge || edge.type !== 'direct' || edge.state !== 'ok') return
-  event.preventDefault()
-  void deleteSelectedEdge(edge.id)
+  if (edge && edge.type === 'direct' && edge.state === 'ok') {
+    event.preventDefault()
+    void deleteSelectedEdge(edge.id)
+    return
+  }
+
+  if (selectedNodeId.value) {
+    event.preventDefault()
+    void deleteNodeSoft(selectedNodeId.value)
+  }
 }
 
 onMounted(() => {
@@ -945,7 +980,7 @@ onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown)
 })
 
-// Переход между канвасами на том же маршруте — перезагрузка графа
+// Navigating between canvases on the same route reloads the graph
 watch(
   () => route.params.id,
   async (id, prev) => {
@@ -971,16 +1006,21 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="canvas-view">
-    <!-- Шапка канваса -->
+    <!-- Canvas header -->
     <header v-if="graph && !error" class="canvas-view__header">
       <div class="canvas-view__heading">
         <h1 class="canvas-view__title">{{ graph.title }}</h1>
         <UiBadge v-if="roleLabel">{{ roleLabel }}</UiBadge>
-        <UiBadge v-if="graph.access.publicSlug" tone="accent">Публичный</UiBadge>
+        <UiBadge v-if="graph.access.publicSlug" tone="accent">{{ t('common.public') }}</UiBadge>
       </div>
 
       <div class="canvas-view__toolbar">
-        <CanvasSearch v-if="store.canvas" :canvas-id="store.canvas.id" @select="onSearchSelect" />
+        <CanvasSearch
+          v-if="store.canvas"
+          ref="canvasSearchRef"
+          :canvas-id="store.canvas.id"
+          @select="onSearchSelect"
+        />
         <TagMenu v-model:open="tagMenuOpen" v-model:highlighted-tag="highlightedTag" />
         <ImportanceFilter v-model:open="importanceMenuOpen" />
         <UiButton
@@ -990,7 +1030,7 @@ onBeforeUnmount(() => {
           :disabled="loading"
           @click="openArchive"
         >
-          Архив
+          {{ t('canvas.archive') }}
         </UiButton>
         <UiButton
           v-if="canManageCanvasAccess"
@@ -999,47 +1039,51 @@ onBeforeUnmount(() => {
           :disabled="loading"
           @click="canvasAccessOpen = true"
         >
-          Доступ
+          {{ t('canvas.access') }}
         </UiButton>
       </div>
 
       <div class="canvas-view__meta">
         <span v-if="brokenEdgesCount > 0" class="canvas-view__broken">
-          {{ brokenEdgesCount }} связ. с удалёнными заметками
+          {{ t('canvas.brokenEdges', { count: brokenEdgesCount }) }}
         </span>
-        <span class="canvas-view__count">{{ visibleNodes.length }} зам.</span>
+        <span class="canvas-view__count">{{
+          t('canvas.notesCount', { count: visibleNodes.length })
+        }}</span>
       </div>
     </header>
 
-    <!-- Загрузка -->
+    <!-- Loading -->
     <div v-if="loading" class="canvas-view__board canvas-view__board--loading" aria-busy="true">
       <div class="canvas-view__skeleton" />
     </div>
 
-    <!-- Ошибка -->
+    <!-- Error -->
     <div v-else-if="error" class="canvas-view__error">
       <p class="canvas-view__error-title">
         {{
           error.status === 404 || error.status === 403
-            ? 'Канвас недоступен'
-            : 'Не удалось загрузить канвас'
+            ? t('canvas.notFound')
+            : t('canvas.loadError')
         }}
       </p>
       <p class="canvas-view__error-text">{{ error.message }}</p>
       <div class="canvas-view__error-actions">
-        <UiButton size="sm" @click="router.push({ name: 'dashboard' })">К списку канвасов</UiButton>
+        <UiButton size="sm" @click="router.push({ name: 'dashboard' })">{{
+          t('canvas.toCanvasList')
+        }}</UiButton>
         <UiButton
           v-if="error.status !== 404 && error.status !== 403"
           variant="ghost"
           size="sm"
           @click="loadGraph"
         >
-          Повторить
+          {{ t('common.retry') }}
         </UiButton>
       </div>
     </div>
 
-    <!-- Граф -->
+    <!-- Graph -->
     <div
       v-else
       class="canvas-view__board"
@@ -1050,7 +1094,7 @@ onBeforeUnmount(() => {
     >
       <div v-if="isCanvasFileDragging" class="canvas-view__drop-overlay" aria-hidden="true">
         <div class="canvas-view__drop-overlay-card">
-          Перетащите .md или .txt, чтобы создать заметку
+          {{ t('canvas.dropToCreate') }}
         </div>
       </div>
       <input
@@ -1088,11 +1132,11 @@ onBeforeUnmount(() => {
           @cancel="cancelLinking"
         />
 
-        <!-- Пустой канвас -->
+        <!-- Empty canvas -->
         <div v-if="visibleNodes.length === 0" class="canvas-view__empty">
-          <p class="canvas-view__empty-title">Здесь пока нет заметок</p>
+          <p class="canvas-view__empty-title">{{ t('canvas.emptyTitle') }}</p>
           <p class="canvas-view__empty-text">
-            Перетащите заметки, настройте фильтры и используйте поиск по канвасу.
+            {{ t('canvas.emptyText') }}
           </p>
         </div>
       </CanvasBoard>
@@ -1106,7 +1150,7 @@ onBeforeUnmount(() => {
         @close="contextMenu.close()"
       />
 
-      <!-- R28: панель редактора заметки (read-only определяется внутри) -->
+      <!-- R28: note editor panel (read-only determined inside) -->
       <NoteEditorModal
         v-if="editorOpen"
         v-model:open="editorOpen"
@@ -1115,7 +1159,7 @@ onBeforeUnmount(() => {
         @visibility-changed="onEditorVisibilityChanged"
       />
 
-      <!-- R29: архив неактуальных/удалённых заметок (≥editor) -->
+      <!-- R29: archive of not relevant/deleted notes (>=editor) -->
       <ArchivePanel
         v-if="canEditCanvas && archiveOpen"
         v-model:open="archiveOpen"

@@ -2,7 +2,7 @@ import { request, type UploadProgress } from './http'
 import type { Attachment, AttachmentUrlResult } from './types'
 
 export const attachmentsApi = {
-  /** Загрузить файл к заметке (редактор заметки). */
+  /** Zagruzit fayl k zametke (redaktor zametki). */
   upload(
     noteId: string,
     file: File,
@@ -17,12 +17,12 @@ export const attachmentsApi = {
     })
   },
 
-  /** Получить presigned URL файла. */
+  /** Poluchit presigned URL fayla. */
   getUrl(id: string): Promise<AttachmentUrlResult> {
     return request<AttachmentUrlResult>(`/attachments/${id}/url`)
   },
 
-  /** Удалить файл (редактор заметки). */
+  /** Udalit fayl (redaktor zametki). */
   remove(id: string): Promise<void> {
     return request<void>(`/attachments/${id}`, { method: 'DELETE' })
   },

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 defineProps<{
   linking: boolean
   sourceTitle?: string | null
@@ -7,17 +9,21 @@ defineProps<{
 const emit = defineEmits<{
   cancel: []
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
   <div class="link-layer" aria-live="polite">
     <div v-if="linking" class="link-layer__banner">
       <span class="link-layer__text">
-        Выберите заметку для связи<span v-if="sourceTitle"> от «{{ sourceTitle }}»</span>.
-        <span class="link-layer__hint">Esc — отмена</span>
+        {{ t('links.selectTarget')
+        }}<span v-if="sourceTitle"> {{ t('links.from', { title: sourceTitle }) }}</span
+        >.
+        <span class="link-layer__hint">{{ t('links.escCancel') }}</span>
       </span>
       <button type="button" class="link-layer__cancel nodrag nopan" @click="emit('cancel')">
-        Отменить
+        {{ t('links.cancel') }}
       </button>
     </div>
   </div>

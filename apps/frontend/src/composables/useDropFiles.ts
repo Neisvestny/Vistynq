@@ -12,8 +12,8 @@ export interface DroppedFilesResult {
 }
 
 /**
- * Обработка drag&drop файлов для целевой области.
- * Возвращает нормализованный результат без сетевых запросов (R31 подключит API).
+ * Obrabotka drag&drop faylov dlya tselevoy oblasti.
+ * Vozvrashchaet normalizovannyy rezultat bez setevykh zaprosov (R31 podklyuchit API).
  */
 export function useDropFiles(options: DropFileOptions = {}) {
   const isDragging = ref(false)

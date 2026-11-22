@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import { useAuthStore } from '@/stores/auth'
 import { notify } from '@/api/notify'
 import { applyApiError, isValidEmail } from '@/api/errors'
 
+const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 
@@ -23,13 +25,13 @@ async function onSubmit() {
 
   errors.value = {}
   if (!isValidEmail(email.value)) {
-    errors.value.email = 'Введите корректный email'
+    errors.value.email = t('auth.emailInvalid')
   }
   if (!displayName.value.trim()) {
-    errors.value.displayName = 'Введите имя'
+    errors.value.displayName = t('auth.displayNameRequired')
   }
   if (password.value.length < MIN_PASSWORD_LENGTH) {
-    errors.value.password = `Минимум ${MIN_PASSWORD_LENGTH} символов`
+    errors.value.password = t('auth.passwordMin', { min: MIN_PASSWORD_LENGTH })
   }
   if (Object.keys(errors.value).length > 0) return
 
@@ -37,8 +39,8 @@ async function onSubmit() {
   try {
     await auth.register(email.value.trim(), password.value, displayName.value.trim())
     notify({
-      title: 'Регистрация почти завершена',
-      description: 'Мы отправили письмо для подтверждения email',
+      title: t('auth.registerSuccessTitle'),
+      description: t('auth.registerSuccessDescription'),
       status: 'success',
     })
     await router.push({ name: 'login' })
@@ -52,19 +54,19 @@ async function onSubmit() {
 
 <template>
   <form class="auth-form" novalidate @submit.prevent="onSubmit">
-    <h1 class="auth-form__title">Регистрация</h1>
-    <p class="auth-form__subtitle">Создайте аккаунт — и письмо придёт на почту для подтверждения</p>
+    <h1 class="auth-form__title">{{ t('auth.registerTitle') }}</h1>
+    <p class="auth-form__subtitle">{{ t('auth.registerSubtitle') }}</p>
 
     <div>
       <UiInput
         id="register-name"
         v-model="displayName"
         type="text"
-        placeholder="Как вас называть"
+        :placeholder="t('auth.namePlaceholder')"
         autocomplete="name"
         :disabled="loading"
       >
-        Имя
+        {{ t('auth.displayName') }}
       </UiInput>
       <p v-if="errors.displayName" class="auth-form__error">{{ errors.displayName }}</p>
     </div>
@@ -74,11 +76,11 @@ async function onSubmit() {
         id="register-email"
         v-model="email"
         type="email"
-        placeholder="you@example.com"
+        :placeholder="t('auth.emailPlaceholder')"
         autocomplete="email"
         :disabled="loading"
       >
-        Email
+        {{ t('auth.email') }}
       </UiInput>
       <p v-if="errors.email" class="auth-form__error">{{ errors.email }}</p>
     </div>
@@ -88,23 +90,23 @@ async function onSubmit() {
         id="register-password"
         v-model="password"
         type="password"
-        placeholder="Минимум 8 символов"
+        :placeholder="t('auth.passwordMinPlaceholder')"
         autocomplete="new-password"
         :disabled="loading"
       >
-        Пароль
+        {{ t('auth.password') }}
       </UiInput>
       <p v-if="errors.password" class="auth-form__error">{{ errors.password }}</p>
     </div>
 
     <UiButton type="submit" :disabled="loading">
-      {{ loading ? 'Создаём аккаунт…' : 'Зарегистрироваться' }}
+      {{ loading ? t('auth.registering') : t('auth.signUp') }}
     </UiButton>
 
     <div class="auth-form__footer">
       <span>
-        Уже есть аккаунт?
-        <RouterLink to="/login">Войти</RouterLink>
+        {{ t('auth.haveAccountPrompt') }}
+        <RouterLink to="/login">{{ t('auth.signIn') }}</RouterLink>
       </span>
     </div>
   </form>

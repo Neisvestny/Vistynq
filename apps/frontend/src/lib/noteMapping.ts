@@ -1,8 +1,9 @@
 /**
- * Преобразование ответов API заметок в GraphNode стора `notes` (R13/R28).
- * В `Note`/`NoteDetail` теги приходят id-ами, в графе — именами.
+ * Convert note API responses to `notes` store GraphNode (R13/R28).
+ * In `Note`/`NoteDetail` tags come as IDs, in graph - as names.
  */
 import type { GraphNode, Note, NoteDetail, Tag } from '@/api/types'
+import { tGlobal } from '@/i18n'
 
 function clampImportance(value: number | undefined): number {
   if (!Number.isFinite(value) || value === undefined) return 3
@@ -18,7 +19,7 @@ export function tagIdsToNames(tagIds: string[] | undefined, tags: Tag[]): string
   )
 }
 
-/** Базовая маппинг-функция для ответов create/derive/import/restore (тип Note). */
+/** Base mapping function for create/derive/import/restore responses (Note type). */
 export function noteToGraphNode(
   note: Pick<
     Note,
@@ -39,7 +40,7 @@ export function noteToGraphNode(
 ): GraphNode {
   return {
     id: note.id,
-    title: note.title || 'Без названия',
+    title: note.title || tGlobal('note.untitled'),
     importance: clampImportance(note.importance),
     isRelevant: note.isRelevant,
     visibility: note.visibility ?? 'public',
@@ -53,8 +54,8 @@ export function noteToGraphNode(
 }
 
 /**
- * После сохранения манифеста/тела: геометрию и автора берём из уже
- * загруженной ноды (там может быть свежий локальный drag/resize).
+ * After manifest/body save: take geometry and author from already
+ * loaded node (it may have fresh local drag/resize).
  */
 export function noteDetailToGraphNode(
   detail: NoteDetail,

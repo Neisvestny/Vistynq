@@ -1,14 +1,14 @@
 import DOMPurify from 'dompurify'
 
 /**
- * Санитизация HTML перед `v-html` (R18/R32).
+ * Sanitizatsiya HTML pered `v-html` (R18/R32).
  *
- * Сервер уже отдаёт `bodyHtml` после escape-first рендера, но клиент не
- * должен доверять HTML из сети: Tiptap (R28) и публичные /shared-страницы
- * (R32) обязаны прогонять контент через эту функцию.
+ * Server uzhe otdayot `bodyHtml` posle escape-first rendera, no klient ne
+ * dolzhen doveryat HTML iz seti: Tiptap (R28) i publichnye /shared-stranitsy
+ * (R32) obyazany progonyat kontent cherez etu funktsiyu.
  *
- * Whitelist минимальный и безопасный. Медиа допускаются только с безопасными
- * URI (http/https, относительные пути, якоря).
+ * Whitelist minimalnyy i bezopasnyy. Media dopuskayutsya tolko s bezopasnymi
+ * URI (http/https, otnositelnye puti, yakorya).
  */
 const ALLOWED_TAGS = [
   'p',
@@ -37,7 +37,7 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTR = ['href', 'title', 'target', 'rel', 'src', 'alt', 'loading', 'width', 'height']
 
-/** http(s), локальные пути (`/shared/...`, `/storage/...`) и якоря. */
+/** http(s), lokalnye puti (`/shared/...`, `/storage/...`) i yakorya. */
 const ALLOWED_URI = /^(?:https?:\/\/|\/(?!\/)|#)/i
 
 export function sanitizeHtml(dirty: string): string {

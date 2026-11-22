@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@vue-flow/core'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { LinkEdgeData } from '@/composables/useGraph'
 
 const props = defineProps<EdgeProps<LinkEdgeData>>()
+
+const { t } = useI18n()
 
 const path = computed(() =>
   getBezierPath({
@@ -27,7 +30,7 @@ const showLabel = computed(() => isDangling.value)
 <template>
   <BaseEdge :id="id" :path="edgePath" :marker-end="markerEnd" :label="undefined" :style="style" />
 
-  <!-- Обрыв на конце висячей связи (purged target). -->
+  <!-- Break mark at the end of a dangling link (purged target). -->
   <g v-if="isDangling">
     <line
       :x1="targetX - 6"
@@ -54,7 +57,7 @@ const showLabel = computed(() => isDangling.value)
         pointerEvents: 'all',
       }"
     >
-      ссылка удалена
+      {{ t('links.deletedBadge') }}
     </div>
   </EdgeLabelRenderer>
 </template>

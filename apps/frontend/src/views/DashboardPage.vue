@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
- * Dashboard (docs/ui-ux.md §1) — список канвасов из GET /canvases (постранично),
- * создание канваса, секция приглашений-заглушка (инвайты — R31).
+ * Dashboard (docs/ui-ux.md §1) — spisok kanvasov iz GET /canvases (postranichno),
+ * sozdanie kanvasa, sektsiya priglasheniy-zaglushka (invayty — R31).
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
@@ -16,13 +17,19 @@ import type { Canvas } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
 import { useCanvasesStore } from '@/stores/canvases'
 
+const { t, locale } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const store = useCanvasesStore()
 
-/** Локальное состояние формы диалога (не глобальное). */
+/** Lokalnoe sostoyanie formy dialoga (ne globalnoe). */
 const createErrors = ref<Record<string, string>>({})
 const newTitle = ref('')
+
+const greeting = computed(() => {
+  const suffix = auth.user ? t('dashboard.greetingSuffix', { name: auth.user.displayName }) : ''
+  return t('dashboard.greeting', { suffix })
+})
 
 async function onCreateCanvas() {
   if (store.creating) return
@@ -30,7 +37,7 @@ async function onCreateCanvas() {
   createErrors.value = {}
   const title = newTitle.value.trim()
   if (!title) {
-    createErrors.value.title = 'Введите название канваса'
+    createErrors.value.title = t('dashboard.canvasTitleRequired')
     return
   }
 
@@ -43,7 +50,8 @@ async function onCreateCanvas() {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('ru-RU', {
+  const intlLocale = locale.value === 'en' ? 'en-US' : 'ru-RU'
+  return new Date(iso).toLocaleDateString(intlLocale, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -53,13 +61,13 @@ function formatDate(iso: string): string {
 function roleLabel(canvas: Canvas): string {
   switch (canvas.access.myRole) {
     case 'owner':
-      return 'Владелец'
+      return t('dashboard.roleOwner')
     case 'editor':
-      return 'Редактор'
+      return t('dashboard.roleEditor')
     case 'viewer':
-      return 'Зритель'
+      return t('dashboard.roleViewer')
     case 'none':
-      return 'Доступ к заметкам'
+      return t('dashboard.roleNotesAccess')
     default:
       return ''
   }
@@ -74,12 +82,12 @@ async function goToPage(nextPage: number) {
 }
 
 onMounted(async () => {
-  // guard уже восстановил сессию, но после прямого F5 /auth/me может не быть
+  // guard uzhe vosstanovil sessiyu, no posle pryamogo F5 /auth/me mozhet ne byt
   if (!auth.user) {
     try {
       await auth.fetchMe()
     } catch {
-      notify({ title: 'Не удалось загрузить профиль', status: 'error' })
+      notify({ title: t('dashboard.profileLoadError'), status: 'error' })
     }
   }
   await store.load()
@@ -90,52 +98,60 @@ onMounted(async () => {
   <div class="dashboard">
     <header class="dashboard__header">
       <div>
-        <h1 class="dashboard__title">Привет{{ auth.user ? `, ${auth.user.displayName}` : '' }}!</h1>
-        <p class="dashboard__subtitle">Ваши канвасы</p>
+        <h1 class="dashboard__title">{{ greeting }}</h1>
+        <p class="dashboard__subtitle">{{ t('dashboard.subtitle') }}</p>
       </div>
 
-      <UiDialog title="Новый канвас" description="Название можно изменить позже">
+      <UiDialog
+        :title="t('dashboard.createDialogTitle')"
+        :description="t('dashboard.createDialogDescription')"
+      >
         <template #trigger>
-          <UiButton>+ Создать канвас</UiButton>
+          <UiButton>+ {{ t('dashboard.createCanvas') }}</UiButton>
         </template>
 
         <form class="dashboard__create" novalidate @submit.prevent="onCreateCanvas">
           <UiInput
             id="new-canvas-title"
             v-model="newTitle"
-            placeholder="Например: Исследования"
+            :placeholder="t('dashboard.titlePlaceholder')"
             :disabled="store.creating"
           >
-            Название
+            {{ t('dashboard.titleLabel') }}
           </UiInput>
           <p v-if="createErrors.title" class="dashboard__error">{{ createErrors.title }}</p>
 
           <UiButton type="submit" :disabled="store.creating">
-            {{ store.creating ? 'Создаём…' : 'Создать' }}
+            {{ store.creating ? t('common.creating') : t('common.create') }}
           </UiButton>
         </form>
       </UiDialog>
     </header>
 
-    <!-- Загрузка -->
-    <div v-if="store.loading" class="dashboard__grid" aria-busy="true">
+    <!-- Loading -->
+    <div
+      v-if="store.loading"
+      class="dashboard__grid"
+      aria-busy="true"
+      :aria-label="t('common.loading')"
+    >
       <UiCard v-for="n in 3" :key="n" class="dashboard__skeleton" />
     </div>
 
-    <!-- Ошибка загрузки -->
+    <!-- Error zagruzki -->
     <UiCard v-else-if="store.loadFailed">
-      <p class="dashboard__hint">Не удалось загрузить канвасы — проверьте соединение.</p>
-      <UiButton variant="ghost" size="sm" @click="store.load(store.page || 1)">Повторить</UiButton>
+      <p class="dashboard__hint">{{ t('dashboard.loadErrorHint') }}</p>
+      <UiButton variant="ghost" size="sm" @click="store.load(store.page || 1)">
+        {{ t('common.retry') }}
+      </UiButton>
     </UiCard>
 
-    <!-- Пусто -->
+    <!-- Pusto -->
     <UiCard v-else-if="store.items.length === 0">
-      <p class="dashboard__hint">
-        Канвасов пока нет. Создайте первый — это пространство с заметками и связями.
-      </p>
+      <p class="dashboard__hint">{{ t('dashboard.emptyHint') }}</p>
     </UiCard>
 
-    <!-- Список -->
+    <!-- Spisok -->
     <template v-else>
       <div class="dashboard__grid">
         <UiCard
@@ -146,12 +162,16 @@ onMounted(async () => {
         >
           <div class="dashboard__card-top">
             <h2 class="dashboard__card-title">{{ canvas.title }}</h2>
-            <UiBadge v-if="canvas.access.publicSlug" tone="accent">Публичный</UiBadge>
+            <UiBadge v-if="canvas.access.publicSlug" tone="accent">{{
+              t('dashboard.public')
+            }}</UiBadge>
           </div>
 
           <div class="dashboard__card-meta">
             <UiBadge v-if="roleLabel(canvas)">{{ roleLabel(canvas) }}</UiBadge>
-            <span class="dashboard__meta-text"> {{ canvas.noteCount ?? 0 }} зам. </span>
+            <span class="dashboard__meta-text">
+              {{ t('dashboard.notesShort', { count: canvas.noteCount ?? 0 }) }}
+            </span>
             <span class="dashboard__meta-text">{{ formatDate(canvas.createdAt) }}</span>
           </div>
         </UiCard>
@@ -160,7 +180,7 @@ onMounted(async () => {
       <nav
         v-if="store.totalPages > 1"
         class="dashboard__pagination"
-        aria-label="Страницы списка канвасов"
+        :aria-label="t('dashboard.paginationLabel')"
       >
         <UiButton
           variant="ghost"
@@ -168,11 +188,13 @@ onMounted(async () => {
           :disabled="store.loading || store.page <= 1"
           @click="goToPage(store.page - 1)"
         >
-          Назад
+          {{ t('common.back') }}
         </UiButton>
         <span class="dashboard__pagination-info">
-          Страница {{ store.page }} из {{ store.totalPages }}
-          <span class="dashboard__pagination-total">· всего {{ store.total }}</span>
+          {{ t('dashboard.pageInfo', { page: store.page, totalPages: store.totalPages }) }}
+          <span class="dashboard__pagination-total">
+            {{ t('dashboard.totalInfo', { total: store.total }) }}
+          </span>
         </span>
         <UiButton
           variant="ghost"
@@ -180,16 +202,14 @@ onMounted(async () => {
           :disabled="store.loading || store.page >= store.totalPages"
           @click="goToPage(store.page + 1)"
         >
-          Вперёд
+          {{ t('common.forward') }}
         </UiButton>
       </nav>
     </template>
 
     <section class="dashboard__invites">
-      <h2 class="dashboard__invites-title">Приглашения</h2>
-      <p class="dashboard__hint">
-        Входящие инвайты с кнопками «Принять»/«Отклонить» появятся здесь (R31).
-      </p>
+      <h2 class="dashboard__invites-title">{{ t('dashboard.invitesTitle') }}</h2>
+      <p class="dashboard__hint">{{ t('dashboard.invitesHint') }}</p>
     </section>
   </div>
 </template>

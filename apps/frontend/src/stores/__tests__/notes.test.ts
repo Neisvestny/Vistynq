@@ -7,7 +7,7 @@ import type { GraphNode } from '@/api/types'
 function node(id: string, overrides: Partial<GraphNode> = {}): GraphNode {
   return {
     id,
-    title: `Заметка ${id}`,
+    title: `Zametka ${id}`,
     importance: 3,
     isRelevant: true,
     x: 0,

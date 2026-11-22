@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { tagsApi } from '@/api/tags'
 import { notify } from '@/api/notify'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -22,6 +23,7 @@ const emit = defineEmits<{
   changed: []
 }>()
 
+const { t } = useI18n()
 const canvasStore = useCanvasStore()
 const notesStore = useNotesStore()
 const { canEditCanvas } = useAccessGuard()
@@ -55,7 +57,6 @@ function countNotesWithTag(name: string): number {
 }
 
 async function refreshGraph() {
-  // После мутаций тегов надежнее обновить граф/теги с сервера.
   const canvasId = canvasStore.canvas?.id
   if (canvasId) {
     await canvasStore.load(canvasId)
@@ -72,10 +73,10 @@ async function createTag() {
     const tag = await tagsApi.create(canvasId, { name })
     canvasStore.tags = [...canvasStore.tags, tag].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
     newTagName.value = ''
-    notify({ title: 'Тег создан', status: 'success' })
+    notify({ title: t('tags.created'), status: 'success' })
   } catch (error) {
     notify({
-      title: 'Не удалось создать тег',
+      title: t('tags.createFailed'),
       description: error instanceof Error ? error.message : undefined,
       status: 'error',
     })
@@ -86,19 +87,19 @@ async function createTag() {
 
 async function renameTag(id: string, currentName: string) {
   if (!canEditCanvas.value) return
-  const next = window.prompt('Новое имя тега', currentName)
+  const next = window.prompt(t('tags.renamePrompt'), currentName)
   if (next === null) return
   const name = next.trim()
   if (!name || name === currentName) return
   busyTagId.value = id
   try {
     const updated = await tagsApi.update(id, { name })
-    canvasStore.tags = canvasStore.tags.map((t) => (t.id === id ? updated : t))
+    canvasStore.tags = canvasStore.tags.map((tag) => (tag.id === id ? updated : tag))
     notesStore.renameTagInNodes(currentName, updated.name)
-    notify({ title: 'Тег переименован', status: 'success' })
+    notify({ title: t('tags.renamed'), status: 'success' })
   } catch (error) {
     notify({
-      title: 'Не удалось переименовать тег',
+      title: t('tags.renameFailed'),
       description: error instanceof Error ? error.message : undefined,
       status: 'error',
     })
@@ -109,21 +110,25 @@ async function renameTag(id: string, currentName: string) {
 
 async function recolorTag(id: string, currentColor: string) {
   if (!canEditCanvas.value) return
-  const next = window.prompt('Цвет тега (#rrggbb)', currentColor || '#7c3aed')
+  const next = window.prompt(t('tags.colorPrompt'), currentColor || '#7c3aed')
   if (next === null) return
   const color = next.trim()
   if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
-    notify({ title: 'Неверный цвет', description: 'Используйте формат #rrggbb', status: 'error' })
+    notify({
+      title: t('tags.invalidColor'),
+      description: t('tags.invalidColorDescription'),
+      status: 'error',
+    })
     return
   }
   busyTagId.value = id
   try {
     const updated = await tagsApi.update(id, { color })
-    canvasStore.tags = canvasStore.tags.map((t) => (t.id === id ? updated : t))
-    notify({ title: 'Цвет тега обновлён', status: 'success' })
+    canvasStore.tags = canvasStore.tags.map((tag) => (tag.id === id ? updated : tag))
+    notify({ title: t('tags.colorUpdated'), status: 'success' })
   } catch (error) {
     notify({
-      title: 'Не удалось изменить цвет',
+      title: t('tags.colorFailed'),
       description: error instanceof Error ? error.message : undefined,
       status: 'error',
     })
@@ -135,20 +140,19 @@ async function recolorTag(id: string, currentColor: string) {
 async function deleteTag(id: string, name: string) {
   if (!canEditCanvas.value) return
   const count = countNotesWithTag(name)
-  const ok = window.confirm(`Тег будет удалён из ${count} заметок. Продолжить?`)
+  const ok = window.confirm(t('tags.deleteConfirm', { count }))
   if (!ok) return
   busyTagId.value = id
   try {
     await tagsApi.remove(id)
-    canvasStore.tags = canvasStore.tags.filter((t) => t.id !== id)
+    canvasStore.tags = canvasStore.tags.filter((tag) => tag.id !== id)
     notesStore.removeTagFromNodes(name)
     if (props.highlightedTag === name) setHighlight(null)
-    notify({ title: 'Тег удалён', status: 'success' })
-    // На случай серверных расхождений
+    notify({ title: t('tags.deleted'), status: 'success' })
     void refreshGraph()
   } catch (error) {
     notify({
-      title: 'Не удалось удалить тег',
+      title: t('tags.deleteFailed'),
       description: error instanceof Error ? error.message : undefined,
       status: 'error',
     })
@@ -188,21 +192,21 @@ onBeforeUnmount(() => {
       aria-haspopup="dialog"
       @click="toggleOpen"
     >
-      Теги
+      {{ t('tags.title') }}
     </UiButton>
 
     <div
       v-if="isOpen"
       class="canvas-popover__panel tag-menu"
       role="dialog"
-      aria-label="Теги канваса"
+      :aria-label="t('tags.aria')"
     >
       <div class="tag-menu__header">
-        <span class="tag-menu__title">Теги</span>
-        <span class="tag-menu__hint">Наведение подсвечивает заметки</span>
+        <span class="tag-menu__title">{{ t('tags.title') }}</span>
+        <span class="tag-menu__hint">{{ t('tags.hint') }}</span>
       </div>
 
-      <p v-if="!tags.length" class="tag-menu__empty">Тегов пока нет</p>
+      <p v-if="!tags.length" class="tag-menu__empty">{{ t('tags.empty') }}</p>
 
       <ul v-else class="tag-menu__list">
         <li
@@ -230,7 +234,7 @@ onBeforeUnmount(() => {
               :disabled="busyTagId === tag.id"
               @click="recolorTag(tag.id, tag.color)"
             >
-              Цвет
+              {{ t('tags.color') }}
             </button>
             <button
               type="button"
@@ -238,7 +242,7 @@ onBeforeUnmount(() => {
               :disabled="busyTagId === tag.id"
               @click="renameTag(tag.id, tag.name)"
             >
-              Имя
+              {{ t('tags.name') }}
             </button>
             <button
               type="button"
@@ -246,7 +250,7 @@ onBeforeUnmount(() => {
               :disabled="busyTagId === tag.id"
               @click="deleteTag(tag.id, tag.name)"
             >
-              Удалить
+              {{ t('tags.delete') }}
             </button>
           </span>
         </li>
@@ -257,12 +261,12 @@ onBeforeUnmount(() => {
           v-model="newTagName"
           class="tag-menu__input"
           type="text"
-          placeholder="Новый тег"
+          :placeholder="t('tags.newPlaceholder')"
           maxlength="40"
         />
-        <UiButton type="submit" size="sm" :disabled="creating || !newTagName.trim()"
-          >Создать</UiButton
-        >
+        <UiButton type="submit" size="sm" :disabled="creating || !newTagName.trim()">{{
+          t('tags.create')
+        }}</UiButton>
       </form>
     </div>
   </div>

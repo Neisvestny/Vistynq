@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
- * Панель редактора заметки (R28): загрузка NoteDetail, черновик манифеста
- * и тела, Tiptap, сохранение PATCH → PUT body → PUT visibility,
- * read-only режим и заглушка кнопки «Доступ» (R32).
+ * Note editor panel (R28): load NoteDetail, manifest/body draft,
+ * Tiptap, save PATCH -> PUT body -> PUT visibility,
+ * read-only mode and Access button placeholder (R32).
  */
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/vue-3'
 import { accessApi } from '@/api/access'
 import { attachmentsApi } from '@/api/attachments'
@@ -51,6 +52,7 @@ const emit = defineEmits<{
 const canvasStore = useCanvasStore()
 const notesStore = useNotesStore()
 const uiStore = useUiStore()
+const { t } = useI18n()
 
 const detail = ref<NoteDetail | null>(null)
 const draft = ref<NoteDraft>(emptyDraft())
@@ -157,10 +159,10 @@ async function createTag(name: string): Promise<void> {
       ...draft.value.manifest,
       tagIds: [...draft.value.manifest.tagIds, tag.id],
     }
-    notify({ title: 'Тег создан', status: 'success' })
+    notify({ title: t('note.tagCreated'), status: 'success' })
   } catch (error) {
     notify({
-      title: 'Не удалось создать тег',
+      title: t('note.tagCreateFailed'),
       description: error instanceof ApiError ? error.message : undefined,
       status: 'error',
     })
@@ -173,7 +175,7 @@ async function save(): Promise<void> {
 
   const errors = validateManifest(draft.value.manifest)
   if (errors.length > 0) {
-    notify({ title: errors[0] ?? 'Проверьте поля формы', status: 'error' })
+    notify({ title: errors[0] ?? t('note.checkFields'), status: 'error' })
     return
   }
 
@@ -195,10 +197,10 @@ async function save(): Promise<void> {
     const saved = last ?? (await notesApi.get(note.id))
     applyDetail(saved)
     emit('saved', saved, plan)
-    notify({ title: 'Заметка сохранена', status: 'success' })
+    notify({ title: t('note.saved'), status: 'success' })
   } catch (error) {
     notify({
-      title: 'Не удалось сохранить заметку',
+      title: t('note.saveFailed'),
       description: error instanceof ApiError ? error.message : undefined,
       status: 'error',
     })
@@ -214,7 +216,7 @@ function requestClose(): void {
     return
   }
   confirmingClose = true
-  const confirmed = window.confirm('Закрыть редактор без сохранения изменений?')
+  const confirmed = window.confirm(t('note.closeUnsaved'))
   confirmingClose = false
   if (confirmed) emit('update:open', false)
 }
@@ -279,9 +281,8 @@ function fileKind(file: File): 'image' | 'audio' | 'text' | 'unsupported' {
 }
 
 function validateUploadFile(file: File, kind: 'image' | 'audio'): string | null {
-  if (kind === 'image' && file.size > IMAGE_MAX_BYTES)
-    return 'Изображение должно быть не больше 5 МБ'
-  if (kind === 'audio' && file.size > AUDIO_MAX_BYTES) return 'Аудио должно быть не больше 25 МБ'
+  if (kind === 'image' && file.size > IMAGE_MAX_BYTES) return t('note.imageTooLarge')
+  if (kind === 'audio' && file.size > AUDIO_MAX_BYTES) return t('note.audioTooLarge')
   return null
 }
 
@@ -322,7 +323,7 @@ async function uploadAttachmentFile(
 
   const validationError = validateUploadFile(file, kind)
   if (validationError) {
-    notify({ title: 'Файл не загружен', description: validationError, status: 'error' })
+    notify({ title: t('note.fileNotUploaded'), description: validationError, status: 'error' })
     return
   }
 
@@ -341,16 +342,16 @@ async function uploadAttachmentFile(
 
     if (kind === 'image') {
       insertImageAt(pos, attachment.url, attachment.filename)
-      notify({ title: 'Изображение добавлено', status: 'success' })
+      notify({ title: t('note.imageAdded'), status: 'success' })
     } else {
-      notify({ title: 'Аудио добавлено', status: 'success' })
+      notify({ title: t('note.audioAdded'), status: 'success' })
     }
   } catch (error) {
-    const message = error instanceof ApiError ? error.message : 'Не удалось загрузить файл'
+    const message = error instanceof ApiError ? error.message : t('note.fileUploadFailed')
     pendingUploads.value = pendingUploads.value.map((u) =>
       u.id === uploadId ? { ...u, error: message, progress: 0 } : u
     )
-    notify({ title: 'Файл не загружен', description: message, status: 'error' })
+    notify({ title: t('note.fileNotUploaded'), description: message, status: 'error' })
   }
 }
 
@@ -367,8 +368,8 @@ async function handleEditorFilesDrop(payload: {
     } else if (kind === 'text') {
       if (file.size > TEXT_IMPORT_MAX_BYTES) {
         notify({
-          title: 'Файл слишком большой',
-          description: 'Файл .md/.txt должен быть не больше 1 МБ',
+          title: t('note.fileTooLarge'),
+          description: t('note.textFileTooLarge'),
           status: 'error',
         })
         continue
@@ -376,14 +377,14 @@ async function handleEditorFilesDrop(payload: {
       try {
         const text = await file.text()
         insertTextAt(payload.pos, text)
-        notify({ title: 'Текст вставлен из файла', status: 'success' })
+        notify({ title: t('note.textInserted'), status: 'success' })
       } catch {
-        notify({ title: 'Не удалось прочитать файл', status: 'error' })
+        notify({ title: t('note.fileReadFailed'), status: 'error' })
       }
     } else {
       notify({
-        title: 'Неподдерживаемый файл',
-        description: 'В редактор можно добавить картинку, аудио или вставить .md/.txt как текст',
+        title: t('note.unsupportedFile'),
+        description: t('note.unsupportedEditorFile'),
         status: 'error',
       })
     }
@@ -404,7 +405,7 @@ async function onImageInputChange(event: Event): Promise<void> {
     if (kind === 'image') {
       await uploadAttachmentFile(file, 'image', null)
     } else {
-      notify({ title: 'Можно выбрать только изображение', status: 'error' })
+      notify({ title: t('note.selectImageOnly'), status: 'error' })
     }
   }
 }
@@ -414,11 +415,11 @@ async function onDeleteAttachment(id: string): Promise<void> {
   attachments.value = attachments.value.filter((a) => a.id !== id)
   try {
     await attachmentsApi.remove(id)
-    notify({ title: 'Файл удалён', status: 'success' })
+    notify({ title: t('note.fileDeleted'), status: 'success' })
   } catch (error) {
     attachments.value = previous
     notify({
-      title: 'Не удалось удалить файл',
+      title: t('note.fileDeleteFailed'),
       description: error instanceof ApiError ? error.message : undefined,
       status: 'error',
     })
@@ -436,7 +437,7 @@ async function onMediaError(attachment: Attachment): Promise<void> {
       a.id === attachment.id ? { ...a, url: refreshed.url } : a
     )
   } catch {
-    // Тихо: медиа может быть недоступно из-за прав/удаления.
+    // Silent: media may be unavailable due to permissions/deletion.
   }
 }
 </script>
@@ -452,15 +453,15 @@ async function onMediaError(attachment: Attachment): Promise<void> {
   >
     <template #title>
       <span class="note-editor__heading">
-        <span class="note-editor__title" :title="detail?.title || 'Заметка'">
-          {{ detail?.title || 'Заметка' }}
+        <span class="note-editor__title" :title="detail?.title || t('note.untitled')">
+          {{ detail?.title || t('note.untitled') }}
         </span>
-        <UiBadge v-if="readOnly && detail">Только чтение</UiBadge>
+        <UiBadge v-if="readOnly && detail">{{ t('note.readOnly') }}</UiBadge>
         <button
           type="button"
           class="note-editor__side-toggle"
-          :title="side === 'right' ? 'Переместить панель слева' : 'Переместить панель справа'"
-          :aria-label="side === 'right' ? 'Переместить панель слева' : 'Переместить панель справа'"
+          :title="side === 'right' ? t('note.movePanelLeft') : t('note.movePanelRight')"
+          :aria-label="side === 'right' ? t('note.movePanelLeft') : t('note.movePanelRight')"
           @click="uiStore.toggleNoteEditorSide()"
         >
           {{ side === 'right' ? '⇤' : '⇥' }}
@@ -468,10 +469,10 @@ async function onMediaError(attachment: Attachment): Promise<void> {
       </span>
     </template>
 
-    <div v-if="loading" class="note-editor__state" aria-busy="true">Загрузка заметки…</div>
+    <div v-if="loading" class="note-editor__state" aria-busy="true">{{ t('note.loading') }}</div>
 
     <div v-else-if="loadError" class="note-editor__state">
-      <p>{{ loadError.status === 404 ? 'Заметка недоступна' : 'Не удалось загрузить заметку' }}</p>
+      <p>{{ loadError.status === 404 ? t('note.unavailable') : t('note.loadFailed') }}</p>
       <p class="note-editor__state-detail">{{ loadError.message }}</p>
       <UiButton
         v-if="loadError.status !== 404"
@@ -480,7 +481,7 @@ async function onMediaError(attachment: Attachment): Promise<void> {
         type="button"
         @click="noteId && loadNote(noteId)"
       >
-        Повторить
+        {{ t('common.retry') }}
       </UiButton>
     </div>
 
@@ -498,7 +499,7 @@ async function onMediaError(attachment: Attachment): Promise<void> {
       />
 
       <section class="note-editor__body">
-        <h3 class="note-editor__section-title">Содержимое</h3>
+        <h3 class="note-editor__section-title">{{ t('note.content') }}</h3>
         <MarkdownEditor
           v-model="draft.bodyMd"
           :editable="!readOnly"
@@ -532,15 +533,17 @@ async function onMediaError(attachment: Attachment): Promise<void> {
     <template #footer>
       <div v-if="detail && !readOnly" class="note-editor__footer">
         <UiButton type="button" variant="primary" :disabled="!dirty || saving" @click="save">
-          {{ saving ? 'Сохранение…' : 'Сохранить' }}
+          {{ saving ? t('note.saving') : t('note.save') }}
         </UiButton>
         <UiButton type="button" variant="ghost" :disabled="saving" @click="requestClose">
-          Закрыть
+          {{ t('note.close') }}
         </UiButton>
-        <span v-if="dirty" class="note-editor__dirty">Есть несохранённые изменения</span>
+        <span v-if="dirty" class="note-editor__dirty">{{ t('note.unsavedChanges') }}</span>
       </div>
       <div v-else-if="detail" class="note-editor__footer">
-        <UiButton type="button" variant="ghost" @click="requestClose">Закрыть</UiButton>
+        <UiButton type="button" variant="ghost" @click="requestClose">{{
+          t('note.close')
+        }}</UiButton>
       </div>
     </template>
 

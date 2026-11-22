@@ -10,12 +10,12 @@ import type {
 } from './types'
 
 export const accessApi = {
-  /** Участники и ожидающие инвайты канваса (owner). */
+  /** Uchastniki i ozhidayushchie invayty kanvasa (owner). */
   listCanvasAccess(canvasId: string): Promise<AccessEntry[]> {
     return request<AccessEntry[]>(`/canvases/${canvasId}/access`)
   },
 
-  /** Уровень доступа канваса и публичная ссылка (owner). */
+  /** Uroven dostupa kanvasa i publichnaya ssylka (owner). */
   setCanvasAccessLevel(canvasId: string, level: AccessLevel): Promise<CanvasAccessLevelResult> {
     return request<CanvasAccessLevelResult>(`/canvases/${canvasId}/access-level`, {
       method: 'PUT',
@@ -23,7 +23,7 @@ export const accessApi = {
     })
   },
 
-  /** Выдать доступ или пригласить по email на канвас (owner). */
+  /** Vydat dostup ili priglasit po email na kanvas (owner). */
   inviteToCanvas(canvasId: string, payload: InviteRequest): Promise<InviteResult> {
     return request<InviteResult>(`/canvases/${canvasId}/access/invite`, {
       method: 'POST',
@@ -46,12 +46,12 @@ export const accessApi = {
     return request<void>(`/canvases/${canvasId}/invitations/${invitationId}`, { method: 'DELETE' })
   },
 
-  /** Участники и ожидающие инвайты заметки (owner/author). */
+  /** Uchastniki i ozhidayushchie invayty zametki (owner/author). */
   listNoteAccess(noteId: string): Promise<AccessEntry[]> {
     return request<AccessEntry[]>(`/notes/${noteId}/access`)
   },
 
-  /** Видимость заметки (owner/author). */
+  /** Vidimost zametki (owner/author). */
   setNoteVisibility(
     noteId: string,
     visibility: NoteVisibility

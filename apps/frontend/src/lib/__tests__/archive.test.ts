@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { setI18nLocale } from '@/i18n'
 
 import {
   ARCHIVE_PER_PAGE,
@@ -10,20 +11,21 @@ import {
 } from '@/lib/archive'
 
 describe('archive helpers (R29)', () => {
-  it('archiveTotalPages всегда возвращает хотя бы 1 страницу', () => {
+  beforeEach(() => setI18nLocale('en'))
+  it('archiveTotalPages vsegda vozvrashchaet khotya by 1 stranitsu', () => {
     expect(archiveTotalPages(0)).toBe(1)
     expect(archiveTotalPages(-5)).toBe(1)
     expect(archiveTotalPages(Number.NaN)).toBe(1)
   })
 
-  it('archiveTotalPages округляет вверх и уважает perPage', () => {
+  it('archiveTotalPages okruglyaet vverkh i uvazhaet perPage', () => {
     expect(archiveTotalPages(ARCHIVE_PER_PAGE)).toBe(1)
     expect(archiveTotalPages(ARCHIVE_PER_PAGE + 1)).toBe(2)
     expect(archiveTotalPages(101)).toBe(6)
     expect(archiveTotalPages(101, 50)).toBe(3)
   })
 
-  it('resolveArchivePage держит страницу в диапазоне [1, totalPages]', () => {
+  it('resolveArchivePage derzhit stranitsu v diapazone [1, totalPages]', () => {
     expect(resolveArchivePage(7, 3)).toBe(3)
     expect(resolveArchivePage(1, 3)).toBe(1)
     expect(resolveArchivePage(0, 3)).toBe(1)
@@ -32,22 +34,20 @@ describe('archive helpers (R29)', () => {
     expect(resolveArchivePage(2, 0)).toBe(1)
   })
 
-  it('archiveEmptyMessage различает секции', () => {
-    expect(archiveEmptyMessage('notRelevant')).toBe('Нет неактуальных заметок')
-    expect(archiveEmptyMessage('deleted')).toBe('Корзина пуста')
+  it('archiveEmptyMessage razlichaet sektsii', () => {
+    expect(archiveEmptyMessage('notRelevant')).toBe('No not relevant notes')
+    expect(archiveEmptyMessage('deleted')).toBe('Trash is empty')
   })
 
-  it('deleteWarning содержит заголовок заметки', () => {
-    expect(deleteWarning('Заметка')).toBe(
-      'Удалить заметку «Заметка»? Она появится в разделе «Удалённые».'
-    )
-    expect(deleteWarning('')).toContain('«Без названия»')
+  it('deleteWarning soderzhit zagolovok zametki', () => {
+    expect(deleteWarning('Zametka')).toBe('Delete note "Zametka"? It will be moved to deleted.')
+    expect(deleteWarning('')).toContain('Note')
   })
 
-  it('purgeWarning предупреждает о необратимости и сломанных ссылках', () => {
-    const text = purgeWarning('Важная')
-    expect(text).toContain('«Важная»')
-    expect(text).toContain('необратимо')
-    expect(text).toContain('ссылка удалена')
+  it('purgeWarning preduprezhdaet o neobratimosti i slomannykh ssylkakh', () => {
+    const text = purgeWarning('Vazhnaya')
+    expect(text).toContain('"Vazhnaya"')
+    expect(text).toContain('permanently')
+    expect(text).toContain('cannot be undone')
   })
 })

@@ -186,7 +186,7 @@ test.describe('note editor (R28)', () => {
     await expect(sheet.getByText('Есть несохранённые изменения')).toBeVisible()
     await sheet.getByRole('button', { name: 'Сохранить' }).click()
 
-    await expect(page.getByText('Заметка сохранена')).toBeVisible()
+    await expect(page.getByText('Заметка сохранена', { exact: true })).toBeVisible()
     await expect(titleInput).toHaveValue('Заметка после редактирования')
 
     const detail = await request.get(`${API_BASE}/notes/${ids.noteId}`, { headers: authHeaders() })
@@ -244,7 +244,11 @@ test.describe('note editor (R28)', () => {
     await expectEditorLayout(page, 'left')
   })
 
-  test('кнопка «Доступ» показывает заглушку R32', async ({ page, context, request }) => {
+  test('кнопка «Доступ» открывает диалог управления доступом', async ({
+    page,
+    context,
+    request,
+  }) => {
     await loginViaApi(context)
     const ids = await ensureNote(request)
 
@@ -252,9 +256,7 @@ test.describe('note editor (R28)', () => {
     const sheet = await openEditor(page)
 
     await sheet.getByRole('button', { name: 'Доступ…' }).click()
-    await expect(
-      page.getByText('Диалог управления доступом появится в R32', { exact: true })
-    ).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Доступ к заметке' })).toBeVisible()
   })
 
   test('закрытие с несохранёнными изменениями спрашивает подтверждение', async ({

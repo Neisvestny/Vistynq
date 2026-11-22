@@ -1,10 +1,11 @@
 /**
- * Router-guards (docs/ui-ux.md §Карта маршрутов):
- * - requiresAuth: нет сессии → /auth/login?redirect=…
- * - requiresGuest: уже вошёл → /dashboard
- * - requiresVerified: email не подтверждён → тост + редирект (api.md: CRUD заблокирован)
+ * Router-guards (docs/ui-ux.md §Karta marshrutov):
+ * - requiresAuth: net sessii → /auth/login?redirect=…
+ * - requiresGuest: uzhe voshyol → /dashboard
+ * - requiresVerified: email ne podtverzhdyon → tost + redirekt (api.md: CRUD zablokirovan)
  */
 import type { Router } from 'vue-router'
+import { tGlobal } from '@/i18n'
 import { notify } from '@/api/notify'
 import { useAuthStore } from '@/stores/auth'
 
@@ -21,7 +22,7 @@ export function setupGuards(router: Router): void {
 
     const auth = useAuthStore()
 
-    // После F5 guard ждёт тихое восстановление сессии, чтобы не пинать залогиненного на /login.
+    // Posle F5 guard zhdyot tikhoe vosstanovlenie sessii, chtoby ne pinat zaloginennogo na /login.
     await auth.ensureRestored()
 
     if (meta.requiresAuth === true && !auth.isAuthenticated) {
@@ -34,9 +35,8 @@ export function setupGuards(router: Router): void {
 
     if (meta.requiresVerified === true && auth.isAuthenticated && !auth.isVerified) {
       notify({
-        title: 'Email не подтверждён',
-        description:
-          'Подтвердите почту по ссылке из письма — редактирование доступно после верификации',
+        title: tGlobal('auth.emailNotVerified'),
+        description: tGlobal('auth.emailNotVerifiedDescription'),
         status: 'error',
       })
 

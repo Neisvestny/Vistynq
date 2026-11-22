@@ -1,5 +1,5 @@
 /**
- * Карта маршрутов (docs/ui-ux.md; решение: Dashboard на /dashboard, лендинг на /).
+ * Karta marshrutov (docs/ui-ux.md; reshenie: Dashboard na /dashboard, lending na /).
  */
 import { createMemoryHistory, createRouter, createWebHistory } from 'vue-router'
 import { setupGuards } from './guards'
@@ -20,7 +20,7 @@ export const router = createRouter({
       children: [{ path: '', name: 'home', component: () => import('@/views/HomePage.vue') }],
     },
     {
-      // Auth-экраны: центрированная карточка без шапки приложения.
+      // Auth-ekrany: tsentrirovannaya kartochka bez shapki prilozheniya.
       path: '/',
       component: () => import('@/layouts/AuthLayout.vue'),
       children: [

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { accessApi } from '@/api/access'
 import { ApiError } from '@/api/http'
 import { notify } from '@/api/notify'
@@ -22,6 +23,7 @@ const emit = defineEmits<{
   'access-level-changed': [payload: { level: AccessLevel; publicSlug: string | null }]
 }>()
 
+const { t } = useI18n()
 const panelRef = ref<InstanceType<typeof ResourceAccessPanel> | null>(null)
 const level = ref<AccessLevel>(props.accessLevel)
 const publicSlug = ref<string | null>(props.publicSlug)
@@ -70,12 +72,13 @@ async function setLevel(next: AccessLevel): Promise<void> {
     publicSlug.value = result.publicSlug
     emit('access-level-changed', result)
     notify({
-      title: result.level === 'public' ? 'Публичная ссылка включена' : 'Публичная ссылка выключена',
+      title:
+        result.level === 'public' ? t('access.publicLinkEnabled') : t('access.publicLinkDisabled'),
       status: 'success',
     })
   } catch (error) {
     notify({
-      title: 'Не удалось изменить доступ канваса',
+      title: t('access.canvasAccessFailed'),
       description: error instanceof ApiError ? error.message : undefined,
       status: 'error',
     })
@@ -91,16 +94,20 @@ async function onInvite(payload: InviteRequest): Promise<void> {
 
 async function onCopy(): Promise<void> {
   if (!shareUrl.value) return
-  await copyText(shareUrl.value, 'Ссылка скопирована')
+  await copyText(shareUrl.value, t('access.linkCopied'))
 }
 </script>
 
 <template>
-  <UiDialog :open="open" title="Доступ к канвасу" @update:open="emit('update:open', $event)">
+  <UiDialog
+    :open="open"
+    :title="t('access.canvasTitle')"
+    @update:open="emit('update:open', $event)"
+  >
     <div class="access-dialog">
       <section class="access-dialog__section">
-        <h3 class="access-dialog__title">Уровень доступа</h3>
-        <div class="access-dialog__segment" role="radiogroup" aria-label="Уровень доступа канваса">
+        <h3 class="access-dialog__title">{{ t('access.levelTitle') }}</h3>
+        <div class="access-dialog__segment" role="radiogroup" :aria-label="t('access.levelAria')">
           <button
             type="button"
             class="access-dialog__segment-btn"
@@ -109,7 +116,7 @@ async function onCopy(): Promise<void> {
             :disabled="levelSaving"
             @click="setLevel('private')"
           >
-            Только я
+            {{ t('access.onlyMe') }}
           </button>
           <button
             type="button"
@@ -119,14 +126,14 @@ async function onCopy(): Promise<void> {
             :disabled="levelSaving"
             @click="setLevel('public')"
           >
-            Публичная ссылка
+            {{ t('access.publicLink') }}
           </button>
         </div>
 
         <div v-if="level === 'public' && shareUrl" class="access-dialog__share">
-          <label class="access-dialog__share-label" for="canvas-share-url"
-            >Ссылка для просмотра</label
-          >
+          <label class="access-dialog__share-label" for="canvas-share-url">{{
+            t('access.shareLabel')
+          }}</label>
           <div class="access-dialog__share-row">
             <input
               id="canvas-share-url"
@@ -134,15 +141,13 @@ async function onCopy(): Promise<void> {
               :value="shareUrl"
               readonly
             />
-            <UiButton type="button" variant="ghost" size="sm" @click="onCopy">Копировать</UiButton>
+            <UiButton type="button" variant="ghost" size="sm" @click="onCopy">{{
+              t('access.copyLink')
+            }}</UiButton>
           </div>
-          <p class="access-dialog__hint">
-            Любой, у кого есть ссылка, сможет смотреть публичные заметки канваса.
-          </p>
+          <p class="access-dialog__hint">{{ t('access.publicHint') }}</p>
         </div>
-        <p v-else class="access-dialog__hint">
-          Канвас доступен только вам и пользователям, которым выдали доступ.
-        </p>
+        <p v-else class="access-dialog__hint">{{ t('access.privateHint') }}</p>
       </section>
 
       <hr class="access-dialog__divider" />

@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { tGlobal } from '@/i18n'
 import { ApiError } from '@/api/http'
 import { notify } from '@/api/notify'
 import type { AccessEntry, InviteRequest, InviteResult, RoleRequest } from '@/api/types'
@@ -24,7 +25,7 @@ export function useResourceAccess(adapter: () => ResourceAccessAdapter) {
     try {
       entries.value = await adapter().list()
     } catch (error) {
-      loadError.value = error instanceof ApiError ? error.message : 'Не удалось загрузить доступы'
+      loadError.value = error instanceof ApiError ? error.message : tGlobal('access.loadError')
     } finally {
       loading.value = false
     }
@@ -36,11 +37,11 @@ export function useResourceAccess(adapter: () => ResourceAccessAdapter) {
     try {
       const result = await adapter().invite(payload)
       if (result.status === 'granted') {
-        notify({ title: 'Доступ выдан', status: 'success' })
+        notify({ title: tGlobal('access.granted'), status: 'success' })
       } else {
         notify({
-          title: 'Приглашение отправлено',
-          description: 'Доступ появится после регистрации и подтверждения email',
+          title: tGlobal('access.inviteSent'),
+          description: tGlobal('access.inviteSentDescription'),
           status: 'success',
         })
       }
@@ -51,14 +52,18 @@ export function useResourceAccess(adapter: () => ResourceAccessAdapter) {
       if (error instanceof ApiError) {
         if (error.details) {
           for (const [field, messages] of Object.entries(error.details)) {
-            inviteErrors.value[field] = messages[0] ?? 'Некорректное значение'
+            inviteErrors.value[field] = messages[0] ?? tGlobal('validation.invalidValue')
           }
         }
         if (!inviteErrors.value.email && !inviteErrors.value.role) {
-          notify({ title: 'Не удалось выдать доступ', description: error.message, status: 'error' })
+          notify({
+            title: tGlobal('access.grantError'),
+            description: error.message,
+            status: 'error',
+          })
         }
       } else {
-        notify({ title: 'Не удалось выдать доступ', status: 'error' })
+        notify({ title: tGlobal('access.grantError'), status: 'error' })
       }
       return null
     } finally {
@@ -70,12 +75,12 @@ export function useResourceAccess(adapter: () => ResourceAccessAdapter) {
     if (!entry.userId || entry.pending || entry.role === role) return false
     try {
       await adapter().updateRole(entry.userId, { role })
-      notify({ title: 'Роль обновлена', status: 'success' })
+      notify({ title: tGlobal('access.roleUpdated'), status: 'success' })
       await load()
       return true
     } catch (error) {
       notify({
-        title: 'Не удалось изменить роль',
+        title: tGlobal('access.roleUpdateError'),
         description: error instanceof ApiError ? error.message : undefined,
         status: 'error',
       })
@@ -88,17 +93,17 @@ export function useResourceAccess(adapter: () => ResourceAccessAdapter) {
       if (entry.pending) {
         if (!entry.invitationId) return false
         await adapter().revokeInvitation(entry.invitationId)
-        notify({ title: 'Приглашение отозвано', status: 'success' })
+        notify({ title: tGlobal('access.inviteRevoked'), status: 'success' })
       } else {
         if (!entry.userId) return false
         await adapter().revokeAccess(entry.userId)
-        notify({ title: 'Доступ отозван', status: 'success' })
+        notify({ title: tGlobal('access.accessRevoked'), status: 'success' })
       }
       await load()
       return true
     } catch (error) {
       notify({
-        title: 'Не удалось отозвать доступ',
+        title: tGlobal('access.revokeError'),
         description: error instanceof ApiError ? error.message : undefined,
         status: 'error',
       })

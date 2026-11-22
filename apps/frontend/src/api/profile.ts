@@ -7,12 +7,12 @@ export interface UpdateProfilePayload {
 }
 
 export const profileApi = {
-  /** Обновление профиля (имя/email). Email меняется после подтверждения через pendingEmail. */
+  /** Obnovlenie profilya (imya/email). Email menyaetsya posle podtverzhdeniya cherez pendingEmail. */
   update(payload: UpdateProfilePayload): Promise<User> {
     return request<User>('/profile', { method: 'PATCH', body: payload })
   },
 
-  /** Загрузка аватара (image ≤5 МБ). */
+  /** Loading avatara (image ≤5 MB). */
   uploadAvatar(
     file: File,
     onUploadProgress?: (progress: UploadProgress) => void
@@ -26,7 +26,7 @@ export const profileApi = {
     })
   },
 
-  /** Удаление аватара. */
+  /** Udalenie avatara. */
   deleteAvatar(): Promise<void> {
     return request<void>('/profile/avatar', { method: 'DELETE' })
   },

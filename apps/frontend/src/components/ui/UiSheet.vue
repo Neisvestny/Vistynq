@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
+import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(
   defineProps<{
     open?: boolean
     side?: 'left' | 'right'
     title?: string
-    /** Расширенная панель для списков с тегами и кнопками (архив, R29). */
+    /** Wide panel for lists with tags and buttons (archive, R29). */
     wide?: boolean
     /**
-     * Не закрывать панель автоматически (Esc/клика вне/✕), а запросить
-     * закрытие через событие `close-request`. Используется редактором
-     * заметки с несохранённым черновиком (R28).
+     * Do not close the panel automatically (Esc/click outside/✕), but request
+     * close via `close-request` event. Used by note editor with unsaved draft (R28).
      */
     preventClose?: boolean
   }>(),
@@ -28,6 +28,8 @@ const emit = defineEmits<{
   'update:open': [value: boolean]
   'close-request': []
 }>()
+
+const { t } = useI18n()
 
 function requestClose(): void {
   if (props.preventClose) {
@@ -84,7 +86,7 @@ function onDismiss(event: { preventDefault: () => void }): void {
             <button
               class="ui-sheet__close"
               :class="'ui-sheet__close--' + side"
-              aria-label="Закрыть меню"
+              :aria-label="t('common.closeMenu')"
               @click="requestClose"
             >
               <svg

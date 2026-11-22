@@ -1,10 +1,10 @@
 /**
- * Мост между markdown-телом заметки (API) и Tiptap (R28, R30).
+ * Bridge between note markdown body (API) and Tiptap (R28, R30).
  *
- * `[[uuid|Заголовок]]` обрабатывается Tiptap-расширением WikiLink (R30).
- * Этот модуль оставляет API prepare/restore для совместимости и выполняет
- * нормализацию markdown и снятие экранирования `\[\[...\]\]`, если markdown
- * сериализатор всё же экранирует квадратные скобки.
+ * `[[uuid|Title]]` is handled by Tiptap WikiLink extension (R30).
+ * This module keeps prepare/restore API for compatibility and performs
+ * markdown normalization and unescaping of `\[\[...\]\]` if markdown
+ * serializer still escapes square brackets.
  */
 
 const ESCAPED_WIKI_LINK_RE = /\\\[\\\[([^[\]\n]+)\\\]\\\]/g
@@ -19,7 +19,7 @@ export interface PreparedMarkdown {
   wikiLinks: WikiLinkToken[]
 }
 
-/** LF вместо CRLF; один завершающий перевод строки у непустого текста. */
+/** LF instead of CRLF; single trailing newline for non-empty text. */
 export function normalizeMarkdown(value: string): string {
   const lf = value.replace(/\r\n?/g, '\n')
   if (lf === '' || lf.endsWith('\n')) return lf
@@ -27,16 +27,16 @@ export function normalizeMarkdown(value: string): string {
 }
 
 /**
- * Подготовка markdown к загрузке в редактор.
- * WikiLink теперь парсится Tiptap-расширением, поэтому токенизация не нужна,
- * но API сохранён для совместимости и тестов.
+ * Prepare markdown for loading into editor.
+ * WikiLink is now parsed by Tiptap extension, so tokenization is not needed,
+ * but API is kept for compatibility and tests.
  */
 export function prepareMarkdownForEditor(value: string): PreparedMarkdown {
   return { markdown: normalizeMarkdown(value), wikiLinks: [] }
 }
 
 /**
- * Снимает экранирование `\[\[...\]\]` и подставляет legacy-токены, если они есть.
+ * Unescapes `\[\[...\]\]` and substitutes legacy tokens if present.
  */
 export function restoreWikiLinks(value: string, wikiLinks: WikiLinkToken[] = []): string {
   let result = value
@@ -47,7 +47,7 @@ export function restoreWikiLinks(value: string, wikiLinks: WikiLinkToken[] = [])
   return result.replace(ESCAPED_WIKI_LINK_RE, (_match, body: string) => `[[${body}]]`)
 }
 
-/** Полный цикл: prepare → Tiptap → restore. */
+/** Full cycle: prepare -> Tiptap -> restore. */
 export function toStoredMarkdown(value: string, wikiLinks: WikiLinkToken[] = []): string {
   return normalizeMarkdown(restoreWikiLinks(value, wikiLinks))
 }

@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { ToastClose, ToastRoot, ToastTitle, ToastViewport, useToastManager } from 'reka-ui'
 
+const { t } = useI18n()
 const { toasts } = useToastManager()
 </script>
 
@@ -18,7 +20,9 @@ const { toasts } = useToastManager()
             </p>
           </div>
 
-          <ToastClose class="ui-toast__close" aria-label="Закрыть уведомление"> ✕ </ToastClose>
+          <ToastClose class="ui-toast__close" :aria-label="t('common.closeNotification')">
+            ✕
+          </ToastClose>
         </ToastRoot>
       </Transition>
     </li>

@@ -1,7 +1,7 @@
 /**
- * Тесты http-клиента (roadmap R04): Bearer, single-flight refresh при
- * параллельных 401, повтор запроса, повторный 401 = logout-callback,
- * auth:false без refresh, сетевой retry GET.
+ * Testy http-klienta (roadmap R04): Bearer, single-flight refresh pri
+ * parallelnykh 401, povtor zaprosa, povtornyy 401 = logout-callback,
+ * auth:false bez refresh, setevoy retry GET.
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
@@ -21,7 +21,7 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 function error401(): Response {
-  return jsonResponse(401, { error: { code: 'UNAUTHORIZED', message: 'Требуется вход' } })
+  return jsonResponse(401, { error: { code: 'UNAUTHORIZED', message: 'Trebuetsya vkhod' } })
 }
 
 const fetchMock = vi.fn<typeof fetch>()
@@ -31,11 +31,11 @@ function callHeaders(index: number): Record<string, string> {
   return (init?.headers ?? {}) as Record<string, string>
 }
 
-describe('http-клиент (R04)', () => {
+describe('http-klient (R04)', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-    // setAccessToken(non-null) сбрасывает sessionExpiredNotified, затем чистим токен.
+    // setAccessToken(non-null) sbrasyvaet sessionExpiredNotified, zatem chistim token.
     setAccessToken('seed')
     setAccessToken(null)
     setOnUnauthorized(vi.fn())
@@ -46,7 +46,7 @@ describe('http-клиент (R04)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('GET подставляет Authorization: Bearer; auth:false — без заголовка', async () => {
+  it('GET podstavlyaet Authorization: Bearer; auth:false — bez zagolovka', async () => {
     fetchMock.mockImplementation(async () => jsonResponse(200, { ok: true }))
     setAccessToken('t-1')
 
@@ -58,7 +58,7 @@ describe('http-клиент (R04)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('критерий: 3 параллельных 401 → один refresh, повторы с новым токеном', async () => {
+  it('kriteriy: 3 parallelnykh 401 → odin refresh, povtory s novym tokenom', async () => {
     setAccessToken('old-token')
     let apiCalls = 0
     fetchMock.mockImplementation(async (url) => {
@@ -66,7 +66,7 @@ describe('http-клиент (R04)', () => {
         return jsonResponse(200, { accessToken: 'new-token', accessTokenExpiresIn: 900 })
       }
       apiCalls += 1
-      // первая волна — все три 401, повторы — 200
+      // pervaya volna — vse tri 401, povtory — 200
       return apiCalls <= 3 ? error401() : jsonResponse(200, { items: [] })
     })
 
@@ -76,14 +76,14 @@ describe('http-клиент (R04)', () => {
       request<{ items: unknown[] }>('/canvases/invites'),
     ])
 
-    // 3 запроса + 1 refresh + 3 повтора
+    // 3 zaprosa + 1 refresh + 3 povtora
     expect(fetchMock).toHaveBeenCalledTimes(7)
     const refreshCalls = fetchMock.mock.calls.filter(([url]) =>
       String(url).endsWith('/auth/refresh')
     )
     expect(refreshCalls).toHaveLength(1)
 
-    // повторы ушли с обновлённым токеном
+    // povtory ushli s obnovlyonnym tokenom
     const retryHeaders = fetchMock.mock.calls
       .slice(3)
       .filter(([url]) => !String(url).endsWith('/auth/refresh'))
@@ -93,7 +93,7 @@ describe('http-клиент (R04)', () => {
     expect(results).toEqual([{ items: [] }, { items: [] }, { items: [] }])
   })
 
-  it('refresh падает → все 3 reject с 401, unauthorizedHandler ровно 1 раз', async () => {
+  it('refresh padaet → vse 3 reject s 401, unauthorizedHandler rovno 1 raz', async () => {
     setAccessToken('old-token')
     const onUnauthorized = vi.fn()
     setOnUnauthorized(onUnauthorized)
@@ -117,7 +117,7 @@ describe('http-клиент (R04)', () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
 
-  it('повторный 401 после refresh → без второго refresh, handler 1 раз', async () => {
+  it('povtornyy 401 posle refresh → bez vtorogo refresh, handler 1 raz', async () => {
     setAccessToken('old-token')
     const onUnauthorized = vi.fn()
     setOnUnauthorized(onUnauthorized)
@@ -127,12 +127,12 @@ describe('http-клиент (R04)', () => {
         return jsonResponse(200, { accessToken: 'new-token', accessTokenExpiresIn: 900 })
       }
       apiCalls += 1
-      return error401() // и первая волна, и повтор
+      return error401() // i pervaya volna, i povtor
     })
 
     await expect(request('/data')).rejects.toMatchObject({ status: 401 })
 
-    expect(apiCalls).toBe(2) // исходный + ровно один повтор
+    expect(apiCalls).toBe(2) // iskhodnyy + rovno odin povtor
     const refreshCalls = fetchMock.mock.calls.filter(([url]) =>
       String(url).endsWith('/auth/refresh')
     )
@@ -140,7 +140,7 @@ describe('http-клиент (R04)', () => {
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
 
-  it('auth:false + 401 → refresh не вызывается, handler не вызывается', async () => {
+  it('auth:false + 401 → refresh ne vyzyvaetsya, handler ne vyzyvaetsya', async () => {
     const onUnauthorized = vi.fn()
     setOnUnauthorized(onUnauthorized)
     fetchMock.mockImplementation(async () => error401())
@@ -153,7 +153,7 @@ describe('http-клиент (R04)', () => {
     expect(onUnauthorized).not.toHaveBeenCalled()
   })
 
-  it('сетевая ошибка: GET повторяется один раз, POST — нет', async () => {
+  it('setevaya oshibka: GET povtoryaetsya odin raz, POST — net', async () => {
     fetchMock
       .mockRejectedValueOnce(new TypeError('fetch failed'))
       .mockResolvedValueOnce(jsonResponse(200, { ok: true }))

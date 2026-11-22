@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
- * Tiptap-редактор поверх markdown-тела заметки (R28, R30).
- * Наружу отдаёт markdown (не HTML): сервер хранит именно его и сам парсит
- * [[wikilinks]]. WikiLink — инлайн-атом (R30), автодополнение [[.
+ * Tiptap editor over note markdown body (R28, R30).
+ * Emits markdown (not HTML): server stores it and parses
+ * [[wikilinks]] itself. WikiLink is an inline atom (R30), [[ autocomplete.
  */
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { EditorContent, useEditor, type Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -43,6 +44,7 @@ const emit = defineEmits<{
   'pick-image': []
 }>()
 
+const { t } = useI18n()
 const prepared = prepareMarkdownForEditor(props.modelValue)
 const wikiLinks = ref<WikiLinkToken[]>(prepared.wikiLinks)
 let lastValue = props.modelValue
@@ -58,7 +60,7 @@ function getWikiLinkItems(query: string): WikiLinkItem[] {
       return note.title.toLowerCase().includes(q) || note.id.toLowerCase().includes(q)
     })
     .slice(0, 20)
-    .map((note) => ({ id: note.id, title: note.title || 'Без названия' }))
+    .map((note) => ({ id: note.id, title: note.title || t('note.untitled') }))
 }
 
 function filesFromDataTransfer(data: DataTransfer | null): File[] {
@@ -102,7 +104,7 @@ const editor = useEditor({
   editorProps: {
     attributes: {
       class: 'note-editor__prose',
-      'aria-label': 'Текст заметки',
+      'aria-label': t('editor.noteTextAria'),
     },
     handleDrop: (view, event, _slice, moved) => {
       if (moved || !props.editable) return false
@@ -169,7 +171,7 @@ watch(
       @pick-image="emit('pick-image')"
     />
     <EditorContent class="markdown-editor__content" :editor="editor" />
-    <p v-if="!editable" class="markdown-editor__readonly">Только чтение</p>
+    <p v-if="!editable" class="markdown-editor__readonly">{{ t('note.readOnly') }}</p>
   </div>
 </template>
 

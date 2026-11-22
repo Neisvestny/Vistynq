@@ -1,7 +1,8 @@
 <script setup lang="ts">
-/** Публичный (анонимный) вид канваса — read-only (R32). */
+/** Publichnyy (anonimnyy) vid kanvasa — read-only (R32). */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { MarkerType } from '@vue-flow/core'
 import type { Edge, Node } from '@vue-flow/core'
 import { ApiError } from '@/api/http'
@@ -13,6 +14,7 @@ import UiCard from '@/components/ui/UiCard.vue'
 import type { NoteNodeData } from '@/components/canvas/NoteNode.vue'
 import type { LinkEdgeData } from '@/composables/useGraph'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -23,7 +25,7 @@ const graph = ref<GraphResponse | null>(null)
 async function load(): Promise<void> {
   const slug = String(route.params.slug ?? '')
   if (!slug) {
-    error.value = new ApiError(404, 'NOT_FOUND', 'Канвас не найден')
+    error.value = new ApiError(404, 'NOT_FOUND', t('shared.canvasNotFound'))
     loading.value = false
     return
   }
@@ -122,19 +124,23 @@ watch(() => route.params.slug, load)
 
 <template>
   <div>
-    <div class="shared-banner">Публичная версия — только чтение</div>
+    <div class="shared-banner">{{ t('shared.banner') }}</div>
 
     <div class="shared-canvas-page">
-      <div v-if="loading" class="shared-canvas-page__state" aria-busy="true">Загрузка…</div>
+      <div v-if="loading" class="shared-canvas-page__state" aria-busy="true">
+        {{ t('common.loading') }}
+      </div>
 
       <div v-else-if="error" class="shared-canvas-page__state">
         <UiCard class="shared-canvas-page__card">
           <h1 class="shared-canvas-page__title">
-            {{ error.status === 404 ? 'Канвас недоступен' : 'Не удалось загрузить канвас' }}
+            {{ error.status === 404 ? t('shared.canvasUnavailable') : t('shared.canvasLoadError') }}
           </h1>
           <p class="shared-canvas-page__muted">{{ error.message }}</p>
           <div class="shared-canvas-page__actions">
-            <UiButton v-if="error.status !== 404" size="sm" @click="load">Повторить</UiButton>
+            <UiButton v-if="error.status !== 404" size="sm" @click="load">{{
+              t('common.retry')
+            }}</UiButton>
           </div>
         </UiCard>
       </div>
@@ -143,7 +149,9 @@ watch(() => route.params.slug, load)
         <header class="shared-canvas-page__header">
           <div>
             <h1 class="shared-canvas-page__title">{{ graph.canvas.title }}</h1>
-            <p class="shared-canvas-page__muted">{{ flowNodes.length }} заметок</p>
+            <p class="shared-canvas-page__muted">
+              {{ t('shared.notesCount', { count: flowNodes.length }) }}
+            </p>
           </div>
         </header>
 
@@ -158,9 +166,7 @@ watch(() => route.params.slug, load)
             @node-open="onNodeOpen"
           >
             <div v-if="flowNodes.length === 0" class="shared-canvas-page__empty">
-              <p class="shared-canvas-page__empty-title">
-                В этом канвасе пока нет публичных заметок
-              </p>
+              <p class="shared-canvas-page__empty-title">{{ t('shared.noPublicNotes') }}</p>
             </div>
           </CanvasBoard>
         </div>

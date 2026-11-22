@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import { authApi } from '@/api/auth'
 import { notify } from '@/api/notify'
 import { applyApiError, isValidEmail } from '@/api/errors'
 
+const { t } = useI18n()
 const router = useRouter()
 
 const email = ref('')
@@ -18,18 +20,18 @@ async function onSubmit() {
 
   error.value = ''
   if (!isValidEmail(email.value)) {
-    error.value = 'Введите корректный email'
+    error.value = t('auth.emailInvalid')
 
     return
   }
 
   loading.value = true
   try {
-    // Сервер всегда отвечает 202 — без утечки существования email (api.md).
+    // Server vsegda otvechaet 202 — bez utechki sushchestvovaniya email (api.md).
     await authApi.forgotPassword(email.value.trim())
     notify({
-      title: 'Проверьте почту',
-      description: 'Если аккаунт с таким email есть, письмо со сбросом уже отправлено',
+      title: t('auth.forgotNotifyTitle'),
+      description: t('auth.forgotNotifyDescription'),
       status: 'success',
     })
     await router.push({ name: 'login' })
@@ -43,31 +45,31 @@ async function onSubmit() {
 
 <template>
   <form class="auth-form" novalidate @submit.prevent="onSubmit">
-    <h1 class="auth-form__title">Сброс пароля</h1>
-    <p class="auth-form__subtitle">Пришлём ссылку для смены пароля на вашу почту</p>
+    <h1 class="auth-form__title">{{ t('auth.forgotTitle') }}</h1>
+    <p class="auth-form__subtitle">{{ t('auth.forgotSubtitle') }}</p>
 
     <div>
       <UiInput
         id="forgot-email"
         v-model="email"
         type="email"
-        placeholder="you@example.com"
+        :placeholder="t('auth.emailPlaceholder')"
         autocomplete="email"
         :disabled="loading"
       >
-        Email
+        {{ t('auth.email') }}
       </UiInput>
       <p v-if="error" class="auth-form__error">{{ error }}</p>
     </div>
 
     <UiButton type="submit" :disabled="loading">
-      {{ loading ? 'Отправляем…' : 'Отправить ссылку' }}
+      {{ loading ? t('auth.forgotSending') : t('auth.forgotSubmit') }}
     </UiButton>
 
     <div class="auth-form__footer">
       <span>
-        Вспомнили пароль?
-        <RouterLink to="/login">Войти</RouterLink>
+        {{ t('auth.forgotRemembered') }}
+        <RouterLink to="/login">{{ t('auth.signIn') }}</RouterLink>
       </span>
     </div>
   </form>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-/** Публичная (анонимная) заметка — read-only рендер (R32). */
+/** Publichnaya (anonimnaya) zametka — read-only render (R32). */
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ApiError } from '@/api/http'
 import { sharedApi } from '@/api/shared'
 import type { SharedNoteResponse } from '@/api/types'
@@ -9,6 +10,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import { sanitizeHtml } from '@/lib/sanitize'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -21,7 +23,7 @@ async function load(): Promise<void> {
   const slug = String(route.params.slug ?? '')
   const noteId = String(route.params.noteId ?? '')
   if (!slug || !noteId) {
-    error.value = new ApiError(404, 'NOT_FOUND', 'Заметка не найдена')
+    error.value = new ApiError(404, 'NOT_FOUND', t('shared.noteNotFound'))
     loading.value = false
     return
   }
@@ -46,9 +48,9 @@ function onMediaError(id: string): void {
 }
 
 function formatBytes(size: number): string {
-  if (size < 1024) return `${size} Б`
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} КБ`
-  return `${(size / (1024 * 1024)).toFixed(1)} МБ`
+  if (size < 1024) return t('shared.bytes', { value: size })
+  if (size < 1024 * 1024) return t('shared.kb', { value: (size / 1024).toFixed(1) })
+  return t('shared.mb', { value: (size / (1024 * 1024)).toFixed(1) })
 }
 
 onMounted(load)
@@ -57,21 +59,23 @@ watch(() => [route.params.slug, route.params.noteId], load)
 
 <template>
   <div>
-    <div class="shared-banner">Публичная версия — только чтение</div>
+    <div class="shared-banner">{{ t('shared.banner') }}</div>
 
     <div class="shared-note-page">
-      <div v-if="loading" class="shared-note-page__state" aria-busy="true">Загрузка…</div>
+      <div v-if="loading" class="shared-note-page__state" aria-busy="true">
+        {{ t('common.loading') }}
+      </div>
 
       <div v-else-if="error" class="shared-note-page__state">
         <UiCard class="shared-note-page__card">
           <h1 class="shared-note-page__title">
-            {{ error.status === 404 ? 'Заметка недоступна' : 'Не удалось загрузить заметку' }}
+            {{ error.status === 404 ? t('shared.noteUnavailable') : t('shared.noteLoadError') }}
           </h1>
           <p class="shared-note-page__muted">{{ error.message }}</p>
           <div class="shared-note-page__actions">
-            <UiButton size="sm" @click="backToCanvas">К канвасу</UiButton>
+            <UiButton size="sm" @click="backToCanvas">{{ t('shared.backToCanvas') }}</UiButton>
             <UiButton v-if="error.status !== 404" variant="ghost" size="sm" @click="load">
-              Повторить
+              {{ t('common.retry') }}
             </UiButton>
           </div>
         </UiCard>
@@ -79,15 +83,17 @@ watch(() => [route.params.slug, route.params.noteId], load)
 
       <article v-else-if="data" class="shared-note-page__article">
         <div class="shared-note-page__topbar">
-          <UiButton variant="ghost" size="sm" @click="backToCanvas">← К канвасу</UiButton>
+          <UiButton variant="ghost" size="sm" @click="backToCanvas">{{
+            t('shared.backToCanvasArrow')
+          }}</UiButton>
         </div>
 
         <UiCard class="shared-note-page__card">
           <header class="shared-note-page__header">
             <h1 class="shared-note-page__title">{{ data.note.title }}</h1>
             <div class="shared-note-page__meta">
-              <span>Важность: {{ data.note.importance }}</span>
-              <span v-if="data.note.isRelevant === false">Неактуальна</span>
+              <span>{{ t('shared.importance', { value: data.note.importance }) }}</span>
+              <span v-if="data.note.isRelevant === false">{{ t('shared.notRelevant') }}</span>
             </div>
           </header>
 
@@ -95,7 +101,7 @@ watch(() => [route.params.slug, route.params.noteId], load)
           <div class="shared-note-page__body" v-html="sanitizeHtml(data.bodyHtml)" />
 
           <section v-if="data.note.attachments?.length" class="shared-note-page__attachments">
-            <h2 class="shared-note-page__section-title">Вложения</h2>
+            <h2 class="shared-note-page__section-title">{{ t('shared.attachments') }}</h2>
             <ul class="shared-note-page__files">
               <li
                 v-for="file in data.note.attachments"
@@ -124,11 +130,11 @@ watch(() => [route.params.slug, route.params.noteId], load)
                     :src="file.url"
                     @error="onMediaError(file.id)"
                   />
-                  <a v-else :href="file.url" target="_blank" rel="noopener noreferrer"
-                    >Открыть файл</a
-                  >
+                  <a v-else :href="file.url" target="_blank" rel="noopener noreferrer">{{
+                    t('shared.openFile')
+                  }}</a>
                 </div>
-                <p v-else class="shared-note-page__muted">Файл временно недоступен.</p>
+                <p v-else class="shared-note-page__muted">{{ t('shared.fileUnavailable') }}</p>
               </li>
             </ul>
           </section>

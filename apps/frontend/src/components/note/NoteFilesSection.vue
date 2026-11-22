@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
- * Секция файлов заметки: image/audio вложения, прогресс загрузки, плеер и удаление.
+ * Note files section: image/audio attachments, upload progress, player and deletion.
  */
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { Attachment } from '@/api/types'
 
@@ -29,14 +30,16 @@ const emit = defineEmits<{
   mediaError: [attachment: Attachment]
 }>()
 
+const { t } = useI18n()
+
 const visibleAttachments = computed(() =>
   props.attachments.filter((a) => a.kind === 'image' || a.kind === 'audio')
 )
 
 function formatBytes(size: number): string {
-  if (size < 1024) return `${size} Б`
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} КБ`
-  return `${(size / (1024 * 1024)).toFixed(1)} МБ`
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function isImage(attachment: Attachment): boolean {
@@ -49,9 +52,9 @@ function isAudio(attachment: Attachment): boolean {
 </script>
 
 <template>
-  <section class="note-files" aria-label="Файлы заметки">
+  <section class="note-files" :aria-label="t('note.filesAria')">
     <div class="note-files__header">
-      <h3 class="note-files__title">Файлы</h3>
+      <h3 class="note-files__title">{{ t('note.filesTitle') }}</h3>
       <span v-if="visibleAttachments.length > 0" class="note-files__count">
         {{ visibleAttachments.length }}
       </span>
@@ -61,7 +64,7 @@ function isAudio(attachment: Attachment): boolean {
       v-if="visibleAttachments.length === 0 && pendingUploads.length === 0"
       class="note-files__empty"
     >
-      Перетащите картинку или аудио в редактор, чтобы прикрепить файл.
+      {{ t('note.filesEmpty') }}
     </p>
 
     <ul v-if="visibleAttachments.length > 0" class="note-files__list">
@@ -106,10 +109,10 @@ function isAudio(attachment: Attachment): boolean {
               type="button"
               variant="ghost"
               size="sm"
-              :aria-label="`Удалить файл ${attachment.filename}`"
+              :aria-label="t('note.deleteFileAria', { name: attachment.filename })"
               @click="emit('delete', attachment.id)"
             >
-              Удалить
+              {{ t('common.delete') }}
             </UiButton>
           </div>
         </div>
@@ -134,7 +137,7 @@ function isAudio(attachment: Attachment): boolean {
           <div class="note-files__progress-bar" :style="{ width: `${upload.progress}%` }" />
         </div>
         <p v-if="!upload.error" class="note-files__progress-text">
-          Загрузка… {{ upload.progress }}%
+          {{ t('note.uploadingProgress', { progress: upload.progress }) }}
         </p>
 
         <div v-else class="note-files__upload-error">
@@ -145,7 +148,7 @@ function isAudio(attachment: Attachment): boolean {
             size="sm"
             @click="emit('dismissUpload', upload.id)"
           >
-            Скрыть
+            {{ t('note.hide') }}
           </UiButton>
         </div>
       </li>

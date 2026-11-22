@@ -6,7 +6,7 @@ function tryOnScopeDispose(fn: () => void): void {
   }
 }
 
-/** Дебаунс вызова функции; cancel/flush безопасны при размонтировании. */
+/** Debauns vyzova funktsii; cancel/flush bezopasny pri razmontirovanii. */
 export function useDebounceFn<TArgs extends unknown[]>(fn: (...args: TArgs) => void, delay = 300) {
   let timer: ReturnType<typeof setTimeout> | null = null
   let lastArgs: TArgs | null = null
@@ -44,7 +44,7 @@ export function useDebounceFn<TArgs extends unknown[]>(fn: (...args: TArgs) => v
   return { run, cancel, flush }
 }
 
-/** Реактивное значение, обновляемое с дебаунсом после изменений источника. */
+/** Reaktivnoe znachenie, obnovlyaemoe s debaunsom posle izmeneniy istochnika. */
 export function useDebouncedRef<T>(source: Ref<T>, delay = 300): Ref<T> {
   const debounced = ref(source.value) as Ref<T>
   const { run, cancel } = useDebounceFn((value: T) => {

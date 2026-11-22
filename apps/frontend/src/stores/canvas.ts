@@ -1,12 +1,13 @@
 /**
- * Активный канвас (docs/architecture.md §stores, R04): canvas/edges/tags из
- * GraphResponse. Узлы (nodes) уходят в store `notes` — без дублирования.
+ * Active canvas (docs/architecture.md §stores, R04): canvas/edges/tags from
+ * GraphResponse. Nodes go to `notes` store - no duplication.
  */
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { canvasApi } from '@/api/canvas'
 import { ApiError } from '@/api/http'
 import type { Canvas, GraphEdge, GraphTag } from '@/api/types'
+import { tGlobal } from '@/i18n'
 import { useNotesStore } from '@/stores/notes'
 
 export const useCanvasStore = defineStore('canvas', () => {
@@ -16,10 +17,10 @@ export const useCanvasStore = defineStore('canvas', () => {
   const loading = ref(true)
   const error = ref<ApiError | null>(null)
 
-  /** Полная загрузка: узлы раскладываются в notes-store, остальное — сюда. */
+  /** Full load: nodes go to notes-store, rest goes here. */
   async function load(id: string): Promise<void> {
     if (id === '') {
-      error.value = new ApiError(404, 'NOT_FOUND', 'Канвас не найден')
+      error.value = new ApiError(404, 'NOT_FOUND', tGlobal('canvas.notFoundError'))
       loading.value = false
       clear()
       return

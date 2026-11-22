@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import AppBrand from '@/components/AppBrand.vue'
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -13,9 +16,9 @@ import AppBrand from '@/components/AppBrand.vue'
     <main class="auth-layout__main">
       <UiCard class="auth-layout__card">
         <div class="auth-form">
-          <h1 class="auth-form__title">404 — страница не найдена</h1>
-          <p class="auth-form__status">Возможно, ссылка устарела или в адресе опечатка.</p>
-          <UiButton to="/">На главную</UiButton>
+          <h1 class="auth-form__title">{{ t('notFound.title') }}</h1>
+          <p class="auth-form__status">{{ t('notFound.description') }}</p>
+          <UiButton to="/">{{ t('notFound.home') }}</UiButton>
         </div>
       </UiCard>
     </main>

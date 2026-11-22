@@ -1,4 +1,5 @@
 import { computed, toValue, type MaybeRefOrGetter } from 'vue'
+import { tGlobal } from '@/i18n'
 import { MarkerType } from '@vue-flow/core'
 import type { Edge, Node } from '@vue-flow/core'
 import type { NoteNodeData } from '@/components/canvas/NoteNode.vue'
@@ -12,7 +13,7 @@ export interface GhostNodeData {
   edgeId: string
   label: string
   canRestore: boolean
-  /** Исходные заметки, которые ссылались на удалённую цель. */
+  /** Source notes that referenced the deleted target. */
   sourceNoteIds: string[]
 }
 
@@ -30,17 +31,17 @@ export interface LinkEdgeData {
 export type CanvasFlowNodeData = NoteNodeData | GhostNodeData
 
 export interface UseGraphOptions {
-  /** Включить per-node drag/resize по правам (R26). */
+  /** Enable per-node drag/resize by permissions (R26). */
   editableLayout?: MaybeRefOrGetter<boolean>
-  /** Выделение нод/рёбер в интерактивном режиме. */
+  /** Node/edge selection in interactive mode. */
   selectable?: MaybeRefOrGetter<boolean>
-  /** Подсветка нод по тегу: остальные диммятся (R27). */
+  /** Highlight nodes by tag: others are dimmed (R27). */
   highlightedTag?: MaybeRefOrGetter<string | null>
-  /** Выбранное ребро (R30): подсветка. */
+  /** Selected edge (R30): highlight. */
   selectedEdgeId?: MaybeRefOrGetter<string | null>
-  /** Режим связывания (R30): id исходной ноды. */
+  /** Linking mode (R30): source node id. */
   linkingSourceId?: MaybeRefOrGetter<string | null>
-  /** @deprecated используйте editableLayout */
+  /** @deprecated use editableLayout */
   interactive?: boolean
 }
 
@@ -62,8 +63,8 @@ function noteClass(
 }
 
 /**
- * Производные данные Vue Flow из stores канваса/заметок.
- * Единая точка маппинга для CanvasBoard (R25) + layout/фильтры/подсветка (R26–R27)
+ * Derived Vue Flow data from canvas/notes stores.
+ * Single mapping point for CanvasBoard (R25) + layout/filters/highlight (R26-R27)
  * + removed edges/ghost nodes/linking (R30).
  */
 export function useGraph(options: UseGraphOptions = {}) {
@@ -87,7 +88,7 @@ export function useGraph(options: UseGraphOptions = {}) {
   const visibleNodes = computed(() => notesStore.visibleNodes)
   const visibleNodeIds = computed(() => notesStore.visibleNodeIds)
 
-  /** Рёбра к удалённым заметкам (state=removed) — для метрики в шапке. */
+  /** Edges to deleted notes (state=removed) - for header metric. */
   const brokenEdgesCount = computed(
     () => canvasStore.edges.filter((edge) => edge.state === 'removed').length
   )
@@ -123,7 +124,7 @@ export function useGraph(options: UseGraphOptions = {}) {
       }
     })
 
-    // Ghost/synthetic nodes для removed edges (R30). Не попадают в notes store.
+    // Ghost/synthetic nodes for removed edges (R30). Not in notes store.
     const ghostByTarget = new Map<string, GhostNodeData>()
     const danglingByEdgeId = new Set<string>()
 
@@ -131,13 +132,13 @@ export function useGraph(options: UseGraphOptions = {}) {
       if (edge.state !== 'removed') continue
       if (!visibleNodeIds.value.has(edge.from)) continue
 
-      // Purged indirect: to === null, висячая линия.
+      // Purged indirect: to === null, dangling line.
       if (edge.to === null) {
         danglingByEdgeId.add(edge.id)
         continue
       }
 
-      // Soft-deleted target: to задан, но ноды нет в visible set.
+      // Soft-deleted target: to is set, but node is not in visible set.
       if (visibleNodeIds.value.has(edge.to)) continue
 
       const existing = ghostByTarget.get(edge.to)
@@ -149,7 +150,7 @@ export function useGraph(options: UseGraphOptions = {}) {
         kind: 'ghost',
         targetNoteId: edge.to,
         edgeId: edge.id,
-        label: edge.label ?? 'ссылка удалена',
+        label: edge.label ?? tGlobal('links.deletedBadge'),
         canRestore: guard.canEditCanvas.value,
         sourceNoteIds: [edge.from],
       })
@@ -159,7 +160,7 @@ export function useGraph(options: UseGraphOptions = {}) {
       const source = notesStore.getNodeById(ghost.sourceNoteIds[0] ?? '')
       const baseX = (source?.x ?? 0) + (source?.width ?? 220) + 80
       const baseY = source?.y ?? 0
-      // Небольшое вертикальное смещение для нескольких ghost-нод от разных источников.
+      // Small vertical offset for multiple ghost nodes from different sources.
       const index = nodes.filter(
         (n) => isGhostNodeData(n.data) && Math.abs(n.position.x - baseX) < 20
       ).length
@@ -196,7 +197,7 @@ export function useGraph(options: UseGraphOptions = {}) {
           kind: 'ghost',
           targetNoteId: '',
           edgeId: edge.id,
-          label: edge.label ?? 'ссылка удалена',
+          label: edge.label ?? tGlobal('links.deletedBadge'),
           canRestore: false,
           sourceNoteIds: [edge.from],
         } satisfies GhostNodeData,

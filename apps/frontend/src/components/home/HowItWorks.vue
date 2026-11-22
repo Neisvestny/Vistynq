@@ -1,29 +1,24 @@
 <script setup lang="ts">
-const steps = [
-  {
-    num: '01',
-    title: 'Создайте первые записи',
-    text: 'Откройте пустое поле и начните писать: новая заметка появится там, где вы нажмёте.',
-  },
-  {
-    num: '02',
-    title: 'Пишите и связывайте',
-    text: 'Свяжите заметки стрелкой из меню или вставьте ссылку прямо в текст — и они станут видны вместе.',
-  },
-  {
-    num: '03',
-    title: 'Делитесь и находите нужное',
-    text: 'Откройте доступ нужным людям по ссылке и находите нужное по меткам и важности.',
-  },
-]
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
+const steps = computed(() =>
+  [0, 1, 2].map((i) => ({
+    num: t(`home.steps.${i}.num`),
+    title: t(`home.steps.${i}.title`),
+    text: t(`home.steps.${i}.text`),
+  }))
+)
 </script>
 
 <template>
   <section id="how" class="section">
     <div class="container">
       <header class="section__head">
-        <p class="kicker">Как это работает</p>
-        <h2>Три шага от пустого поля до полной картины</h2>
+        <p class="kicker">{{ t('home.howKicker') }}</p>
+        <h2>{{ t('home.howTitle') }}</h2>
       </header>
 
       <div class="steps">

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
- * Архив канваса (R29, docs/ui-ux.md §«Панель архива»): две постраничные
- * секции — «Неактуальные» и «Удалённые» — с действиями жизненного цикла.
+ * Canvas archive (R29, docs/ui-ux.md "Archive panel"): two paginated
+ * sections - "Not relevant" and "Deleted" - with lifecycle actions.
  *
- * Компонент сам вызывает API и управляет своим списком; после успешного
- * действия эмитит `changed`, чтобы страница синхронизировала граф/стор.
+ * Component calls API and manages its own list; emits `changed` after
+ * a successful action so the page can sync graph/store.
  */
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { canvasApi } from '@/api/canvas'
 import { ApiError } from '@/api/http'
 import { notify } from '@/api/notify'
@@ -17,10 +18,7 @@ import UiSheet from '@/components/ui/UiSheet.vue'
 import { useAccessGuard } from '@/composables/useAccessGuard'
 import {
   ARCHIVE_PER_PAGE,
-  archiveEmptyMessage,
   archiveTotalPages,
-  deleteWarning,
-  purgeWarning,
   resolveArchivePage,
   type ArchiveChange,
 } from '@/lib/archive'
@@ -44,6 +42,7 @@ const emit = defineEmits<{
 type ActionKind = ArchiveChange['kind']
 type ConfirmKind = 'soft-delete' | 'purge'
 
+const { t, locale } = useI18n()
 const store = useCanvasStore()
 const ui = useUiStore()
 const { canEditCanvas } = useAccessGuard()
@@ -58,14 +57,14 @@ const busyId = ref<string | null>(null)
 const confirming = ref<{ id: string; kind: ConfirmKind } | null>(null)
 const listRef = ref<HTMLElement | null>(null)
 
-/** Порядковый номер запроса: не даём устаревшему ответу перезаписать список. */
+/** Request sequence number: prevent stale response from overwriting list. */
 let requestId = 0
 
 const totalPages = computed(() => archiveTotalPages(total.value))
 const isBusy = computed(() => busyId.value !== null)
 
 function noteTitle(note: Note): string {
-  return note.title || 'Без названия'
+  return note.title || t('note.untitled')
 }
 
 function tagNames(note: Note): string[] {
@@ -76,7 +75,8 @@ function formatDate(value?: string | null): string {
   if (!value) return ''
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium' }).format(date)
+  const intlLocale = locale.value === 'en' ? 'en-US' : 'ru-RU'
+  return new Intl.DateTimeFormat(intlLocale, { dateStyle: 'medium' }).format(date)
 }
 
 async function load(target = page.value): Promise<void> {
@@ -95,8 +95,8 @@ async function load(target = page.value): Promise<void> {
     total.value = response.total
     items.value = response.items
 
-    // После удаления последней записи страницы сервер вернёт пустой items —
-    // откатываемся на последнюю существующую страницу (один повтор).
+    // After deleting the last record on a page, server may return empty items -
+    // roll back to the last existing page (one retry).
     if (items.value.length === 0 && target > totalPages.value) {
       const last = resolveArchivePage(target, totalPages.value)
       if (last !== target) {
@@ -152,12 +152,12 @@ function goToPage(next: number): void {
   listRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const ACTION_ERRORS: Record<ActionKind, string> = {
-  'make-relevant': 'Не удалось вернуть заметку',
-  'soft-delete': 'Не удалось удалить заметку',
-  restore: 'Не удалось восстановить заметку',
-  purge: 'Не удалось стереть заметку',
-}
+const ACTION_ERRORS = computed<Record<ActionKind, string>>(() => ({
+  'make-relevant': t('archive.makeRelevantError'),
+  'soft-delete': t('archive.softDeleteError'),
+  restore: t('archive.restoreError'),
+  purge: t('archive.purgeError'),
+}))
 
 async function runAction(note: Note, kind: ActionKind): Promise<void> {
   if (isBusy.value || loading.value) return
@@ -167,25 +167,25 @@ async function runAction(note: Note, kind: ActionKind): Promise<void> {
       case 'make-relevant': {
         await notesApi.updateManifest(note.id, { isRelevant: true })
         emit('changed', { kind: 'make-relevant', noteId: note.id })
-        notify({ title: 'Заметка возвращена на канвас', status: 'success' })
+        notify({ title: t('archive.returned'), status: 'success' })
         break
       }
       case 'soft-delete': {
         await notesApi.remove(note.id)
         emit('changed', { kind: 'soft-delete', noteId: note.id })
-        notify({ title: 'Заметка удалена', status: 'success' })
+        notify({ title: t('archive.deleted'), status: 'success' })
         break
       }
       case 'restore': {
         const restored = await notesApi.restore(note.id)
         emit('changed', { kind: 'restore', note: restored })
-        notify({ title: 'Заметка восстановлена', status: 'success' })
+        notify({ title: t('archive.restored'), status: 'success' })
         break
       }
       case 'purge': {
         await notesApi.purge(note.id)
         emit('changed', { kind: 'purge', noteId: note.id })
-        notify({ title: 'Заметка стёрта навсегда', status: 'success' })
+        notify({ title: t('archive.purged'), status: 'success' })
         break
       }
     }
@@ -194,14 +194,14 @@ async function runAction(note: Note, kind: ActionKind): Promise<void> {
   } catch (e) {
     const apiError = e instanceof ApiError ? e : ApiError.network()
     if (kind === 'restore' && apiError.status === 410) {
-      notify({ title: 'Заметка стёрта навсегда и не может быть восстановлена', status: 'error' })
+      notify({ title: t('archive.restoreGone'), status: 'error' })
       await load(page.value)
     } else if ((kind === 'restore' || kind === 'purge') && apiError.status === 404) {
-      notify({ title: 'Заметка больше не доступна', status: 'error' })
+      notify({ title: t('archive.notAvailable'), status: 'error' })
       await load(page.value)
     } else {
       notify({
-        title: ACTION_ERRORS[kind],
+        title: ACTION_ERRORS.value[kind],
         description: apiError.message,
         status: 'error',
       })
@@ -226,11 +226,14 @@ function confirmedKind(note: Note): ConfirmKind | null {
 
 function confirmText(note: Note): string {
   const kind = confirmedKind(note)
-  return kind === 'purge' ? purgeWarning(noteTitle(note)) : deleteWarning(noteTitle(note))
+  const title = noteTitle(note)
+  return kind === 'purge'
+    ? t('archive.purgeWarning', { title })
+    : t('archive.deleteWarning', { title })
 }
 
 function confirmLabel(note: Note): string {
-  return confirmedKind(note) === 'purge' ? 'Стереть навсегда' : 'Удалить'
+  return confirmedKind(note) === 'purge' ? t('archive.purge') : t('archive.softDelete')
 }
 
 function confirmAction(note: Note): void {
@@ -243,7 +246,7 @@ watch(
   (open) => {
     if (open) resetAndLoad()
   },
-  // Родитель монтирует панель через v-if, поэтому open=true уже при create.
+  // Parent mounts panel via v-if, so open=true already at creation.
   { immediate: true }
 )
 
@@ -260,11 +263,11 @@ watch(
     :open="open"
     :side="ui.noteEditorSide"
     :wide="true"
-    title="Архив заметок"
+    :title="t('archive.title')"
     @update:open="emit('update:open', $event)"
   >
     <div class="archive-panel">
-      <div class="archive-panel__tabs" role="tablist" aria-label="Разделы архива">
+      <div class="archive-panel__tabs" role="tablist" :aria-label="t('archive.sectionsAria')">
         <button
           type="button"
           role="tab"
@@ -274,7 +277,7 @@ watch(
           :disabled="loading || isBusy"
           @click="switchSection('notRelevant')"
         >
-          Неактуальные
+          {{ t('archive.notRelevantTab') }}
         </button>
         <button
           type="button"
@@ -285,7 +288,7 @@ watch(
           :disabled="loading || isBusy"
           @click="switchSection('deleted')"
         >
-          Удалённые
+          {{ t('archive.deletedTab') }}
         </button>
       </div>
 
@@ -296,20 +299,20 @@ watch(
 
         <div v-else-if="error" class="archive-panel__error">
           <p class="archive-panel__error-text">{{ error.message }}</p>
-          <UiButton variant="ghost" size="sm" @click="load(page)">Повторить</UiButton>
+          <UiButton variant="ghost" size="sm" @click="load(page)">{{ t('common.retry') }}</UiButton>
         </div>
 
         <p v-else-if="items.length === 0" class="archive-panel__empty">
-          {{ archiveEmptyMessage(section) }}
+          {{ section === 'deleted' ? t('archive.emptyDeleted') : t('archive.emptyNotRelevant') }}
         </p>
 
         <article v-for="note in items" :key="note.id" class="archive-panel__item">
           <div class="archive-panel__item-main">
             <p class="archive-panel__item-title" :title="noteTitle(note)">{{ noteTitle(note) }}</p>
             <div class="archive-panel__item-meta">
-              <span>Важность {{ note.importance }}</span>
+              <span>{{ t('archive.importance', { value: note.importance }) }}</span>
               <span v-if="section === 'deleted' && formatDate(note.deletedAt)">
-                удалена {{ formatDate(note.deletedAt) }}
+                {{ t('archive.deletedAt', { date: formatDate(note.deletedAt) }) }}
               </span>
             </div>
             <div v-if="tagNames(note).length" class="archive-panel__tags">
@@ -331,7 +334,7 @@ watch(
                 :disabled="loading || isBusy"
                 @click="cancelAction"
               >
-                Отмена
+                {{ t('common.cancel') }}
               </UiButton>
             </div>
           </template>
@@ -343,7 +346,7 @@ watch(
                 :disabled="loading || isBusy"
                 @click="runAction(note, 'make-relevant')"
               >
-                Вернуть
+                {{ t('archive.makeRelevant') }}
               </UiButton>
               <UiButton
                 variant="ghost"
@@ -351,12 +354,12 @@ watch(
                 :disabled="loading || isBusy"
                 @click="requestAction(note, 'soft-delete')"
               >
-                Удалить
+                {{ t('archive.softDelete') }}
               </UiButton>
             </template>
             <template v-else>
               <UiButton size="sm" :disabled="loading || isBusy" @click="runAction(note, 'restore')">
-                Восстановить
+                {{ t('archive.restore') }}
               </UiButton>
               <UiButton
                 variant="ghost"
@@ -365,24 +368,28 @@ watch(
                 :disabled="loading || isBusy"
                 @click="requestAction(note, 'purge')"
               >
-                Стереть навсегда
+                {{ t('archive.purge') }}
               </UiButton>
             </template>
           </div>
         </article>
       </div>
 
-      <nav v-if="totalPages > 1" class="archive-panel__pagination" aria-label="Страницы архива">
+      <nav
+        v-if="totalPages > 1"
+        class="archive-panel__pagination"
+        :aria-label="t('archive.paginationAria')"
+      >
         <UiButton
           variant="ghost"
           size="sm"
           :disabled="loading || isBusy || page <= 1"
           @click="goToPage(page - 1)"
         >
-          Назад
+          {{ t('common.back') }}
         </UiButton>
         <span class="archive-panel__pagination-info">
-          Страница {{ page }} из {{ totalPages }} · всего {{ total }}
+          {{ t('archive.pageInfo', { page, totalPages, total }) }}
         </span>
         <UiButton
           variant="ghost"
@@ -390,7 +397,7 @@ watch(
           :disabled="loading || isBusy || page >= totalPages"
           @click="goToPage(page + 1)"
         >
-          Вперёд
+          {{ t('common.forward') }}
         </UiButton>
       </nav>
     </div>

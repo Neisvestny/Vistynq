@@ -16,7 +16,7 @@ import type { Canvas } from '@/api/types'
 
 const canvas: Canvas = {
   id: 'c-1',
-  title: 'Исследования',
+  title: 'Issledovaniya',
   ownerId: 'u-1',
   noteCount: 3,
   createdAt: '2026-11-01T10:00:00.000Z',
@@ -89,12 +89,12 @@ describe('canvases store', () => {
       return canvas
     })
     const store = useCanvasesStore()
-    const result = await store.create('Исследования')
+    const result = await store.create('Issledovaniya')
     expect(creatingDuring).toBe(true)
     expect(result).toEqual(canvas)
     expect(store.creating).toBe(false)
 
-    const error = new ApiError(403, 'EMAIL_NOT_VERIFIED', 'Подтвердите email')
+    const error = new ApiError(403, 'EMAIL_NOT_VERIFIED', 'Podtverdite email')
     vi.mocked(canvasApi.create).mockRejectedValueOnce(error)
     await expect(store.create('X')).rejects.toBe(error)
     expect(store.creating).toBe(false)

@@ -7,17 +7,17 @@ export interface CreateDirectLinkPayload {
 }
 
 export const linksApi = {
-  /** Создать прямую ссылку между заметками одного канваса. */
+  /** Sozdat pryamuyu ssylku mezhdu zametkami odnogo kanvasa. */
   createDirect(payload: CreateDirectLinkPayload): Promise<DirectLink> {
     return request<DirectLink>('/links/direct', { method: 'POST', body: payload })
   },
 
-  /** Удалить прямую ссылку. */
+  /** Udalit pryamuyu ssylku. */
   removeDirect(id: string): Promise<void> {
     return request<void>(`/links/direct/${id}`, { method: 'DELETE' })
   },
 
-  /** Развернуть направление прямой ссылки. */
+  /** Razvernut napravlenie pryamoy ssylki. */
   reverseDirect(id: string): Promise<DirectLink> {
     return request<DirectLink>(`/links/direct/${id}/reverse`, { method: 'POST' })
   },

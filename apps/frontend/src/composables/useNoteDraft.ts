@@ -1,11 +1,12 @@
 /**
- * Чистое состояние черновика редактора заметки (R28).
- * Формирует минимальный diff для PATCH/PUT без побочных эффектов —
- * удобно тестировать и переиспользовать в модалке.
+ * Pure draft state for note editor (R28).
+ * Builds minimal diff for PATCH/PUT without side effects -
+ * easy to test and reuse in the modal.
  */
 import type { UpdateNoteManifestPayload } from '@/api/notes'
 import type { NoteDetail, NoteVisibility } from '@/api/types'
 import { normalizeMarkdown } from '@/lib/editorMarkdown'
+import { tGlobal } from '@/i18n'
 
 export interface ManifestDraft {
   title: string
@@ -46,14 +47,14 @@ export function isDraftDirty(before: NoteDraft, after: NoteDraft): boolean {
 export function validateManifest(manifest: ManifestDraft): string[] {
   const errors: string[] = []
   const title = manifest.title.trim()
-  if (title === '') errors.push('Укажите заголовок')
-  if (title.length > 200) errors.push('Заголовок длиннее 200 символов')
+  if (title === '') errors.push(tGlobal('note.titleRequired'))
+  if (title.length > 200) errors.push(tGlobal('note.titleTooLong'))
   if (
     !Number.isInteger(manifest.importance) ||
     manifest.importance < 1 ||
     manifest.importance > 5
   ) {
-    errors.push('Важность должна быть от 1 до 5')
+    errors.push(tGlobal('note.importanceRange'))
   }
 
   return errors
@@ -63,7 +64,7 @@ function sameIds(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index])
 }
 
-/** Только реально изменённые поля — без лишних PATCH/PUT. */
+/** Only actually changed fields - no extra PATCH/PUT. */
 export function buildSavePlan(before: NoteDraft, after: NoteDraft): SavePlan {
   const patch: UpdateNoteManifestPayload = {}
   const a = before.manifest

@@ -18,7 +18,7 @@ import type { GraphNode, GraphResponse } from '@/api/types'
 function node(id: string): GraphNode {
   return {
     id,
-    title: `Заметка ${id}`,
+    title: `Zametka ${id}`,
     importance: 1,
     isRelevant: true,
     x: 0,
@@ -33,14 +33,14 @@ function node(id: string): GraphNode {
 const graph: GraphResponse = {
   canvas: {
     id: 'c-1',
-    title: 'Исследования',
+    title: 'Issledovaniya',
     ownerId: 'u-1',
     createdAt: '2026-11-01T10:00:00.000Z',
     access: { level: 'private', myRole: 'owner', publicSlug: null },
   },
   nodes: [node('n-1'), node('n-2')],
   edges: [{ id: 'e-1', type: 'direct', from: 'n-1', to: 'n-2', state: 'ok', label: null }],
-  tags: [{ id: 't-1', name: 'важное', color: '#ff0000' }],
+  tags: [{ id: 't-1', name: 'vazhnoe', color: '#ff0000' }],
 }
 
 describe('canvas store', () => {
@@ -80,7 +80,7 @@ describe('canvas store', () => {
     await store.load('c-1')
 
     vi.mocked(canvasApi.graph).mockRejectedValueOnce(
-      new ApiError(404, 'NOT_FOUND', 'Канвас не найден')
+      new ApiError(404, 'NOT_FOUND', 'Kanvas ne nayden')
     )
     await store.load('missing')
     expect(store.error?.status).toBe(404)

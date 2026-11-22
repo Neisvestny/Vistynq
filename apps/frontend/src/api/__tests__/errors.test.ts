@@ -4,14 +4,15 @@ import { ApiError } from '@/api/http'
 import { applyApiError, isValidEmail } from '@/api/errors'
 import { setNotifyHandler } from '@/api/notify'
 import type { NotifyOptions } from '@/api/notify'
+import { setI18nLocale } from '@/i18n'
 
 describe('isValidEmail', () => {
-  it('принимает обычные адреса', () => {
+  it('prinimaet obychnye adresa', () => {
     expect(isValidEmail('user@example.com')).toBe(true)
     expect(isValidEmail(' first.last@sub.domain.io ')).toBe(true)
   })
 
-  it('отклоняет мусор', () => {
+  it('otklonyaet musor', () => {
     expect(isValidEmail('')).toBe(false)
     expect(isValidEmail('no-at-sign')).toBe(false)
     expect(isValidEmail('two@@signs')).toBe(false)
@@ -25,6 +26,7 @@ describe('applyApiError', () => {
 
   beforeEach(() => {
     toasts = []
+    setI18nLocale('en')
     setNotifyHandler((options) => toasts.push(options))
   })
 
@@ -32,39 +34,39 @@ describe('applyApiError', () => {
     setNotifyHandler(() => {})
   })
 
-  it('раскладывает details 422 по полям формы', () => {
+  it('raskladyvaet details 422 po polyam formy', () => {
     const fieldErrors: Record<string, string> = {}
-    const error = new ApiError(422, 'VALIDATION_FAILED', 'Проверьте форму', {
-      email: ['email занят'],
-      password: ['минимум 8 символов'],
+    const error = new ApiError(422, 'VALIDATION_FAILED', 'Check the form', {
+      email: ['email taken'],
+      password: ['minimum 8 characters'],
     })
 
     applyApiError(error, fieldErrors)
 
-    expect(fieldErrors).toEqual({ email: 'email занят', password: 'минимум 8 символов' })
+    expect(fieldErrors).toEqual({ email: 'email taken', password: 'minimum 8 characters' })
     expect(toasts).toHaveLength(1)
-    expect(toasts[0]?.title).toBe('Проверьте форму')
+    expect(toasts[0]?.title).toBe('Check the form')
   })
 
-  it('NETWORK → тост «Нет соединения»', () => {
+  it('NETWORK → tost «Net soedineniya»', () => {
     applyApiError(ApiError.network(), {})
 
     expect(toasts).toHaveLength(1)
-    expect(toasts[0]?.title).toBe('Нет соединения')
+    expect(toasts[0]?.title).toBe('No connection')
   })
 
-  it('не-ApiError → тост «Непредвиденная ошибка»', () => {
+  it('ne-ApiError → tost «Nepredvidennaya oshibka»', () => {
     applyApiError(new Error('boom'), {})
 
     expect(toasts).toHaveLength(1)
-    expect(toasts[0]?.title).toBe('Непредвиденная ошибка')
+    expect(toasts[0]?.title).toBe('Unexpected error')
   })
 
-  it('прочие ошибки API → общий тост с сообщением', () => {
-    applyApiError(new ApiError(409, 'CONFLICT', 'Email уже зарегистрирован'), {})
+  it('prochie oshibki API → obshchiy tost s soobshcheniem', () => {
+    applyApiError(new ApiError(409, 'CONFLICT', 'Email already registered'), {})
 
     expect(toasts).toHaveLength(1)
-    expect(toasts[0]?.title).toBe('Ошибка')
-    expect(toasts[0]?.description).toBe('Email уже зарегистрирован')
+    expect(toasts[0]?.title).toBe('Error')
+    expect(toasts[0]?.description).toBe('Email already registered')
   })
 })

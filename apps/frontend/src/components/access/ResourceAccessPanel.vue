@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
@@ -28,6 +29,7 @@ const emit = defineEmits<{
   reload: []
 }>()
 
+const { t } = useI18n()
 const email = ref('')
 const role = ref<'viewer' | 'editor'>('viewer')
 
@@ -55,7 +57,7 @@ defineExpose({ onInviteSuccess })
 <template>
   <section class="access-panel">
     <div class="access-panel__section">
-      <h3 class="access-panel__title">Пользователи</h3>
+      <h3 class="access-panel__title">{{ t('access.usersTitle') }}</h3>
 
       <form class="access-panel__invite" @submit.prevent="onInvite">
         <div class="access-panel__invite-row">
@@ -68,22 +70,22 @@ defineExpose({ onInviteSuccess })
               autocomplete="email"
               :disabled="inviting"
             >
-              Email
+              {{ t('common.email') }}
             </UiInput>
             <p v-if="inviteErrors.email" class="access-panel__error">{{ inviteErrors.email }}</p>
           </div>
 
           <label class="access-panel__role">
-            <span class="access-panel__label">Роль</span>
+            <span class="access-panel__label">{{ t('access.roleLabel') }}</span>
             <select v-model="role" class="access-panel__select" :disabled="inviting">
-              <option value="viewer">Viewer</option>
-              <option value="editor">Editor</option>
+              <option value="viewer">{{ t('common.viewer') }}</option>
+              <option value="editor">{{ t('common.editor') }}</option>
             </select>
             <p v-if="inviteErrors.role" class="access-panel__error">{{ inviteErrors.role }}</p>
           </label>
 
           <UiButton type="submit" size="sm" :disabled="inviting || !email.trim()">
-            {{ inviting ? 'Отправка…' : 'Выдать доступ' }}
+            {{ inviting ? t('access.inviting') : t('access.grant') }}
           </UiButton>
         </div>
       </form>
@@ -91,16 +93,16 @@ defineExpose({ onInviteSuccess })
 
     <div class="access-panel__section">
       <div class="access-panel__list-header">
-        <h4 class="access-panel__subtitle">Доступы</h4>
+        <h4 class="access-panel__subtitle">{{ t('access.accesses') }}</h4>
         <UiButton v-if="loadError" variant="ghost" size="sm" type="button" @click="emit('reload')">
-          Повторить
+          {{ t('common.retry') }}
         </UiButton>
       </div>
 
-      <p v-if="loading" class="access-panel__muted">Загрузка…</p>
+      <p v-if="loading" class="access-panel__muted">{{ t('common.loading') }}</p>
       <p v-else-if="loadError" class="access-panel__error">{{ loadError }}</p>
       <p v-else-if="sortedEntries.length === 0" class="access-panel__muted">
-        Пока никому не выдан доступ
+        {{ t('access.noAccess') }}
       </p>
 
       <ul v-else class="access-panel__list">
@@ -112,14 +114,16 @@ defineExpose({ onInviteSuccess })
           <div class="access-panel__item-main">
             <div class="access-panel__item-email">{{ entry.email }}</div>
             <div class="access-panel__item-meta">
-              <UiBadge v-if="entry.pending" tone="neutral">ждёт регистрации</UiBadge>
+              <UiBadge v-if="entry.pending" tone="neutral">{{
+                t('access.pendingRegistration')
+              }}</UiBadge>
               <span v-else class="access-panel__muted">{{ entry.role }}</span>
             </div>
           </div>
 
           <div class="access-panel__item-actions">
             <label v-if="!entry.pending && entry.userId" class="access-panel__inline-role">
-              <span class="sr-only">Роль для {{ entry.email }}</span>
+              <span class="sr-only">{{ t('access.roleFor', { email: entry.email }) }}</span>
               <select
                 class="access-panel__select access-panel__select--sm"
                 :value="entry.role"
@@ -142,12 +146,12 @@ defineExpose({ onInviteSuccess })
               type="button"
               :aria-label="
                 entry.pending
-                  ? `Отозвать приглашение ${entry.email}`
-                  : `Отозвать доступ ${entry.email}`
+                  ? t('access.revokeInvite', { email: entry.email })
+                  : t('access.revokeAccess', { email: entry.email })
               "
               @click="emit('revoke', entry)"
             >
-              Отозвать
+              {{ t('access.revoke') }}
             </UiButton>
           </div>
         </li>

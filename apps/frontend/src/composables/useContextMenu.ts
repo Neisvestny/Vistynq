@@ -25,9 +25,9 @@ function toPoint(target: MouseEvent | ContextMenuPoint): ContextMenuPoint {
 }
 
 /**
- * Состояние контекстного меню (координаты + произвольный контекст).
- * Закрывается по Esc, клику вне, скроллу/resize. Для кликов внутри меню
- * передайте контейнер через menuEl.
+ * Sostoyanie kontekstnogo menyu (koordinaty + proizvolnyy kontekst).
+ * Zakryvaetsya po Esc, kliku vne, skrollu/resize. Dlya klikov vnutri menyu
+ * peredayte konteyner cherez menuEl.
  */
 export function useContextMenu<T = unknown>() {
   const state = reactive<ContextMenuState>({
@@ -36,7 +36,7 @@ export function useContextMenu<T = unknown>() {
     y: 0,
   })
   const context = shallowRef<T | null>(null)
-  /** DOM-элемент меню: pointerdown внутри него не закрывает меню. */
+  /** DOM-element menyu: pointerdown vnutri nego ne zakryvaet menyu. */
   const menuEl = shallowRef<HTMLElement | null>(null)
 
   function close(): void {

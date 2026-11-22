@@ -1,16 +1,18 @@
 <script setup lang="ts">
 /**
- * Верификация email: письмо ссылается на /verify-email?token=…, токен уходит
- * в теле POST /auth/verify-email — в URL он только для роутинга (architecture.md §2).
+ * Verifikatsiya email: pismo ssylaetsya na /verify-email?token=…, token ukhodit
+ * v tele POST /auth/verify-email — v URL on tolko dlya routinga (architecture.md §2).
  */
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import { authApi } from '@/api/auth'
 import { notify } from '@/api/notify'
 import { applyApiError } from '@/api/errors'
 import { useAuthStore } from '@/stores/auth'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -20,9 +22,9 @@ const errorMessage = ref('')
 const leaving = ref(false)
 
 /**
- * Кнопка «Перейти ко входу» всегда открывает форму логина, а не чужие
- * канвасы: в браузере могла остаться refresh-кука от прежнего аккаунта,
- * и guard /login (requiresGuest) перебросил бы пользователя вdashboard.
+ * Knopka «Pereyti ko vkhodu» vsegda otkryvaet formu logina, a ne chuzhie
+ * kanvasy: v brauzere mogla ostatsya refresh-kuka ot prezhnego akkaunta,
+ * i guard /login (requiresGuest) perebrosil by polzovatelya v dashboard.
  */
 async function goToLogin(): Promise<void> {
   if (leaving.value) return
@@ -46,7 +48,11 @@ onMounted(async () => {
   try {
     await authApi.verifyEmail(token)
     state.value = 'success'
-    notify({ title: 'Email подтверждён', description: 'Теперь можно войти', status: 'success' })
+    notify({
+      title: t('auth.verifySuccessNotifyTitle'),
+      description: t('auth.verifySuccessNotifyDescription'),
+      status: 'success',
+    })
   } catch (error) {
     state.value = 'error'
     if (error instanceof Error) {
@@ -59,29 +65,27 @@ onMounted(async () => {
 
 <template>
   <div class="auth-form">
-    <h1 class="auth-form__title">Подтверждение email</h1>
+    <h1 class="auth-form__title">{{ t('auth.verifyEmailTitle') }}</h1>
 
-    <p v-if="state === 'loading'" class="auth-form__status">Проверяем ссылку…</p>
+    <p v-if="state === 'loading'" class="auth-form__status">{{ t('auth.verifyChecking') }}</p>
 
     <template v-else-if="state === 'success'">
-      <p class="auth-form__status">Почта подтверждена. Теперь можно войти в аккаунт.</p>
+      <p class="auth-form__status">{{ t('auth.verifySuccess') }}</p>
       <UiButton :disabled="leaving" @click="goToLogin">
-        {{ leaving ? 'Перенаправляем…' : 'Перейти ко входу' }}
+        {{ leaving ? t('auth.verifyRedirecting') : t('auth.goToLogin') }}
       </UiButton>
     </template>
 
     <template v-else-if="state === 'no-token'">
-      <p class="auth-form__status">
-        Ссылка неполная — в ней нет токена. Откройте её из письма целиком.
-      </p>
-      <UiButton variant="ghost" to="/login">Перейти ко входу</UiButton>
+      <p class="auth-form__status">{{ t('auth.verifyNoToken') }}</p>
+      <UiButton variant="ghost" to="/login">{{ t('auth.goToLogin') }}</UiButton>
     </template>
 
     <template v-else>
       <p class="auth-form__status">
-        Ссылка недействительна или устарела{{ errorMessage ? `: ${errorMessage}` : '' }}.
+        {{ t('auth.verifyInvalid') }}{{ errorMessage ? `: ${errorMessage}` : '' }}.
       </p>
-      <UiButton variant="ghost" to="/login">Перейти ко входу</UiButton>
+      <UiButton variant="ghost" to="/login">{{ t('auth.goToLogin') }}</UiButton>
     </template>
   </div>
 </template>

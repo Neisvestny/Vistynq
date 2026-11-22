@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -9,6 +10,7 @@ import { ApiError } from '@/api/http'
 import { notify } from '@/api/notify'
 import { applyApiError, isValidEmail } from '@/api/errors'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -43,16 +45,19 @@ async function onResend() {
 
   const target = resendEmail.value.trim()
   if (!isValidEmail(target)) {
-    resendError.value = 'Введите корректный email'
+    resendError.value = t('auth.emailInvalid')
     return
   }
 
   resendLoading.value = true
   try {
     await authApi.resendVerification(target)
-    resendSuccess.value =
-      'Если аккаунт с таким email существует и ещё не подтверждён, мы отправили письмо повторно.'
-    notify({ title: 'Письмо отправлено', description: 'Проверьте почту', status: 'success' })
+    resendSuccess.value = t('auth.resendSuccess')
+    notify({
+      title: t('auth.resendSentTitle'),
+      description: t('auth.resendSentDescription'),
+      status: 'success',
+    })
   } catch (error) {
     if (error instanceof ApiError && error.details) {
       const details = error.details.email?.[0]
@@ -72,10 +77,10 @@ async function onSubmit() {
 
   errors.value = {}
   if (!isValidEmail(email.value)) {
-    errors.value.email = 'Введите корректный email'
+    errors.value.email = t('auth.emailInvalid')
   }
   if (!password.value) {
-    errors.value.password = 'Введите пароль'
+    errors.value.password = t('auth.passwordRequired')
   }
   if (Object.keys(errors.value).length > 0) return
 
@@ -87,8 +92,8 @@ async function onSubmit() {
   } catch (error) {
     if (error instanceof ApiError && error.code === 'EMAIL_NOT_VERIFIED') {
       notify({
-        title: 'Email не подтверждён',
-        description: 'Подтвердите почту по ссылке из письма или отправьте письмо ещё раз.',
+        title: t('auth.emailNotVerifiedTitle'),
+        description: t('auth.emailNotVerifiedLoginDescription'),
         status: 'error',
       })
       openResend(email.value)
@@ -103,19 +108,19 @@ async function onSubmit() {
 
 <template>
   <form class="auth-form" novalidate @submit.prevent="onSubmit">
-    <h1 class="auth-form__title">Вход</h1>
-    <p class="auth-form__subtitle">Войдите, чтобы открыть свои канвасы</p>
+    <h1 class="auth-form__title">{{ t('auth.loginTitle') }}</h1>
+    <p class="auth-form__subtitle">{{ t('auth.loginSubtitle') }}</p>
 
     <div>
       <UiInput
         id="login-email"
         v-model="email"
         type="email"
-        placeholder="you@example.com"
+        :placeholder="t('auth.emailPlaceholder')"
         autocomplete="email"
         :disabled="loading"
       >
-        Email
+        {{ t('auth.email') }}
       </UiInput>
       <p v-if="errors.email" class="auth-form__error">{{ errors.email }}</p>
     </div>
@@ -125,35 +130,35 @@ async function onSubmit() {
         id="login-password"
         v-model="password"
         type="password"
-        placeholder="••••••••"
+        :placeholder="t('auth.passwordPlaceholder')"
         autocomplete="current-password"
         :disabled="loading"
       >
-        Пароль
+        {{ t('auth.password') }}
       </UiInput>
       <p v-if="errors.password" class="auth-form__error">{{ errors.password }}</p>
     </div>
 
     <UiButton type="submit" :disabled="loading">
-      {{ loading ? 'Входим…' : 'Войти' }}
+      {{ loading ? t('auth.signingIn') : t('auth.signIn') }}
     </UiButton>
 
     <div class="auth-form__resend">
       <button v-if="!showResend" type="button" class="auth-form__link-button" @click="openResend()">
-        Не пришло письмо с подтверждением?
+        {{ t('auth.resendPrompt') }}
       </button>
 
       <div v-else class="auth-form__resend-panel">
-        <p class="auth-form__hint">Укажите email — мы отправим письмо для подтверждения ещё раз.</p>
+        <p class="auth-form__hint">{{ t('auth.resendHint') }}</p>
         <UiInput
           id="login-resend-email"
           v-model="resendEmail"
           type="email"
-          placeholder="you@example.com"
+          :placeholder="t('auth.emailPlaceholder')"
           autocomplete="email"
           :disabled="resendLoading"
         >
-          Email для письма
+          {{ t('auth.resendEmailLabel') }}
         </UiInput>
         <p v-if="resendError" class="auth-form__error">{{ resendError }}</p>
         <p v-if="resendSuccess" class="auth-form__success">{{ resendSuccess }}</p>
@@ -165,17 +170,17 @@ async function onSubmit() {
             :disabled="resendLoading"
             @click="onResend"
           >
-            {{ resendLoading ? 'Отправляем…' : 'Отправить письмо ещё раз' }}
+            {{ resendLoading ? t('auth.resendSending') : t('auth.resendAction') }}
           </UiButton>
         </div>
       </div>
     </div>
 
     <div class="auth-form__footer">
-      <RouterLink to="/forgot-password">Забыли пароль?</RouterLink>
+      <RouterLink to="/forgot-password">{{ t('auth.forgotPassword') }}</RouterLink>
       <span>
-        Нет аккаунта?
-        <RouterLink to="/register">Зарегистрироваться</RouterLink>
+        {{ t('auth.noAccountPrompt') }}
+        <RouterLink to="/register">{{ t('auth.signUp') }}</RouterLink>
       </span>
     </div>
   </form>

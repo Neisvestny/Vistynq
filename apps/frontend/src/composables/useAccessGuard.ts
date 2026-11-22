@@ -9,8 +9,8 @@ export interface NoteAccessLike {
 }
 
 /**
- * UI-проверки прав на основе auth и активного канваса/заметки.
- * Не заменяет серверные проверки; при отсутствии контекста — безопасный запрет.
+ * UI-proverki prav na osnove auth i aktivnogo kanvasa/zametki.
+ * Ne zamenyaet servernye proverki; pri otsutstvii konteksta — bezopasnyy zapret.
  */
 export function useAccessGuard(note?: MaybeRefOrGetter<NoteAccessLike | null | undefined>) {
   const auth = useAuthStore()
@@ -57,8 +57,8 @@ export function useAccessGuard(note?: MaybeRefOrGetter<NoteAccessLike | null | u
   }
 
   /**
-   * Право двигать/ресайзить ноду (docs/ui-ux.md, матрица прав):
-   * owner/author ноды, editor канваса, owner канваса — да; viewer и editor только заметки — нет.
+   * Pravo dvigat/resayzit nodu (docs/ui-ux.md, matritsa prav):
+   * owner/author nody, editor kanvasa, owner kanvasa — da; viewer i editor tolko zametki — net.
    */
   function canMoveResizeNode(target?: NoteAccessLike | null): boolean {
     if (canEditCanvas.value) return true

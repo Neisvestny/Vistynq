@@ -1,10 +1,12 @@
+import { tGlobal } from '@/i18n'
 import { notify } from '@/api/notify'
 
-export async function copyText(text: string, successTitle = 'Скопировано'): Promise<boolean> {
+export async function copyText(text: string, successTitle?: string): Promise<boolean> {
+  const resolvedSuccessTitle = successTitle ?? tGlobal('common.copied')
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text)
-      notify({ title: successTitle, status: 'success' })
+      notify({ title: resolvedSuccessTitle, status: 'success' })
       return true
     }
   } catch {
@@ -23,13 +25,13 @@ export async function copyText(text: string, successTitle = 'Скопирова�
     const ok = document.execCommand('copy')
     document.body.removeChild(textarea)
     if (ok) {
-      notify({ title: successTitle, status: 'success' })
+      notify({ title: resolvedSuccessTitle, status: 'success' })
       return true
     }
   } catch {
     // ignore
   }
 
-  notify({ title: 'Не удалось скопировать', status: 'error' })
+  notify({ title: tGlobal('common.copyError'), status: 'error' })
   return false
 }

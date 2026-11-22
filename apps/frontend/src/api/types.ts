@@ -1,8 +1,8 @@
 /**
- * DTO по docs/openapi.yaml. Общие типы контракта API.
+ * DTOs per docs/openapi.yaml. Shared API contract types.
  */
 
-/** Ошибка в формате docs/api.md: {error: {code, message, details?}} */
+/** Error v formate docs/api.md: {error: {code, message, details?}} */
 export interface ApiErrorBody {
   error: {
     code: string
@@ -11,20 +11,20 @@ export interface ApiErrorBody {
   }
 }
 
-/** GET /auth/me и элемент AccessTokenResponse */
+/** GET /auth/me and AccessTokenResponse element */
 export interface User {
   id: string
   email: string
   displayName: string
   avatarUrl?: string | null
   emailVerified: boolean
-  /** Новый email, ожидающий подтверждения (PATCH /profile). */
+  /** New email pending confirmation (PATCH /profile). */
   pendingEmail?: string | null
 }
 
-/** Ответ login/refresh: access только в памяти, refresh — httpOnly cookie */
+/** login/refresh response: access only in memory, refresh is httpOnly cookie */
 export interface AccessTokenResponse {
-  /** Обязателен в login; в refresh может отсутствовать — store не затирает user на undefined. */
+  /** Required in login; may be absent in refresh - store must not overwrite user with undefined. */
   user?: User
   accessToken: string
   accessTokenExpiresIn: number
@@ -51,21 +51,21 @@ export interface Canvas {
   }
   createdAt: string
   updatedAt?: string
-  /** Только GET /canvases: число доступных пользователю живых заметок. */
+  /** GET /canvases only: number of live notes available to user. */
   noteCount?: number
 }
 
-/** Тег канваса (Graph.tags, /tags). */
+/** Canvas tag (Graph.tags, /tags). */
 export interface Tag {
   id: string
   name: string
   color: string
 }
 
-/** Обратная совместимость: alias для существующего кода. */
+/** Backward compatibility: alias for existing code. */
 export type GraphTag = Tag
 
-/** docs/openapi.yaml → GraphNode (фактический ответ бэкенда). */
+/** docs/openapi.yaml -> GraphNode (actual backend response). */
 export interface GraphNode {
   id: string
   title: string
@@ -76,12 +76,12 @@ export interface GraphNode {
   y: number
   width: number
   deletedAt: string | null
-  /** Имена тегов заметки (для отображения на ноде). */
+  /** Note tag names (for display on node). */
   tags: string[]
   authorId: string
 }
 
-/** docs/openapi.yaml → GraphEdge; label заполнен только у state=removed. */
+/** docs/openapi.yaml -> GraphEdge; label is set only for state=removed. */
 export interface GraphEdge {
   id: string
   type: EdgeType
@@ -99,7 +99,7 @@ export interface GraphResponse {
   tags: Tag[]
 }
 
-/** docs/openapi.yaml → PageMeta: пагинированные списки (R19). */
+/** docs/openapi.yaml -> PageMeta: paginated lists (R19). */
 export interface Paginated<T> {
   items: T[]
   page: number

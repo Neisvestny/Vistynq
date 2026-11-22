@@ -5,7 +5,7 @@ import type { Editor } from '@tiptap/core'
 import WikiLinkList, { type WikiLinkItem } from '@/components/editor/WikiLinkList.vue'
 
 export interface WikiLinkSuggestionOptions {
-  /** Возвращает кандидаты заметок для автодополнения. */
+  /** Vozvrashchaet kandidaty zametok dlya avtodopolneniya. */
   getItems: (query: string) => WikiLinkItem[]
 }
 
@@ -114,7 +114,7 @@ export const WikiLinkSuggestion = Extension.create<WikiLinkSuggestionOptions>({
         allow: ({ state, range }) =>
           state.doc.textBetween(range.from, range.from + 2, '\n', '\0') === '[[',
         items: ({ query }) => {
-          // char '[' => query после триггера: "[foo" для ввода "[[foo"
+          // char '[' => query posle triggera: "[foo" dlya vvoda "[[foo"
           if (!query.startsWith('[')) return []
           const search = query.slice(1).trim().toLowerCase()
           const items = getItems(search)

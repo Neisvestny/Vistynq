@@ -1,20 +1,21 @@
 /**
- * Auth-store (Pinia). Access-token хранится ТОЛЬКО в памяти —
- * ни localStorage, ни sessionStorage (docs/architecture.md §1).
- * После F5 сессия восстанавливается через refresh-cookie (restoreSession).
+ * Auth store (Pinia). Access token is stored ONLY in memory -
+ * not in localStorage or sessionStorage (docs/architecture.md §1).
+ * After F5 session is restored via refresh cookie (restoreSession).
  */
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-// Цикл router → guards → store безопасен: router используется только в рантайме-функциях.
+// Router -> guards -> store cycle is safe: router is used only in runtime functions.
 import { router } from '@/router'
 import { authApi } from '@/api/auth'
+import { tGlobal } from '@/i18n'
 import { notify } from '@/api/notify'
 import { setAccessToken, setOnTokenRefreshed, setOnUnauthorized } from '@/api/http'
 import type { AccessTokenResponse, User } from '@/api/types'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
-  /** Реактивное зеркало токена из http.ts — для UI-проверок. */
+  /** Reactive mirror of token from http.ts - for UI checks. */
   const accessToken = ref<string | null>(null)
 
   const isAuthenticated = computed(() => user.value !== null)
@@ -23,7 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
   function applyToken(data: AccessTokenResponse): void {
     accessToken.value = data.accessToken
     setAccessToken(data.accessToken)
-    // login всегда возвращает user; refresh — не обязательно. Не затираем на undefined.
+    // login always returns user; refresh may not. Do not overwrite with undefined.
     if (data.user) {
       user.value = data.user
     }
@@ -41,21 +42,21 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function register(email: string, password: string, displayName: string): Promise<void> {
     await authApi.register({ email, password, displayName })
-    // Сервер очистил refresh-куку в ответе 201 — в store тоже не должен
-    // остаться пользователь от прежней сессии.
+    // Server cleared refresh cookie in 201 response - store also must not
+    // keep user from previous session.
     reset()
   }
 
   /**
-   * Best-effort выход без исключения: отзываем куку на сервере и в любом
-   * случае чистим локальное состояние. Нужен для перехода ко входу после
-   * подтверждения email — туда нельзя прийти в чужой сессии.
+   * Best-effort logout without throwing: revoke cookie on server and in any
+   * case clear local state. Needed for redirect to login after
+   * email confirmation - cannot arrive there in another session.
    */
   async function clearSession(): Promise<void> {
     try {
       await authApi.logout()
     } catch {
-      // Даже при сетевой ошибке локальная сессия должна быть сброшена.
+      // Even on network error local session must be reset.
     } finally {
       reset()
     }
@@ -73,7 +74,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = await authApi.me()
   }
 
-  /** Обновление профиля (имя/email). При смене email сервер вернёт pendingEmail. */
+  /** Update profile (name/email). On email change server returns pendingEmail. */
   async function updateProfile(payload: { displayName?: string; email?: string }): Promise<void> {
     user.value = await authApi.updateProfile(payload)
   }
@@ -84,18 +85,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Повторный 401 после неудачного refresh: logout + тост + редирект на /login. */
+  /** Repeated 401 after failed refresh: logout + toast + redirect to /login. */
   function handleSessionExpired(): void {
     reset()
     notify({
-      title: 'Сессия истекла',
-      description: 'Войдите снова, чтобы продолжить',
+      title: tGlobal('auth.sessionExpired'),
+      description: tGlobal('auth.sessionExpiredDescription'),
       status: 'error',
     })
     void router.push({ name: 'login' })
   }
 
-  /* http.ts не знает про store — держим связь здесь. */
+  /* http.ts does not know about store - keep wiring here. */
   setOnUnauthorized(handleSessionExpired)
   setOnTokenRefreshed((data) => {
     accessToken.value = data.accessToken
@@ -105,14 +106,14 @@ export const useAuthStore = defineStore('auth', () => {
     }
   })
 
-  /* ---------------- bootstrap-восстановление сессии ---------------- */
+  /* ---------------- bootstrap session restore ---------------- */
 
   let restored = false
   let restoreInflight: Promise<void> | null = null
 
   /**
-   * Тихое восстановление сессии по refresh-cookie при загрузке приложения.
-   * 404/401 до появления auth-эндпоинтов (R09/R10) — просто guest-режим.
+   * Silent session restore via refresh cookie on app load.
+   * 404/401 before auth endpoints appear (R09/R10) - just guest mode.
    */
   async function restoreSession(): Promise<void> {
     try {
@@ -124,7 +125,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Guard-ы ждут восстановление, чтобы не редиректить залогиненного на /login после F5. */
+  /** Guards wait for restore to avoid redirecting logged-in user to /login after F5. */
   function ensureRestored(): Promise<void> {
     if (restored) {
       return Promise.resolve()
@@ -135,7 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
     return restoreInflight
   }
 
-  /** Для страницы verify-email: после успеха обновляем user без логина. */
+  /** For verify-email page: after success refresh user without login. */
   async function markEmailVerified(): Promise<void> {
     if (isAuthenticated.value) {
       await fetchMe()

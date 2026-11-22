@@ -8,7 +8,7 @@ withDefaults(
     type?: 'button' | 'submit' | 'reset'
     disabled?: boolean
     href?: string
-    /** Внутренний маршрут (vue-router) вместо href. */
+    /** Vnutrenniy marshrut (vue-router) vmesto href. */
     to?: string
   }>(),
   {

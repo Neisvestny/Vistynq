@@ -1,7 +1,7 @@
 /**
- * Список канвасов пользователя (docs/architecture.md §stores, roadmap R04, R19).
- * Данные GET /canvases (постранично) + создание канваса; форма-состояние диалога
- * (newTitle, createErrors) остаётся локальным в DashboardPage.
+ * Spisok kanvasov polzovatelya (docs/architecture.md §stores, roadmap R04, R19).
+ * Dannye GET /canvases (postranichno) + sozdanie kanvasa; forma-sostoyanie dialoga
+ * (newTitle, createErrors) ostayotsya lokalnym v DashboardPage.
  */
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
@@ -36,9 +36,9 @@ export const useCanvasesStore = defineStore('canvases', () => {
   }
 
   /**
-   * Создаёт канвас. Ошибка НЕ глотается — ApiError пробрасывается наверх,
-   * чтобы view разнёс её по полям формы (applyApiError). В items не пушим:
-   * view после успеха уходит на /canvas/:id, список перезагрузится на mount.
+   * Sozdayot kanvas. Error NE glotaetsya — ApiError probrasyvaetsya naverkh,
+   * chtoby view raznyos eyo po polyam formy (applyApiError). V items ne pushim:
+   * view posle uspekha ukhodit na /canvas/:id, spisok perezagruzitsya na mount.
    */
   async function create(title: string): Promise<Canvas> {
     creating.value = true

@@ -1,8 +1,8 @@
 /**
- * Мост тостов для кода вне компонентов (store, router-guards).
+ * Most tostov dlya koda vne komponentov (store, router-guards).
  *
- * reka-ui useToastManager() работает только внутри ToastProvider; здесь —
- * module-level хендлер, который регистрирует ToastBridge.vue (см. App.vue).
+ * reka-ui useToastManager() rabotaet tolko vnutri ToastProvider; zdes —
+ * module-level khendler, kotoryy registriruet ToastBridge.vue (sm. App.vue).
  */
 export type ToastStatus = 'default' | 'success' | 'error'
 

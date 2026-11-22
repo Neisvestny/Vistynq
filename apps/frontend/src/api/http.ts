@@ -1,11 +1,12 @@
 /**
- * HTTP-клиент API (docs/architecture.md §1, roadmap R04).
+ * HTTP API client (docs/architecture.md §1, roadmap R04).
  *
- * - access-token живёт только в памяти модуля (не в localStorage);
- * - 401 → single-flight refresh (один inflight-промис на все параллельные
- *   запросы) → один повтор исходного запроса; повторный 401 → logout+редирект;
- * - сетевая ошибка на GET → один автоматический повтор.
+ * - access token lives only in module memory (not in localStorage);
+ * - 401 -> single-flight refresh (one inflight promise for all parallel
+ *   requests) -> one retry of original request; repeated 401 -> logout+redirect;
+ * - network error on GET -> one automatic retry.
  */
+import { tGlobal } from '@/i18n'
 import type { AccessTokenResponse, ApiErrorBody } from './types'
 
 export const API_BASE = '/api/v1'
@@ -23,32 +24,32 @@ export class ApiError extends Error {
     this.details = details
   }
 
-  static network(message = 'Сервер недоступен — проверьте соединение'): ApiError {
-    return new ApiError(0, 'NETWORK', message)
+  static network(message?: string): ApiError {
+    return new ApiError(0, 'NETWORK', message ?? tGlobal('errors.serverUnavailable'))
   }
 }
 
 export interface UploadProgress {
   loaded: number
   total: number
-  /** 0..100, или 0 если total неизвестен. */
+  /** 0..100, or 0 if total is unknown. */
   percent: number
 }
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-  /** JSON-объект (сериализуется) или FormData для multipart-запросов. */
+  /** JSON object (serialized) or FormData for multipart requests. */
   body?: unknown
-  /** Добавлять Authorization: Bearer (по умолчанию true). */
+  /** Add Authorization: Bearer (default true). */
   auth?: boolean
   query?: Record<string, string | number | boolean | null | undefined>
   headers?: Record<string, string>
-  /** Прогресс загрузки тела запроса (multipart). Включает XHR-транспорт. */
+  /** Request body upload progress (multipart). Enables XHR transport. */
   onUploadProgress?: (progress: UploadProgress) => void
 }
 
 /* ------------------------------------------------------------------ */
-/* Токен и callbacks (регистрирует store — без циклических импортов)   */
+/* Token and callbacks (registered by store - no circular imports)   */
 /* ------------------------------------------------------------------ */
 
 let accessToken: string | null = null
@@ -56,7 +57,7 @@ let accessToken: string | null = null
 export function setAccessToken(token: string | null): void {
   accessToken = token
   if (token !== null) {
-    // Новый токен — следующая «просрочка» снова имеет право уведомить один раз.
+    // New token - next expiry is allowed to notify once again.
     sessionExpiredNotified = false
   }
 }
@@ -67,20 +68,20 @@ export function getAccessToken(): string | null {
 
 let unauthorizedHandler: (() => void) | null = null
 
-/** Повторный 401 после refresh → store делает logout + редирект + тост. */
+/** Repeated 401 after refresh -> store does logout + redirect + toast. */
 export function setOnUnauthorized(handler: () => void): void {
   unauthorizedHandler = handler
 }
 
 /**
- * Защита от спама: N параллельных запросов, упавших в один 401, должны
- * вызвать unauthorizedHandler ровно один раз.
+ * Spam protection: N parallel requests failing with same 401 must
+ * call unauthorizedHandler exactly once.
  */
 let sessionExpiredNotified = false
 
 let tokenRefreshedHandler: ((data: AccessTokenResponse) => void) | null = null
 
-/** Успешный refresh → store обновляет user/token. */
+/** Successful refresh -> store updates user/token. */
 export function setOnTokenRefreshed(handler: (data: AccessTokenResponse) => void): void {
   tokenRefreshedHandler = handler
 }
@@ -139,7 +140,7 @@ async function execute<T>(
   if (options.body !== undefined) {
     if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
       body = options.body
-      // Content-Type для FormData выставляет браузер (с boundary).
+      // Content-Type for FormData is set by browser (with boundary).
     } else {
       headers['Content-Type'] = 'application/json'
       body = JSON.stringify(options.body)
@@ -163,7 +164,7 @@ async function execute<T>(
 
   if (res.status === 401 && options.auth !== false) {
     if (allowRefresh && (await refreshSession())) {
-      // Один повтор после успешного refresh.
+      // One retry after successful refresh.
       return execute<T>(path, options, false)
     }
 
@@ -239,7 +240,7 @@ function xhrRequest(
   })
 }
 
-/** GET-запросы повторяются один раз при сетевой ошибке. */
+/** GET requests are retried once on network error. */
 async function fetchWithNetworkRetry(
   url: string,
   method: string,
@@ -264,7 +265,7 @@ async function fetchWithNetworkRetry(
 
 async function toApiError(res: Response): Promise<ApiError> {
   let code = 'HTTP_' + res.status
-  let message = `Ошибка сервера (${res.status})`
+  let message = tGlobal('errors.serverError', { status: res.status })
   let details: Record<string, string[]> | undefined
 
   try {
@@ -275,7 +276,7 @@ async function toApiError(res: Response): Promise<ApiError> {
       details = data.error.details
     }
   } catch {
-    // Не-JSON тело (например HTML от прокси) — оставляем дефолт.
+    // Non-JSON body (e.g. HTML from proxy) - keep default.
   }
 
   return new ApiError(res.status, code, message, details)

@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
-  <RouterLink class="brand" to="/" aria-label="Vistynq — на главную">
+  <RouterLink class="brand" to="/" :aria-label="t('nav.homeAria')">
     <span class="brand__mark" aria-hidden="true">
       <svg
         width="18"

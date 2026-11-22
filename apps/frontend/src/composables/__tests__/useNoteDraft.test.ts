@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { setI18nLocale } from '@/i18n'
 import type { NoteDetail } from '@/api/types'
 import {
   buildSavePlan,
@@ -12,7 +13,7 @@ const detail: NoteDetail = {
   id: 'n1',
   canvasId: 'c1',
   authorId: 'u1',
-  title: 'Заголовок',
+  title: 'Zagolovok',
   importance: 3,
   isRelevant: true,
   visibility: 'public',
@@ -22,7 +23,7 @@ const detail: NoteDetail = {
   width: 220,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
-  bodyMd: 'тело',
+  bodyMd: 'telo',
   myRole: 'editor',
 }
 
@@ -31,13 +32,14 @@ function clone(draft: NoteDraft): NoteDraft {
 }
 
 describe('useNoteDraft (R28)', () => {
-  it('считает неизменённый черновик чистым', () => {
+  beforeEach(() => setI18nLocale('en'))
+  it('schitaet neizmenyonnyy chernovik chistym', () => {
     const draft = draftFromDetail(detail)
     expect(isDraftDirty(draft, clone(draft))).toBe(false)
     expect(buildSavePlan(draft, clone(draft))).toEqual({})
   })
 
-  it('формирует минимальный PATCH только по изменённым полям', () => {
+  it('formiruet minimalnyy PATCH tolko po izmenyonnym polyam', () => {
     const before = draftFromDetail(detail)
     const after = clone(before)
     after.manifest.importance = 5
@@ -48,33 +50,33 @@ describe('useNoteDraft (R28)', () => {
     })
   })
 
-  it('отдельно планирует visibility и body', () => {
+  it('otdelno planiruet visibility i body', () => {
     const before = draftFromDetail(detail)
     const after = clone(before)
     after.manifest.visibility = 'private'
-    after.bodyMd = 'новое тело\n'
-    after.bodyMd = 'новое тело'
+    after.bodyMd = 'novoe telo\n'
+    after.bodyMd = 'novoe telo'
 
     expect(buildSavePlan(before, after)).toEqual({
-      bodyMd: 'новое тело\n',
+      bodyMd: 'novoe telo\n',
       visibility: 'private',
     })
   })
 
-  it('обрезает заголовок при отправке', () => {
+  it('obrezaet zagolovok pri otpravke', () => {
     const before = draftFromDetail(detail)
     const after = clone(before)
-    after.manifest.title = '  Новый заголовок  '
+    after.manifest.title = '  Novyy zagolovok  '
 
-    expect(buildSavePlan(before, after).manifestPatch).toEqual({ title: 'Новый заголовок' })
+    expect(buildSavePlan(before, after).manifestPatch).toEqual({ title: 'Novyy zagolovok' })
   })
 
-  it('валидирует заголовок и важность', () => {
+  it('validiruet zagolovok i vazhnost', () => {
     const draft = draftFromDetail(detail)
     expect(validateManifest(draft.manifest)).toEqual([])
     expect(validateManifest({ ...draft.manifest, title: '   ', importance: 9 })).toEqual([
-      'Укажите заголовок',
-      'Важность должна быть от 1 до 5',
+      'Enter a title',
+      'Importance must be between 1 and 5',
     ])
   })
 })

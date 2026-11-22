@@ -3,15 +3,15 @@ import type { GraphNode, NoteDetail, Tag } from '@/api/types'
 import { noteDetailToGraphNode, noteToGraphNode, tagIdsToNames } from '@/lib/noteMapping'
 
 const tags: Tag[] = [
-  { id: 't1', name: 'важное', color: '#f00' },
-  { id: 't2', name: 'идея', color: '#0f0' },
+  { id: 't1', name: 'vazhnoe', color: '#f00' },
+  { id: 't2', name: 'ideya', color: '#0f0' },
 ]
 
 const note: NoteDetail = {
   id: 'n1',
   canvasId: 'c1',
   authorId: 'u1',
-  title: 'Заметка',
+  title: 'Zametka',
   importance: 4,
   isRelevant: true,
   visibility: 'private',
@@ -21,24 +21,24 @@ const note: NoteDetail = {
   width: 300,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-02T00:00:00Z',
-  bodyMd: 'тело',
+  bodyMd: 'telo',
   myRole: 'owner',
 }
 
 describe('noteMapping (R28)', () => {
-  it('преобразует tagIds в имена и отбрасывает неизвестные', () => {
-    expect(tagIdsToNames(['t2', 'unknown', 't1'], tags)).toEqual(['идея', 'важное'])
+  it('preobrazuet tagIds v imena i otbrasyvaet neizvestnye', () => {
+    expect(tagIdsToNames(['t2', 'unknown', 't1'], tags)).toEqual(['ideya', 'vazhnoe'])
   })
 
-  it('маппит Note в GraphNode с дефолтами', () => {
+  it('mappit Note v GraphNode s defoltami', () => {
     const node = noteToGraphNode(note, tags)
     expect(node).toMatchObject({
       id: 'n1',
-      title: 'Заметка',
+      title: 'Zametka',
       importance: 4,
       isRelevant: true,
       visibility: 'private',
-      tags: ['идея', 'важное'],
+      tags: ['ideya', 'vazhnoe'],
       x: 10,
       y: 20,
       width: 300,
@@ -46,7 +46,7 @@ describe('noteMapping (R28)', () => {
     })
   })
 
-  it('после сохранения сохраняет свежую локальную геометрию ноды', () => {
+  it('posle sokhraneniya sokhranyaet svezhuyu lokalnuyu geometriyu nody', () => {
     const existing: GraphNode = {
       ...noteToGraphNode(note, tags),
       x: 999,

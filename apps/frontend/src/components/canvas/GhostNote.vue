@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Handle, Position } from '@vue-flow/core'
 import type { GhostNodeData } from '@/composables/useGraph'
 
@@ -10,14 +11,16 @@ defineProps<{
 const emit = defineEmits<{
   restore: [noteId: string]
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
-  <div class="ghost-node" role="group" aria-label="Удалённая заметка">
+  <div class="ghost-node" role="group" :aria-label="t('links.ghostAria')">
     <Handle type="target" :position="Position.Left" class="ghost-node__handle" />
 
-    <p class="ghost-node__title">{{ data.label || 'ссылка удалена' }}</p>
-    <p class="ghost-node__hint">Заметка удалена</p>
+    <p class="ghost-node__title">{{ data.label || t('links.deletedBadge') }}</p>
+    <p class="ghost-node__hint">{{ t('links.ghostHint') }}</p>
 
     <button
       v-if="data.canRestore"
@@ -25,7 +28,7 @@ const emit = defineEmits<{
       class="ghost-node__restore nodrag nopan"
       @click.stop="emit('restore', data.targetNoteId)"
     >
-      Восстановить
+      {{ t('links.restore') }}
     </button>
   </div>
 </template>

@@ -51,9 +51,10 @@ describe('ui store', () => {
   })
 
   it('set/toggle note editor side persists and no-ops on same value', () => {
-    const { data, storage } = stubStorage()
+    const { data, storage } = stubStorage({ 'vistynq:locale': 'ru' })
     setActivePinia(createPinia())
     const store = useUiStore()
+    storage.setItem.mockClear()
 
     store.setNoteEditorSide('right')
     expect(storage.setItem).not.toHaveBeenCalled()

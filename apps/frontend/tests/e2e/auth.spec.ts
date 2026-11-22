@@ -150,8 +150,12 @@ test.describe('auth', () => {
     await page.locator('#login-password').fill(password)
     await page.getByRole('button', { name: 'Войти' }).click()
     await expect(page).toHaveURL(/\/dashboard$/)
+    await expect(page.getByRole('heading', { name: /Привет/ })).toBeVisible()
 
     await page.goto('/profile')
-    await expect(page.getByText(newEmail)).toBeVisible()
+    await expect(page).toHaveURL(/\/profile$/)
+    // Стабильный id вместо переведённого label: не зависит от локали и не
+    // гоняет за рендером страницы после полной перезагрузки в CI.
+    await expect(page.locator('#profile-email')).toHaveValue(newEmail, { timeout: 10_000 })
   })
 })

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { ref, watch, type PropType } from 'vue'
 
 export interface WikiLinkItem {
@@ -48,11 +49,13 @@ function onKeyDown(event: KeyboardEvent): boolean {
   return false
 }
 
+const { t } = useI18n()
+
 defineExpose({ onKeyDown })
 </script>
 
 <template>
-  <div class="wiki-link-list" role="listbox" aria-label="Заметки для ссылки">
+  <div class="wiki-link-list" role="listbox" :aria-label="t('editor.wikiLinkListAria')">
     <button
       v-for="(item, index) in items"
       :key="item.id"
@@ -64,9 +67,11 @@ defineExpose({ onKeyDown })
       @click="selectItem(index)"
       @mouseenter="selectedIndex = index"
     >
-      <span class="wiki-link-list__title">{{ item.title || 'Без названия' }}</span>
+      <span class="wiki-link-list__title">{{ item.title || t('note.untitled') }}</span>
     </button>
-    <div v-if="items.length === 0" class="wiki-link-list__empty">Заметки не найдены</div>
+    <div v-if="items.length === 0" class="wiki-link-list__empty">
+      {{ t('editor.noNotesFound') }}
+    </div>
   </div>
 </template>
 

@@ -217,8 +217,7 @@ test.describe('archive panel (R29)', () => {
     const row = item(sheet, title)
     await row.getByRole('button', { name: 'Стереть навсегда' }).click()
     const warning = row.locator('.archive-panel__confirm')
-    await expect(warning).toContainText('необратимо')
-    await expect(warning).toContainText('ссылка удалена')
+    await expect(warning).toContainText('нельзя отменить')
 
     // Отмена ничего не меняет.
     await row.getByRole('button', { name: 'Отмена' }).click()

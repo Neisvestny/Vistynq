@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { accessApi } from '@/api/access'
 import { ApiError } from '@/api/http'
 import { notify } from '@/api/notify'
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   'visibility-changed': [visibility: NoteVisibility]
 }>()
 
+const { t } = useI18n()
 const panelRef = ref<InstanceType<typeof ResourceAccessPanel> | null>(null)
 const visibility = ref<NoteVisibility>(props.visibility)
 const visibilitySaving = ref(false)
@@ -55,12 +57,15 @@ async function setVisibility(next: NoteVisibility): Promise<void> {
     visibility.value = result.visibility
     emit('visibility-changed', result.visibility)
     notify({
-      title: result.visibility === 'public' ? 'Заметка стала публичной' : 'Заметка стала приватной',
+      title:
+        result.visibility === 'public'
+          ? t('access.noteBecamePublic')
+          : t('access.noteBecamePrivate'),
       status: 'success',
     })
   } catch (error) {
     notify({
-      title: 'Не удалось изменить видимость',
+      title: t('access.noteVisibilityFailed'),
       description: error instanceof ApiError ? error.message : undefined,
       status: 'error',
     })
@@ -76,11 +81,15 @@ async function onInvite(payload: InviteRequest): Promise<void> {
 </script>
 
 <template>
-  <UiDialog :open="open" title="Доступ к заметке" @update:open="emit('update:open', $event)">
+  <UiDialog :open="open" :title="t('access.noteTitle')" @update:open="emit('update:open', $event)">
     <div class="access-dialog">
       <section class="access-dialog__section">
-        <h3 class="access-dialog__title">Видимость</h3>
-        <div class="access-dialog__segment" role="radiogroup" aria-label="Видимость заметки">
+        <h3 class="access-dialog__title">{{ t('access.visibilityTitle') }}</h3>
+        <div
+          class="access-dialog__segment"
+          role="radiogroup"
+          :aria-label="t('access.noteVisibilityAria')"
+        >
           <button
             type="button"
             class="access-dialog__segment-btn"
@@ -89,7 +98,7 @@ async function onInvite(payload: InviteRequest): Promise<void> {
             :disabled="visibilitySaving"
             @click="setVisibility('public')"
           >
-            Публичная (по правам канваса)
+            {{ t('access.notePublic') }}
           </button>
           <button
             type="button"
@@ -99,15 +108,11 @@ async function onInvite(payload: InviteRequest): Promise<void> {
             :disabled="visibilitySaving"
             @click="setVisibility('private')"
           >
-            Приватная
+            {{ t('access.notePrivate') }}
           </button>
         </div>
         <p class="access-dialog__hint">
-          {{
-            visibility === 'private'
-              ? 'Приватная заметка видна только автору, владельцу канваса и пользователям, которым выдан доступ.'
-              : 'Публичная заметка видна всем, у кого есть доступ к канвасу.'
-          }}
+          {{ visibility === 'private' ? t('access.notePrivateHint') : t('access.notePublicHint') }}
         </p>
       </section>
 

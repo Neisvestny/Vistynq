@@ -12,22 +12,22 @@ export interface UpdateTagPayload {
 }
 
 export const tagsApi = {
-  /** Список тегов канваса (≥viewer). */
+  /** Spisok tegov kanvasa (≥viewer). */
   list(canvasId: string): Promise<Tag[]> {
     return request<Tag[]>(`/canvases/${canvasId}/tags`)
   },
 
-  /** Создать тег канваса (≥editor). */
+  /** Sozdat teg kanvasa (≥editor). */
   create(canvasId: string, payload: CreateTagPayload): Promise<Tag> {
     return request<Tag>(`/canvases/${canvasId}/tags`, { method: 'POST', body: payload })
   },
 
-  /** Переименовать/перекрасить тег. */
+  /** Pereimenovat/perekrasit teg. */
   update(id: string, payload: UpdateTagPayload): Promise<Tag> {
     return request<Tag>(`/tags/${id}`, { method: 'PATCH', body: payload })
   },
 
-  /** Удалить тег со всех заметок. */
+  /** Udalit teg so vsekh zametok. */
   remove(id: string): Promise<void> {
     return request<void>(`/tags/${id}`, { method: 'DELETE' })
   },

@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { NoteVisibility } from '@/api/types'
 
-/** Данные ноды, которые маппит useGraph из GraphNode (api/types.ts). */
+/** Node data mapped by useGraph from GraphNode (api/types.ts). */
 export interface NoteNodeData {
   title: string
   importance: number
@@ -17,12 +17,13 @@ export interface NoteNodeData {
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { NodeResizeControl } from '@vue-flow/node-resizer'
 
 /**
- * Нода заметки на канвасе (docs/ui-ux.md §2 «Ноды»):
- * прямоугольник ~220px, заголовок, обводка по важности, чипы тегов.
- * Drag/resize по правам — R26; подсветка/dim по тегу — R27.
+ * Canvas note node (docs/ui-ux.md §2 "Nodes"):
+ * ~220px rectangle, title, importance border, tag chips.
+ * Drag/resize by permissions - R26; tag highlight/dim - R27.
  */
 defineOptions({ inheritAttrs: false })
 
@@ -44,6 +45,7 @@ const emit = defineEmits<{
   open: [id: string]
 }>()
 
+const { t } = useI18n()
 const importance = computed(() => Math.min(5, Math.max(1, props.data.importance)))
 const canResize = computed(() => props.draggable || props.data.canMove === true)
 
@@ -71,7 +73,7 @@ function onResizeEnd(event: { params: { width: number; height: number; x: number
     :title="data.title"
     role="button"
     tabindex="0"
-    :aria-label="`Открыть заметку: ${data.title}`"
+    :aria-label="t('note.openAria', { title: data.title || t('note.untitled') })"
     @dblclick.stop="emit('open', id)"
     @keydown.enter.stop="emit('open', id)"
   >
@@ -94,7 +96,7 @@ function onResizeEnd(event: { params: { width: number; height: number; x: number
       @resize-end="onResizeEnd"
     />
 
-    <p class="note-node__title">{{ data.title || 'Без названия' }}</p>
+    <p class="note-node__title">{{ data.title || t('note.untitled') }}</p>
 
     <div v-if="data.tags.length" class="note-node__tags">
       <span

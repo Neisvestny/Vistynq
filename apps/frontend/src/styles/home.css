@@ -33,28 +33,30 @@
   color: var(--color-text-invert);
 }
 
-.site-nav {
+.site-header__nav {
   display: flex;
+  align-items: center;
   justify-self: center;
   gap: var(--space-5);
 }
 
-.site-nav a {
+.site-header__nav a {
   font-size: 0.95rem;
   color: var(--color-text-muted);
 }
 
-.site-nav a:hover {
+.site-header__nav a:hover {
   color: var(--color-accent);
 }
 
 .site-header__actions {
   display: flex;
+  align-items: center;
   gap: var(--space-3);
 }
 
 /* Burger-кнопка: скрыта на десктопе, видна только на мобильном */
-.site-header__burger {
+.site-header__menu-btn {
   display: none;
   align-items: center;
   justify-content: center;
@@ -70,30 +72,37 @@
     color var(--transition-fast);
 }
 
-.site-header__burger:hover {
+.site-header__menu-btn:hover {
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
 
 /* Содержимое выдвижной панели */
-.site-sheet__nav {
+.site-header__sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 100%;
+}
+
+.site-header__sheet-nav {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.site-sheet__nav a {
+.site-header__sheet-nav a {
   padding: 0.5rem 0;
   font-size: 1rem;
   color: var(--color-text-muted);
   transition: color var(--transition-fast);
 }
 
-.site-sheet__nav a:hover {
+.site-header__sheet-nav a:hover {
   color: var(--color-accent);
 }
 
-.site-sheet__actions {
+.site-header__sheet-actions {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -102,7 +111,7 @@
   border-top: 1px solid var(--color-border);
 }
 
-.site-sheet__actions .ui-btn {
+.site-header__sheet-actions .ui-btn {
   width: 100%;
 }
 
@@ -298,7 +307,7 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .site-nav {
+  .site-header__nav {
     gap: var(--space-4);
   }
 
@@ -329,14 +338,20 @@
   }
 
   /* Десктопная навигация и кнопки уезжают в выдвижную панель */
-  .site-nav,
-  .site-header__actions {
+  .site-header__nav {
     display: none;
   }
 
-  .site-header__burger {
-    display: inline-flex;
+  .site-header__actions {
     justify-self: end;
+  }
+
+  .site-header__actions > :not(.site-header__menu-btn) {
+    display: none;
+  }
+
+  .site-header__menu-btn {
+    display: inline-flex;
   }
 
   .hero {

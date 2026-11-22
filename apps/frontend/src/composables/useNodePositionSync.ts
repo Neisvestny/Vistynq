@@ -1,6 +1,7 @@
 import { getCurrentScope, onScopeDispose, type Ref } from 'vue'
 import { canvasApi } from '@/api/canvas'
 import { ApiError } from '@/api/http'
+import { tGlobal } from '@/i18n'
 import type { NodeGeometryPatch } from '@/stores/notes'
 import { useNotesStore } from '@/stores/notes'
 import { notify } from '@/api/notify'
@@ -22,8 +23,8 @@ function tryOnScopeDispose(fn: () => void): void {
 }
 
 /**
- * Дебаунс-сохранение позиций/ширины нод (R26): 500 мс во время изменений,
- * немедленный flush на завершение жеста, сериализация запросов на ноду.
+ * Debauns-sokhranenie pozitsiy/shiriny nod (R26): 500 ms vo vremya izmeneniy,
+ * nemedlennyy flush na zavershenie zhesta, serializatsiya zaprosov na nodu.
  */
 export function useNodePositionSync(canvasId: Ref<string | null>) {
   const notesStore = useNotesStore()
@@ -41,7 +42,7 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
     return { x: node.x, y: node.y, width: node.width }
   }
 
-  /** Зафиксировать серверное/актуальное состояние нод (после загрузки графа). */
+  /** Zafiksirovat servernoe/aktualnoe sostoyanie nod (posle zagruzki grafa). */
   function syncFromNodes(): void {
     cancelAll()
     lastSaved.clear()
@@ -67,14 +68,14 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
     inFlight.clear()
   }
 
-  /** Начало жеста: запомнить точку отката, если ещё не в "грязном" состоянии. */
+  /** Nachalo zhesta: zapomnit tochku otkata, esli eshchyo ne v "gryaznom" sostoyanii. */
   function beginGesture(id: string): void {
     if (snapshotBeforeGesture.has(id)) return
     const current = readCurrent(id)
     if (current) snapshotBeforeGesture.set(id, current)
   }
 
-  /** Запланировать сохранение (debounce 500 мс). */
+  /** Zaplanirovat sokhranenie (debounce 500 ms). */
   function scheduleSave(id: string, delay = 500): void {
     const current = readCurrent(id)
     if (!current) return
@@ -116,7 +117,7 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
     }
 
     if (inFlight.has(id)) {
-      // После завершения текущего запроса повторим с актуальным pending.
+      // Posle zaversheniya tekushchego zaprosa povtorim s aktualnym pending.
       pending.set(id, payload)
       return
     }
@@ -134,7 +135,7 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
       snapshotBeforeGesture.delete(id)
       dirty.delete(id)
 
-      // Если во время запроса пришли новые изменения — отправим их.
+      // Esli vo vremya zaprosa prishli novye izmeneniya — otpravim ikh.
       if (pending.has(id)) {
         inFlight.delete(id)
         void flushOne(id)
@@ -153,8 +154,8 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
       const message =
         error instanceof ApiError && error.message
           ? error.message
-          : 'Не удалось сохранить расположение заметки'
-      notify({ title: 'Не удалось сохранить расположение', description: message, status: 'error' })
+          : tGlobal('canvas.saveLayoutErrorDescription')
+      notify({ title: tGlobal('canvas.saveLayoutError'), description: message, status: 'error' })
     } finally {
       inFlight.delete(id)
       if (pending.has(id) && !timers.has(id) && !inFlight.has(id)) {
@@ -167,7 +168,7 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
     const ids = new Set<string>([...timers.keys(), ...pending.keys(), ...dirty])
     for (const id of ids) {
       clearTimer(id)
-      // Проставим актуальное состояние в pending, если его нет
+      // Prostavim aktualnoe sostoyanie v pending, esli ego net
       if (!pending.has(id)) {
         const current = readCurrent(id)
         if (current) pending.set(id, current)
@@ -176,14 +177,14 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
     }
   }
 
-  /** Применить локальное изменение геометрии и запланировать сохранение. */
+  /** Primenit lokalnoe izmenenie geometrii i zaplanirovat sokhranenie. */
   function applyAndSchedule(id: string, patch: NodeGeometryPatch): void {
     beginGesture(id)
     notesStore.updateNodeGeometry(id, patch)
     scheduleSave(id)
   }
 
-  /** Применить локальное изменение и немедленно сохранить (конец жеста). */
+  /** Primenit lokalnoe izmenenie i nemedlenno sokhranit (konets zhesta). */
   function applyAndFlush(id: string, patch: NodeGeometryPatch): void {
     beginGesture(id)
     notesStore.updateNodeGeometry(id, patch)
@@ -193,7 +194,7 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
   }
 
   tryOnScopeDispose(() => {
-    // Best-effort: снимем таймеры; незавершённые запросы могут не успеть.
+    // Best-effort: snimem taymery; nezavershyonnye zaprosy mogut ne uspet.
     cancelAll()
   })
 

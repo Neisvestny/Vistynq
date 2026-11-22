@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- TODO(R33): Tiptap extension config internals are untyped in tests */
 import { describe, expect, it } from 'vitest'
+import { setI18nLocale } from '@/i18n'
 import { WikiLink, parseWikiLinkText } from '../WikiLink'
 
 describe('parseWikiLinkText', () => {
   it.each([
-    ['[[note-1|Заголовок]]', { noteId: 'note-1', label: 'Заголовок' }],
+    ['[[note-1|Zagolovok]]', { noteId: 'note-1', label: 'Zagolovok' }],
     ['[[note-1]]', { noteId: 'note-1', label: 'note-1' }],
-    ['  [[ note-1 | Заголовок ]]  ', { noteId: 'note-1', label: 'Заголовок' }],
+    ['  [[ note-1 | Zagolovok ]]  ', { noteId: 'note-1', label: 'Zagolovok' }],
     ['[[id|   ]]', { noteId: 'id', label: 'id' }],
     [
       '[[123e4567-e89b-12d3-a456-426614174000|Note]]',
@@ -69,11 +70,11 @@ describe('WikiLink markdownTokenizer', () => {
 
   it('tokenizes [[id|Label]]', () => {
     const t = tokenizer()
-    expect(t.tokenize('[[note-1|Заголовок]] rest')).toEqual({
+    expect(t.tokenize('[[note-1|Zagolovok]] rest')).toEqual({
       type: 'wikiLink',
-      raw: '[[note-1|Заголовок]]',
+      raw: '[[note-1|Zagolovok]]',
       noteId: 'note-1',
-      label: 'Заголовок',
+      label: 'Zagolovok',
     })
   })
 
@@ -173,12 +174,13 @@ describe('WikiLink renderHTML/addAttributes/addCommands config', () => {
   })
 
   it('renderHTML falls back to noteId/default label', () => {
+    setI18nLocale('en')
     const renderHTML = WikiLink.config.renderHTML as any
     expect(
       renderHTML({ HTMLAttributes: {}, node: { attrs: { noteId: 'n1', label: '' } } })[2]
     ).toBe('[[n1]]')
     expect(renderHTML({ HTMLAttributes: {}, node: { attrs: { noteId: '', label: '' } } })[2]).toBe(
-      '[[ссылка]]'
+      '[[link]]'
     )
   })
 

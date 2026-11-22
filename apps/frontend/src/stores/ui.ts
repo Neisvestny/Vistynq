@@ -1,14 +1,15 @@
 /**
- * Глобальное UI-состояние (docs/architecture.md §stores, R04).
- * Сейчас — мобильное меню (ленивый sheet из TheSiteHeader), положение
- * панели редактора заметки (R28) и место расширения под фильтры (R29/R34).
+ * Globalnoe UI-sostoyanie (docs/architecture.md §stores, R04).
+ * Seychas — mobilnoe menyu (lenivyy sheet iz TheSiteHeader), polozhenie
+ * paneli redaktora zametki (R28), lokal (R34) i mesto rasshireniya pod filtry (R29).
  */
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
+import { detectLocale, isAppLocale, setI18nLocale, type AppLocale } from '@/i18n'
 
 export type NoteEditorSide = 'left' | 'right'
 
-/** Не чувствительная настройка UI — допускается localStorage. */
+/** Ne chuvstvitelnaya nastroyka UI — dopuskaetsya localStorage. */
 export const NOTE_EDITOR_SIDE_KEY = 'vistynq:note-editor-side'
 
 function readNoteEditorSide(): NoteEditorSide {
@@ -24,13 +25,14 @@ function writeNoteEditorSide(side: NoteEditorSide): void {
   try {
     globalThis.localStorage?.setItem(NOTE_EDITOR_SIDE_KEY, side)
   } catch {
-    // Приватный режим/заблокированный storage — preference просто не сохранится.
+    // Privatnyy rezhim/zablokirovannyy storage — preference prosto ne sokhranitsya.
   }
 }
 
 export const useUiStore = defineStore('ui', () => {
   const mobileMenuOpen = ref(false)
   const noteEditorSide = ref<NoteEditorSide>(readNoteEditorSide())
+  const locale = ref<AppLocale>(detectLocale())
 
   function openMenu(): void {
     mobileMenuOpen.value = true
@@ -54,13 +56,24 @@ export const useUiStore = defineStore('ui', () => {
     setNoteEditorSide(noteEditorSide.value === 'right' ? 'left' : 'right')
   }
 
+  function setLocale(next: AppLocale): void {
+    if (!isAppLocale(next) || locale.value === next) return
+    locale.value = next
+    setI18nLocale(next)
+  }
+
+  // Keep i18n in sync on store init (detectLocale already applied in i18n module).
+  setI18nLocale(locale.value)
+
   return {
     mobileMenuOpen,
     noteEditorSide,
+    locale,
     openMenu,
     closeMenu,
     toggleMenu,
     setNoteEditorSide,
     toggleNoteEditorSide,
+    setLocale,
   }
 })

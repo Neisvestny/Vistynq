@@ -37,12 +37,12 @@ export interface DeriveNoteResult {
 }
 
 export const notesApi = {
-  /** Создать заметку на канвасе (≥editor канваса). */
+  /** Sozdat zametku na kanvase (≥editor kanvasa). */
   create(canvasId: string, payload: CreateNotePayload = {}): Promise<Note> {
     return request<Note>(`/canvases/${canvasId}/notes`, { method: 'POST', body: payload })
   },
 
-  /** Импорт .md/.txt (≤1 МБ) как новой заметки. */
+  /** Import .md/.txt (≤1 MB) kak novoy zametki. */
   createFromText(canvasId: string, payload: CreateNoteFromTextPayload): Promise<Note> {
     const form = new FormData()
     form.append('file', payload.file)
@@ -52,7 +52,7 @@ export const notesApi = {
     return request<Note>(`/canvases/${canvasId}/notes/from-text`, { method: 'POST', body: form })
   },
 
-  /** Создать заметку от родительской с прямой ссылкой. */
+  /** Sozdat zametku ot roditelskoy s pryamoy ssylkoy. */
   derive(canvasId: string, payload: DeriveNotePayload): Promise<DeriveNoteResult> {
     return request<DeriveNoteResult>(`/canvases/${canvasId}/notes/derive`, {
       method: 'POST',
@@ -60,32 +60,32 @@ export const notesApi = {
     })
   },
 
-  /** Заметка с телом и моей ролью. */
+  /** Zametka s telom i moey rolyu. */
   get(id: string): Promise<NoteDetail> {
     return request<NoteDetail>(`/notes/${id}`)
   },
 
-  /** Обновить манифест (заголовок, важность, актуальность, теги). */
+  /** Obnovit manifest (zagolovok, vazhnost, aktualnost, tegi). */
   updateManifest(id: string, payload: UpdateNoteManifestPayload): Promise<NoteDetail> {
     return request<NoteDetail>(`/notes/${id}`, { method: 'PATCH', body: payload })
   },
 
-  /** Сохранить markdown-тело (сервер перепарсит [[wikilinks]]). */
+  /** Sokhranit markdown-telo (server pereparsit [[wikilinks]]). */
   updateBody(id: string, payload: UpdateNoteBodyPayload): Promise<NoteDetail> {
     return request<NoteDetail>(`/notes/${id}/body`, { method: 'PUT', body: payload })
   },
 
-  /** Soft delete в архив «Удалённые». */
+  /** Soft delete v arkhiv «Udalyonnye». */
   remove(id: string): Promise<void> {
     return request<void>(`/notes/${id}`, { method: 'DELETE' })
   },
 
-  /** Восстановить из архива (410 если стёрта навсегда). */
+  /** Vosstanovit iz arkhiva (410 esli styorta navsegda). */
   restore(id: string): Promise<Note> {
     return request<Note>(`/notes/${id}/restore`, { method: 'POST' })
   },
 
-  /** Стереть навсегда (tombstone). */
+  /** Steret navsegda (tombstone). */
   purge(id: string): Promise<void> {
     return request<void>(`/notes/${id}/purge`, { method: 'DELETE' })
   },

@@ -38,48 +38,48 @@ function roundTrip(markdown: string): string {
 }
 
 describe('editorMarkdown (R28)', () => {
-  it('нормализует CRLF и завершающий перевод строки', () => {
+  it('normalizuet CRLF i zavershayushchiy perevod stroki', () => {
     expect(normalizeMarkdown('a\r\nb')).toBe('a\nb\n')
     expect(normalizeMarkdown('')).toBe('')
     expect(normalizeMarkdown('a\n')).toBe('a\n')
   })
 
-  it('сохраняет заголовки H1–H3, жирный, курсив, списки и код', () => {
+  it('sokhranyaet zagolovki H1–H3, zhirnyy, kursiv, spiski i kod', () => {
     const md =
-      '# Заголовок 1\n\n## Заголовок 2\n\n### Заголовок 3\n\n**жирный** *курсив* `код`\n\n- один\n- два\n\n```js\nconst a = 1\n```\n'
+      '# Zagolovok 1\n\n## Zagolovok 2\n\n### Zagolovok 3\n\n**zhirnyy** *kursiv* `kod`\n\n- odin\n- dva\n\n```js\nconst a = 1\n```\n'
     expect(roundTrip(md)).toBe(md)
   })
 
-  it('сохраняет ссылки', () => {
-    expect(roundTrip('[Ссылка](https://example.com)\n')).toBe('[Ссылка](https://example.com)\n')
+  it('sokhranyaet ssylki', () => {
+    expect(roundTrip('[Ssylka](https://example.com)\n')).toBe('[Ssylka](https://example.com)\n')
   })
 
-  it('не экранирует [[wikilinks]] при round-trip (R30)', () => {
-    const md = 'См. [[123e4567-e89b-12d3-a456-426614174000|Заметка Б]]\n'
+  it('ne ekraniruet [[wikilinks]] pri round-trip (R30)', () => {
+    const md = 'See [[123e4567-e89b-12d3-a456-426614174000|Zametka B]]\n'
     expect(roundTrip(md)).toBe(md)
   })
 
-  it('поддерживает несколько wikilinks в тексте (R30)', () => {
-    const md = 'Текст [[id-1|Первая]] и [[id-2|Вторая]]\n'
+  it('podderzhivaet neskolko wikilinks v tekste (R30)', () => {
+    const md = 'Tekst [[id-1|Pervaya]] i [[id-2|Vtoraya]]\n'
     expect(roundTrip(md)).toBe(md)
   })
 
-  it('сохраняет wikilink без label как [[id]] (R30)', () => {
-    const md = 'См. [[id-1]]\n'
+  it('sokhranyaet wikilink bez label kak [[id]] (R30)', () => {
+    const md = 'See [[id-1]]\n'
     expect(roundTrip(md)).toBe(md)
   })
 
-  it('восстанавливает вручную набранную [[ссылку]] без prepare', () => {
-    expect(restoreWikiLinks('\\[\\[id|Заголовок\\]\\]\n')).toBe('[[id|Заголовок]]\n')
+  it('vosstanavlivaet vruchnuyu nabrannuyu [[ssylku]] bez prepare', () => {
+    expect(restoreWikiLinks('\\[\\[id|Zagolovok\\]\\]\n')).toBe('[[id|Zagolovok]]\n')
   })
 
-  it('prepareMarkdownForEditor больше не токенизирует wikilinks (R30)', () => {
+  it('prepareMarkdownForEditor bolshe ne tokeniziruet wikilinks (R30)', () => {
     const prepared = prepareMarkdownForEditor('[[id|A]]\n')
     expect(prepared.markdown).toBe('[[id|A]]\n')
     expect(prepared.wikiLinks).toEqual([])
   })
 
-  it('команда setWikiLink вставляет wikilink и сериализует в markdown (R30)', () => {
+  it('komanda setWikiLink vstavlyaet wikilink i serializuet v markdown (R30)', () => {
     const prepared = prepareMarkdownForEditor('')
     const editor = new Editor({
       extensions: [
@@ -99,11 +99,11 @@ describe('editorMarkdown (R28)', () => {
       contentType: 'markdown',
     })
 
-    editor.commands.setWikiLink({ noteId: 'note-1', label: 'Заметка 1' })
+    editor.commands.setWikiLink({ noteId: 'note-1', label: 'Zametka 1' })
     const md = toStoredMarkdown(editor.getMarkdown(), prepared.wikiLinks)
     editor.destroy()
 
-    expect(md).toContain('[[note-1|Заметка 1]]')
+    expect(md).toContain('[[note-1|Zametka 1]]')
   })
 })
 

@@ -1,4 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core'
+import { tGlobal } from '@/i18n'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
 import WikiLinkChip from './WikiLinkChip.vue'
 
@@ -44,7 +45,7 @@ export const WikiLink = Node.create({
   },
 
   renderHTML({ HTMLAttributes, node }) {
-    const label = String(node.attrs.label || node.attrs.noteId || 'ссылка')
+    const label = String(node.attrs.label || node.attrs.noteId || tGlobal('links.linkFallback'))
     return [
       'span',
       mergeAttributes(HTMLAttributes, {

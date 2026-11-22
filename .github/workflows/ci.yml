@@ -127,6 +127,12 @@ jobs:
           pgsty/silo:latest mc mb --ignore-existing local/vistynq-test
 
       - run: vendor/bin/phpunit
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_NAME: vistynq_test
+          DB_USER: vistynq
+          DB_PASS: vistynq_test_password
 
   openapi-check:
     name: openapi check (redocly)

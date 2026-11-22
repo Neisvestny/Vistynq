@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
- * Форма манифеста заметки (R28): заголовок, важность, теги, актуальность,
- * видимость и кнопка «Доступ». Не делает запросов — только emit-ит изменения.
+ * Note manifest form (R28): title, importance, tags, relevance,
+ * visibility and "Access" button. No requests - only emits changes.
  */
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import type { Tag } from '@/api/types'
@@ -25,15 +26,14 @@ const emit = defineEmits<{
   'open-access': []
 }>()
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const tagQuery = ref('')
 const tagMenuOpen = ref(false)
 const importanceLevels = [1, 2, 3, 4, 5] as const
 
 const errors = computed(() => validateManifest(props.modelValue))
-const titleError = computed(() =>
-  errors.value.find((error) => error.toLocaleLowerCase('ru').includes('заголовок'))
-)
+const titleError = computed(() => errors.value.find((error) => error === t('note.titleRequired')))
 
 const selectedTags = computed(() =>
   props.modelValue.tagIds
@@ -99,11 +99,11 @@ defineExpose({ validate })
 <template>
   <form class="manifest-form" @submit.prevent>
     <label class="manifest-form__field">
-      <span class="manifest-form__label">Заголовок</span>
+      <span class="manifest-form__label">{{ t('note.titleLabel') }}</span>
       <UiInput
         :model-value="modelValue.title"
         :disabled="!canEdit"
-        placeholder="Название заметки"
+        :placeholder="t('note.titlePlaceholder')"
         :maxlength="200"
         @update:model-value="patch({ title: $event })"
       />
@@ -111,7 +111,7 @@ defineExpose({ validate })
     </label>
 
     <fieldset class="manifest-form__field" :disabled="!canEdit">
-      <legend class="manifest-form__label">Важность</legend>
+      <legend class="manifest-form__label">{{ t('note.importanceLabel') }}</legend>
       <div class="manifest-form__segment">
         <button
           v-for="level in importanceLevels"
@@ -120,7 +120,7 @@ defineExpose({ validate })
           class="manifest-form__segment-button"
           :class="{ 'manifest-form__segment-button--active': modelValue.importance === level }"
           :aria-pressed="modelValue.importance === level"
-          :title="`Важность ${level}`"
+          :title="t('note.importanceLevel', { level })"
           @click="patch({ importance: level })"
         >
           {{ level }}
@@ -129,7 +129,7 @@ defineExpose({ validate })
     </fieldset>
 
     <div class="manifest-form__field">
-      <span class="manifest-form__label">Теги</span>
+      <span class="manifest-form__label">{{ t('note.tagsLabel') }}</span>
       <div class="manifest-form__tags">
         <span v-for="tag in selectedTags" :key="tag.id" class="manifest-form__chip">
           <span class="manifest-form__chip-dot" :style="{ background: tag.color }" />
@@ -138,19 +138,21 @@ defineExpose({ validate })
             v-if="canEdit"
             type="button"
             class="manifest-form__chip-remove"
-            :aria-label="`Убрать тег ${tag.name}`"
+            :aria-label="t('note.removeTag', { name: tag.name })"
             @click="toggleTag(tag.id)"
           >
             ✕
           </button>
         </span>
-        <span v-if="selectedTags.length === 0" class="manifest-form__hint">Теги не заданы</span>
+        <span v-if="selectedTags.length === 0" class="manifest-form__hint">{{
+          t('note.noTags')
+        }}</span>
       </div>
 
       <div v-if="canEdit" class="manifest-form__tag-add">
         <UiInput
           v-model="tagQuery"
-          placeholder="Найти или добавить тег…"
+          :placeholder="t('note.findOrAddTag')"
           @focus="tagMenuOpen = true"
         />
         <div v-if="tagMenuOpen && tagQuery.trim()" class="manifest-form__tag-menu">
@@ -170,7 +172,7 @@ defineExpose({ validate })
             class="manifest-form__tag-option manifest-form__tag-option--new"
             @click="createTag"
           >
-            + Создать «{{ newTagName }}»
+            + {{ t('note.createTagNamed', { name: newTagName }) }}
           </button>
         </div>
       </div>
@@ -183,11 +185,11 @@ defineExpose({ validate })
         :disabled="!canEdit"
         @change="patch({ isRelevant: ($event.target as HTMLInputElement).checked })"
       />
-      <span>Актуальна</span>
+      <span>{{ t('note.relevant') }}</span>
     </label>
 
     <div class="manifest-form__field">
-      <span class="manifest-form__label">Видимость</span>
+      <span class="manifest-form__label">{{ t('note.visibilityLabel') }}</span>
       <div v-if="canManageAccess" class="manifest-form__segment">
         <button
           type="button"
@@ -196,7 +198,7 @@ defineExpose({ validate })
           :aria-pressed="modelValue.visibility === 'public'"
           @click="setVisibility('public')"
         >
-          Публичная
+          {{ t('note.public') }}
         </button>
         <button
           type="button"
@@ -205,21 +207,23 @@ defineExpose({ validate })
           :aria-pressed="modelValue.visibility === 'private'"
           @click="setVisibility('private')"
         >
-          Приватная
+          {{ t('note.private') }}
         </button>
       </div>
       <p v-else class="manifest-form__hint">
-        {{ modelValue.visibility === 'public' ? 'Публичная' : 'Приватная' }}
+        {{ modelValue.visibility === 'public' ? t('note.public') : t('note.private') }}
       </p>
     </div>
 
     <div v-if="canManageAccess" class="manifest-form__access">
       <UiButton variant="ghost" size="sm" type="button" @click="emit('open-access')">
-        Доступ…
+        {{ t('note.access') }}
       </UiButton>
     </div>
 
-    <p class="manifest-form__author">Автор: {{ authorId === auth.user?.id ? 'вы' : authorId }}</p>
+    <p class="manifest-form__author">
+      {{ t('note.author', { author: authorId === auth.user?.id ? t('note.you') : authorId }) }}
+    </p>
   </form>
 </template>
 

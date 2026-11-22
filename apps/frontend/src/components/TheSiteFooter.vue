@@ -1,21 +1,29 @@
 <script setup lang="ts">
-const links = [
-  { label: 'Документация', href: 'https://github.com/Neisvestny/Vistynq/tree/main/docs' },
-  { label: 'Описание API', href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/api.md' },
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
+const links = computed(() => [
+  { label: t('landing.docs'), href: 'https://github.com/Neisvestny/Vistynq/tree/main/docs' },
+  { label: t('landing.api'), href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/api.md' },
   {
-    label: 'Оформление и интерфейс',
+    label: t('landing.uiux'),
     href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/ui-ux.md',
   },
-  { label: 'Планы', href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/ROADMAP.md' },
-]
+  {
+    label: t('landing.roadmap'),
+    href: 'https://github.com/Neisvestny/Vistynq/blob/main/docs/ROADMAP.md',
+  },
+])
 </script>
 
 <template>
   <footer class="site-footer">
     <div class="container site-footer__inner">
-      <span class="site-footer__meta">© 2026 Vistynq — заметки и связи между ними</span>
+      <span class="site-footer__meta">{{ t('landing.footerRights') }}</span>
 
-      <nav class="site-footer__links" aria-label="Ссылки проекта">
+      <nav class="site-footer__links" :aria-label="t('nav.projectLinks')">
         <a
           v-for="link in links"
           :key="link.href"
@@ -27,7 +35,7 @@ const links = [
         </a>
       </nav>
 
-      <span class="site-footer__meta">Сделано с заботой о ваших идеях</span>
+      <span class="site-footer__meta">{{ t('landing.footerTagline') }}</span>
     </div>
   </footer>
 </template>

@@ -1,6 +1,6 @@
 /**
- * Auth-эндпоинты (docs/api.md §Auth и профиль). Токены верификации/sброса
- * передаются в теле запроса — не в URL, чтобы не попадать в логи (architecture.md §2).
+ * Auth-endpointy (docs/api.md §Auth i profil). Tokeny verifikatsii/sbrosa
+ * peredayutsya v tele zaprosa — ne v URL, chtoby ne popadat v logi (architecture.md §2).
  */
 import { request } from './http'
 import type { AccessTokenResponse, User } from './types'
@@ -28,12 +28,12 @@ export const authApi = {
     })
   },
 
-  /** 201: письмо верификации, refresh-кука не выдаётся до верификации. */
+  /** 201: pismo verifikatsii, refresh-kuka ne vydayotsya do verifikatsii. */
   register(payload: RegisterPayload): Promise<void> {
     return request<void>('/auth/register', { method: 'POST', body: payload, auth: false })
   },
 
-  /** Ротация через httpOnly-cookie; результат прокидывается в store через setOnTokenRefreshed. */
+  /** Rotatsiya cherez httpOnly-cookie; rezultat prokidyvaetsya v store cherez setOnTokenRefreshed. */
   refresh(): Promise<AccessTokenResponse> {
     return request<AccessTokenResponse>('/auth/refresh', { method: 'POST', auth: false })
   },
@@ -46,7 +46,7 @@ export const authApi = {
     return request<User>('/auth/me')
   },
 
-  /** Смена имени/email (email — через pendingEmail и письмо на новый адрес). */
+  /** Smena imeni/email (email — cherez pendingEmail i pismo na novyy adres). */
   updateProfile(payload: UpdateProfilePayload): Promise<User> {
     return request<User>('/profile', { method: 'PATCH', body: payload })
   },
@@ -55,7 +55,7 @@ export const authApi = {
     return request<void>('/auth/verify-email', { method: 'POST', body: { token }, auth: false })
   },
 
-  /** Всегда 202 — без утечки существования email. */
+  /** Vsegda 202 — bez utechki sushchestvovaniya email. */
   resendVerification(email: string): Promise<void> {
     return request<void>('/auth/resend-verification', {
       method: 'POST',
@@ -64,12 +64,12 @@ export const authApi = {
     })
   },
 
-  /** Всегда 202. */
+  /** Vsegda 202. */
   forgotPassword(email: string): Promise<void> {
     return request<void>('/auth/forgot-password', { method: 'POST', body: { email }, auth: false })
   },
 
-  /** 204 + отзыв всех refresh-токенов. */
+  /** 204 + otzyv vsekh refresh-tokenov. */
   resetPassword(token: string, password: string): Promise<void> {
     return request<void>('/auth/reset-password', {
       method: 'POST',

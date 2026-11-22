@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * Регистрирует notify-хендлер (src/api/notify.ts) в ToastProvider'е —
- * позволяет кидать тосты из store и router-guards вне компонентного контекста.
+ * Registriruet notify-khendler (src/api/notify.ts) v ToastProvider'e —
+ * pozvolyaet kidat tosty iz store i router-guards vne komponentnogo konteksta.
  */
 import { useToast } from '@/composables/useToast'
 import { setNotifyHandler } from '@/api/notify'
@@ -11,6 +11,6 @@ setNotifyHandler(notify)
 </script>
 
 <template>
-  <!-- Визуально ничего не рендерит. -->
+  <!-- Vizualno nichego ne renderit. -->
   <span hidden />
 </template>

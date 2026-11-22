@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { sanitizeHtml } from '../sanitize'
 
 /**
- * R18: клиентский санитайзер для будущего Tiptap (R28) и /shared (R32).
- * Проверяем, что опасный HTML/URL не выживают, а разрешённая разметка —
- * сохраняется.
+ * R18: klientskiy sanitayzer dlya budushchego Tiptap (R28) i /shared (R32).
+ * Proveryaem, chto opasnyy HTML/URL ne vyzhivayut, a razreshyonnaya razmetka —
+ * sokhranyaetsya.
  */
 describe('sanitizeHtml', () => {
   it('removes scripts and event handlers', () => {
@@ -49,11 +49,11 @@ describe('sanitizeHtml', () => {
 
   it('keeps whitelisted markup and safe links', () => {
     const html = sanitizeHtml(
-      '<h1>Заголовок</h1><p><strong>bold</strong> <em>it</em> <code>x &lt; y</code></p>' +
+      '<h1>Zagolovok</h1><p><strong>bold</strong> <em>it</em> <code>x &lt; y</code></p>' +
         '<a href="https://example.com/a?b=1&amp;c=2" title="t">link</a>'
     )
 
-    expect(html).toContain('<h1>Заголовок</h1>')
+    expect(html).toContain('<h1>Zagolovok</h1>')
     expect(html).toContain('<strong>bold</strong>')
     expect(html).toContain('<em>it</em>')
     expect(html).toContain('<code>x &lt; y</code>')

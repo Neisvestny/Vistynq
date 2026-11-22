@@ -1,19 +1,21 @@
 <script setup lang="ts">
 /**
- * Инлайн-чип wikilink (R30): [[uuid|Title]].
- * Не навигирует при клике; contenteditable=false.
+ * Inline wikilink chip (R30): [[uuid|Title]].
+ * Does not navigate on click; contenteditable=false.
  */
 import { NodeViewWrapper } from '@tiptap/vue-3'
 import type { NodeViewProps } from '@tiptap/vue-3'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<NodeViewProps>()
+const { t } = useI18n()
 
 const label = computed(() => {
   const raw = props.node.attrs.label
   if (typeof raw === 'string' && raw.trim().length > 0) return raw
   const id = props.node.attrs.noteId
-  return typeof id === 'string' && id.trim().length > 0 ? id : 'ссылка'
+  return typeof id === 'string' && id.trim().length > 0 ? id : t('links.linkFallback')
 })
 </script>
 

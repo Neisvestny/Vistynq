@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
- * Панель форматирования Tiptap-редактора (R28).
- * H1–H3, bold/italic, списки, код, ссылка, undo/redo.
- * Картинка-upload и автодополнение `[[` приходят в R30/R31.
+ * Tiptap editor formatting toolbar (R28).
+ * H1-H3, bold/italic, lists, code, link, undo/redo.
+ * Image upload and [[ autocomplete arrive in R30/R31.
  */
 import type { Editor } from '@tiptap/vue-3'
+import { useI18n } from 'vue-i18n'
 import { notify } from '@/api/notify'
 
 const props = withDefaults(
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   'pick-image': []
 }>()
 
+const { t } = useI18n()
 const headingLevels = [1, 2, 3] as const
 
 function isActive(name: string, attrs?: Record<string, unknown>): boolean {
@@ -33,7 +35,7 @@ function setLink(): void {
   const editor = props.editor
   if (!editor) return
   const current = editor.getAttributes('link').href as string | undefined
-  const answer = window.prompt('Адрес ссылки (https://…)', current ?? 'https://')
+  const answer = window.prompt(t('editor.linkPrompt'), current ?? 'https://')
   if (answer === null) return
 
   const href = answer.trim()
@@ -43,8 +45,8 @@ function setLink(): void {
   }
   if (!/^(https?:\/\/|mailto:)/i.test(href)) {
     notify({
-      title: 'Некорректная ссылка',
-      description: 'Разрешены адреса http://, https:// и mailto:',
+      title: t('editor.invalidLink'),
+      description: t('editor.invalidLinkDescription'),
       status: 'error',
     })
     return
@@ -54,7 +56,7 @@ function setLink(): void {
 </script>
 
 <template>
-  <div class="editor-toolbar" role="toolbar" aria-label="Форматирование текста">
+  <div class="editor-toolbar" role="toolbar" :aria-label="t('editor.toolbarAria')">
     <div class="editor-toolbar__group">
       <button
         v-for="level in headingLevels"
@@ -62,7 +64,7 @@ function setLink(): void {
         type="button"
         class="editor-toolbar__button"
         :class="{ 'editor-toolbar__button--active': isActive('heading', { level }) }"
-        :title="`Заголовок H${level}`"
+        :title="t('editor.heading', { level })"
         :disabled="!editor"
         @click="setHeading(level)"
       >
@@ -77,7 +79,7 @@ function setLink(): void {
         type="button"
         class="editor-toolbar__button"
         :class="{ 'editor-toolbar__button--active': isActive('bold') }"
-        title="Жирный (Ctrl+B)"
+        :title="t('editor.bold')"
         :disabled="!editor"
         @click="void editor?.chain().focus().toggleBold().run()"
       >
@@ -87,7 +89,7 @@ function setLink(): void {
         type="button"
         class="editor-toolbar__button"
         :class="{ 'editor-toolbar__button--active': isActive('italic') }"
-        title="Курсив (Ctrl+I)"
+        :title="t('editor.italic')"
         :disabled="!editor"
         @click="void editor?.chain().focus().toggleItalic().run()"
       >
@@ -102,21 +104,21 @@ function setLink(): void {
         type="button"
         class="editor-toolbar__button"
         :class="{ 'editor-toolbar__button--active': isActive('bulletList') }"
-        title="Маркированный список"
+        :title="t('editor.bulletList')"
         :disabled="!editor"
         @click="void editor?.chain().focus().toggleBulletList().run()"
       >
-        • список
+        {{ t('editor.bulletListLabel') }}
       </button>
       <button
         type="button"
         class="editor-toolbar__button"
         :class="{ 'editor-toolbar__button--active': isActive('orderedList') }"
-        title="Нумерованный список"
+        :title="t('editor.orderedList')"
         :disabled="!editor"
         @click="void editor?.chain().focus().toggleOrderedList().run()"
       >
-        1. список
+        {{ t('editor.orderedListLabel') }}
       </button>
     </div>
 
@@ -127,7 +129,7 @@ function setLink(): void {
         type="button"
         class="editor-toolbar__button"
         :class="{ 'editor-toolbar__button--active': isActive('code') }"
-        title="Код в строке"
+        :title="t('editor.inlineCode')"
         :disabled="!editor"
         @click="void editor?.chain().focus().toggleCode().run()"
       >
@@ -137,7 +139,7 @@ function setLink(): void {
         type="button"
         class="editor-toolbar__button"
         :class="{ 'editor-toolbar__button--active': isActive('codeBlock') }"
-        title="Блок кода"
+        :title="t('editor.codeBlock')"
         :disabled="!editor"
         @click="void editor?.chain().focus().toggleCodeBlock().run()"
       >
@@ -147,7 +149,7 @@ function setLink(): void {
         type="button"
         class="editor-toolbar__button"
         :class="{ 'editor-toolbar__button--active': isActive('link') }"
-        title="Ссылка"
+        :title="t('editor.link')"
         :disabled="!editor"
         @click="setLink"
       >
@@ -156,7 +158,7 @@ function setLink(): void {
       <button
         type="button"
         class="editor-toolbar__button"
-        :title="canUploadImage ? 'Вставить картинку' : 'Загрузка картинок недоступна'"
+        :title="canUploadImage ? t('editor.insertImage') : t('editor.imageUploadUnavailable')"
         :disabled="!editor || !canUploadImage"
         @click="emit('pick-image')"
       >
@@ -170,7 +172,7 @@ function setLink(): void {
       <button
         type="button"
         class="editor-toolbar__button"
-        title="Отменить (Ctrl+Z)"
+        :title="t('editor.undo')"
         :disabled="!editor || !editor.can().undo()"
         @click="void editor?.chain().focus().undo().run()"
       >
@@ -179,7 +181,7 @@ function setLink(): void {
       <button
         type="button"
         class="editor-toolbar__button"
-        title="Повторить (Ctrl+Shift+Z)"
+        :title="t('editor.redo')"
         :disabled="!editor || !editor.can().redo()"
         @click="void editor?.chain().focus().redo().run()"
       >

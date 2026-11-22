@@ -8,7 +8,7 @@ import { useGraph } from '../useGraph'
 function canvas(): Canvas {
   return {
     id: 'c-1',
-    title: 'Тест',
+    title: 'Test',
     ownerId: 'u-1',
     access: { level: 'private', myRole: 'owner', publicSlug: null },
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -18,7 +18,7 @@ function canvas(): Canvas {
 function node(partial: Partial<GraphNode> & { id: string }): GraphNode {
   return {
     id: partial.id,
-    title: partial.title ?? 'Заметка',
+    title: partial.title ?? 'Zametka',
     importance: partial.importance ?? 1,
     isRelevant: partial.isRelevant ?? true,
     visibility: partial.visibility,
@@ -47,10 +47,10 @@ describe('useGraph', () => {
     setActivePinia(createPinia())
   })
 
-  it('маппит видимые ноды, ok-рёбра и removed dangling edge (R30)', () => {
+  it('mappit vidimye nody, ok-ryobra i removed dangling edge (R30)', () => {
     const c = useCanvasStore()
     const n = useNotesStore()
-    const tags: Tag[] = [{ id: 't1', name: 'важное', color: '#f00' }]
+    const tags: Tag[] = [{ id: 't1', name: 'vazhnoe', color: '#f00' }]
 
     c.canvas = canvas()
     c.tags = tags
@@ -68,7 +68,7 @@ describe('useGraph', () => {
       edge({ id: 'e-hidden', from: 'n1', to: 'n3', state: 'ok' }),
     ]
     n.setNodes([
-      node({ id: 'n1', title: 'A', importance: 3, tags: ['важное'] }),
+      node({ id: 'n1', title: 'A', importance: 3, tags: ['vazhnoe'] }),
       node({ id: 'n2', title: 'B' }),
       node({ id: 'n3', title: 'C', isRelevant: false }),
     ])
@@ -77,7 +77,7 @@ describe('useGraph', () => {
 
     expect(g.flowNodes.value.map((x) => x.id)).toEqual(['n1', 'n2', 'dangling:e-removed'])
     expect(g.flowNodes.value[0]?.draggable).toBe(false)
-    expect(g.flowNodes.value[0]?.data).toMatchObject({ tagColors: { важное: '#f00' } })
+    expect(g.flowNodes.value[0]?.data).toMatchObject({ tagColors: { vazhnoe: '#f00' } })
     expect(g.flowEdges.value.map((x) => x.id).sort()).toEqual(['e-ind', 'e-ok', 'e-removed'])
     const indirect = g.flowEdges.value.find((x) => x.id === 'e-ind')
     expect(indirect?.class).toContain('canvas-edge--indirect')
@@ -89,7 +89,7 @@ describe('useGraph', () => {
     expect(g.brokenEdgesCount.value).toBe(1)
   })
 
-  it('создаёт ghost node для removed edge на soft-deleted target (R30)', () => {
+  it('sozdayot ghost node dlya removed edge na soft-deleted target (R30)', () => {
     const c = useCanvasStore()
     const n = useNotesStore()
     c.canvas = canvas()
@@ -127,7 +127,7 @@ describe('useGraph', () => {
     expect(g.flowEdges.value[0]?.class).toContain('canvas-edge--removed')
   })
 
-  it('в режиме editableLayout делает ноды перетаскиваемыми по правам (owner канваса)', () => {
+  it('v rezhime editableLayout delaet nody peretaskivaemymi po pravam (owner kanvasa)', () => {
     const c = useCanvasStore()
     const n = useNotesStore()
     c.canvas = canvas()

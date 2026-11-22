@@ -1,7 +1,7 @@
 /**
- * Заметки (ноды графа) активного канваса (docs/architecture.md §stores, R04).
- * Заполняется из store `canvas` при загрузке GraphResponse.
- * Фильтры видимости (важность/актуальность) — локальные (R27).
+ * Zametki (nody grafa) aktivnogo kanvasa (docs/architecture.md §stores, R04).
+ * Zapolnyaetsya iz store `canvas` pri zagruzke GraphResponse.
+ * Filtry vidimosti (vazhnost/aktualnost) — lokalnye (R27).
  */
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
@@ -34,7 +34,7 @@ export const useNotesStore = defineStore('notes', () => {
   const nodes = ref<GraphNode[]>([])
   const selectedId = ref<string | null>(null)
 
-  // R27: локальные фильтры (не влияют на БД)
+  // R27: lokalnye filtry (ne vliyayut na BD)
   const importanceFilter = ref<Record<number, boolean>>(allImportanceLevels())
   const showIrrelevant = ref(false)
 
@@ -45,7 +45,7 @@ export const useNotesStore = defineStore('notes', () => {
       return importanceFilter.value[level] !== false
     })
   )
-  /** id видимых нод — для фильтрации рёбер в view. */
+  /** id vidimykh nod — dlya filtratsii ryober v view. */
   const visibleNodeIds = computed(() => new Set(visibleNodes.value.map((node) => node.id)))
   const count = computed(() => nodes.value.length)
 
@@ -114,7 +114,7 @@ export const useNotesStore = defineStore('notes', () => {
     if (changed) nodes.value = copy
   }
 
-  /** Локальное (оптимистичное) обновление позиции/ширины ноды (R26). */
+  /** Lokalnoe (optimistichnoe) obnovlenie pozitsii/shiriny nody (R26). */
   function updateNodeGeometry(id: string, patch: NodeGeometryPatch): void {
     const index = nodes.value.findIndex((node) => node.id === id)
     if (index === -1) return
@@ -129,7 +129,7 @@ export const useNotesStore = defineStore('notes', () => {
       ...(patch.width !== undefined ? { width: patch.width } : {}),
     }
 
-    // Избегаем лишней реактивной записи, если значения не изменились.
+    // Izbegaem lishney reaktivnoy zapisi, esli znacheniya ne izmenilis.
     if (next.x === current.x && next.y === current.y && next.width === current.width) return
 
     const copy = nodes.value.slice()
