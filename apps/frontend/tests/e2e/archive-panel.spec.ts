@@ -146,11 +146,12 @@ test.describe('archive panel (R29)', () => {
     expect(patch.status()).toBe(200)
 
     await page.goto(`/canvas/${canvasId}`)
-    await expect(page.locator('.note-node').first()).toBeVisible()
+    // Неактуальные заметки по умолчанию скрыты — до «Вернуть» ноды нет.
+    await expect(page.locator('.note-node')).toHaveCount(0)
     const sheet = await openArchive(page)
 
     await item(sheet, title).getByRole('button', { name: 'Вернуть' }).click()
-    await expect(page.getByText('Заметка возвращена на канвас')).toBeVisible()
+    await expect(page.getByText('Заметка возвращена на канвас', { exact: true })).toBeVisible()
     await expect(item(sheet, title)).toHaveCount(0)
 
     const detail = await request.get(`${API_BASE}/notes/${noteId}`, { headers: authHeaders() })
@@ -177,7 +178,7 @@ test.describe('archive panel (R29)', () => {
     const row = item(sheet, title)
     await expect(row).toBeVisible()
     await row.getByRole('button', { name: 'Восстановить' }).click()
-    await expect(page.getByText('Заметка восстановлена')).toBeVisible()
+    await expect(page.getByText('Заметка восстановлена', { exact: true })).toBeVisible()
     await expect(row).toHaveCount(0)
 
     const graph = await request.get(`${API_BASE}/canvases/${canvasId}/graph`, {
@@ -225,7 +226,7 @@ test.describe('archive panel (R29)', () => {
 
     await row.getByRole('button', { name: 'Стереть навсегда' }).click()
     await row.getByRole('button', { name: 'Стереть навсегда' }).click()
-    await expect(page.getByText('Заметка стёрта навсегда')).toBeVisible()
+    await expect(page.getByText('Заметка стёрта навсегда', { exact: true })).toBeVisible()
     await expect(row).toHaveCount(0)
 
     const archive = await request.get(`${API_BASE}/canvases/${canvasId}/archive?section=deleted`, {

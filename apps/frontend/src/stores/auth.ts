@@ -41,6 +41,24 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function register(email: string, password: string, displayName: string): Promise<void> {
     await authApi.register({ email, password, displayName })
+    // Сервер очистил refresh-куку в ответе 201 — в store тоже не должен
+    // остаться пользователь от прежней сессии.
+    reset()
+  }
+
+  /**
+   * Best-effort выход без исключения: отзываем куку на сервере и в любом
+   * случае чистим локальное состояние. Нужен для перехода ко входу после
+   * подтверждения email — туда нельзя прийти в чужой сессии.
+   */
+  async function clearSession(): Promise<void> {
+    try {
+      await authApi.logout()
+    } catch {
+      // Даже при сетевой ошибке локальная сессия должна быть сброшена.
+    } finally {
+      reset()
+    }
   }
 
   async function logout(): Promise<void> {
@@ -126,6 +144,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     logout,
+    clearSession,
     fetchMe,
     updateProfile,
     ensureRestored,

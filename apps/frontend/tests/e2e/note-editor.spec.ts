@@ -110,6 +110,59 @@ test.describe('note editor (R28)', () => {
     return sheet
   }
 
+  async function expectEditorLayout(page: Page, side: 'left' | 'right'): Promise<void> {
+    const sheet = page.locator('.ui-sheet__content')
+    await expect(sheet).toHaveClass(new RegExp(`ui-sheet__content--${side}`))
+
+    const readLayout = () =>
+      sheet.evaluate((panel: HTMLElement) => {
+        const rect = panel.getBoundingClientRect()
+        const body = panel.querySelector('.ui-sheet__body') as HTMLElement | null
+        const footer = panel.querySelector('.ui-sheet__footer') as HTMLElement | null
+        const save = Array.from(panel.querySelectorAll('button')).find((button) =>
+          button.textContent?.trim().startsWith('Сохранить')
+        )
+        const footerRect = footer?.getBoundingClientRect()
+        const saveRect = save?.getBoundingClientRect()
+        const outside = Array.from(panel.querySelectorAll('*'))
+          .filter((element) => {
+            const r = element.getBoundingClientRect()
+            return r.width > 0 && (r.left < rect.left - 1 || r.right > rect.right + 1)
+          })
+          .map((element) => `${element.tagName}.${String(element.className)}`)
+
+        return {
+          outside,
+          bodyScrollable: Boolean(body && body.scrollHeight > body.clientHeight + 1),
+          footerVisible: Boolean(
+            footerRect && footerRect.top >= rect.top && footerRect.bottom <= rect.bottom + 1
+          ),
+          saveVisible: Boolean(
+            saveRect &&
+            saveRect.top >= 0 &&
+            saveRect.bottom <= window.innerHeight &&
+            saveRect.left >= 0 &&
+            saveRect.right <= window.innerWidth
+          ),
+          bodyScrollTop: body?.scrollTop ?? 0,
+        }
+      })
+
+    const initial = await readLayout()
+    expect(initial.outside, 'элементы не должны выходить за границы панели').toEqual([])
+    expect(initial.bodyScrollable, 'содержимое панели должно прокручиваться').toBe(true)
+    expect(initial.footerVisible, 'панель действий должна быть внутри панели').toBe(true)
+    expect(initial.saveVisible, 'кнопка «Сохранить» должна быть видна').toBe(true)
+
+    await sheet.locator('.ui-sheet__body').evaluate((body: HTMLElement) => {
+      body.scrollTop = body.scrollHeight
+    })
+    const scrolled = await readLayout()
+    expect(scrolled.bodyScrollTop, 'прокрутка должна работать').toBeGreaterThan(0)
+    expect(scrolled.footerVisible, 'панель действий должна остаться на месте').toBe(true)
+    expect(scrolled.saveVisible, 'кнопка «Сохранить» должна остаться видна').toBe(true)
+  }
+
   test('открывает редактор, сохраняет заголовок и markdown-тело', async ({
     page,
     context,
@@ -171,6 +224,26 @@ test.describe('note editor (R28)', () => {
     await expect(page.locator('.ui-sheet__content')).toHaveClass(/ui-sheet__content--right/)
   })
 
+  test('панель прокручивается, кнопка сохранения закреплена и содержимое не выходит за границы', async ({
+    page,
+    context,
+    request,
+  }) => {
+    await loginViaApi(context)
+    const ids = await ensureNote(request)
+
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await page.goto(`/canvas/${ids.canvasId}`)
+    await expect(page.locator('.note-node').first()).toBeVisible()
+
+    const sheet = await openEditor(page)
+    await expect(sheet.locator('.note-editor__title')).toHaveCSS('text-overflow', 'ellipsis')
+    await expectEditorLayout(page, 'right')
+
+    await sheet.getByRole('button', { name: 'Переместить панель слева' }).click()
+    await expectEditorLayout(page, 'left')
+  })
+
   test('кнопка «Доступ» показывает заглушку R32', async ({ page, context, request }) => {
     await loginViaApi(context)
     const ids = await ensureNote(request)
@@ -179,7 +252,9 @@ test.describe('note editor (R28)', () => {
     const sheet = await openEditor(page)
 
     await sheet.getByRole('button', { name: 'Доступ…' }).click()
-    await expect(page.getByText('Диалог управления доступом появится в R32')).toBeVisible()
+    await expect(
+      page.getByText('Диалог управления доступом появится в R32', { exact: true })
+    ).toBeVisible()
   })
 
   test('закрытие с несохранёнными изменениями спрашивает подтверждение', async ({

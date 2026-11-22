@@ -25,6 +25,15 @@
         <env name="JWT_SECRET" value="test-secret-key-that-is-long-enough-for-hs256-ci"/>
         <env name="ACCESS_TTL" value="900"/>
         <env name="REFRESH_TTL" value="2592000"/>
+        <!-- Интеграционные тесты обязаны использовать отдельный test-postgres
+             (docker-compose, порт 5433): фикстуры и refresh-токены не должны
+             попадать в dev-БД сайта. Значения окружения, заданные снаружи,
+             имеют приоритет над этими дефолтами (EnvLoader их не перезапишет). -->
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="5433"/>
+        <env name="DB_NAME" value="vistynq_test"/>
+        <env name="DB_USER" value="vistynq"/>
+        <env name="DB_PASS" value="vistynq_test_password"/>
         <!-- verify-email ходит письмом в Mailpit (см. tests/Integration/AuthFlowTest) -->
         <env name="SMTP_HOST" value="127.0.0.1"/>
         <env name="SMTP_PORT" value="1025"/>

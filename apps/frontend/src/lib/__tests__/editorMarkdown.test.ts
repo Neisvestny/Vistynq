@@ -4,6 +4,7 @@ import { Editor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 
+import { WikiLink } from '@/components/editor/extensions/WikiLink'
 import {
   normalizeMarkdown,
   prepareMarkdownForEditor,
@@ -24,6 +25,7 @@ function roundTrip(markdown: string): string {
           HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' },
         },
       }),
+      WikiLink,
       Markdown,
     ],
     content: prepared.markdown,
@@ -52,13 +54,18 @@ describe('editorMarkdown (R28)', () => {
     expect(roundTrip('[Ссылка](https://example.com)\n')).toBe('[Ссылка](https://example.com)\n')
   })
 
-  it('не экранирует [[wikilinks]] при round-trip', () => {
+  it('не экранирует [[wikilinks]] при round-trip (R30)', () => {
     const md = 'См. [[123e4567-e89b-12d3-a456-426614174000|Заметка Б]]\n'
     expect(roundTrip(md)).toBe(md)
   })
 
-  it('поддерживает несколько wikilinks и токены, встречающиеся в тексте', () => {
-    const md = 'vistynqwikilink0zq [[id-1|Первая]] и [[id-2|Вторая]]\n'
+  it('поддерживает несколько wikilinks в тексте (R30)', () => {
+    const md = 'Текст [[id-1|Первая]] и [[id-2|Вторая]]\n'
+    expect(roundTrip(md)).toBe(md)
+  })
+
+  it('сохраняет wikilink без label как [[id]] (R30)', () => {
+    const md = 'См. [[id-1]]\n'
     expect(roundTrip(md)).toBe(md)
   })
 
@@ -66,9 +73,36 @@ describe('editorMarkdown (R28)', () => {
     expect(restoreWikiLinks('\\[\\[id|Заголовок\\]\\]\n')).toBe('[[id|Заголовок]]\n')
   })
 
-  it('готовый markdown грузится в редактор без токенов', () => {
+  it('prepareMarkdownForEditor больше не токенизирует wikilinks (R30)', () => {
     const prepared = prepareMarkdownForEditor('[[id|A]]\n')
-    expect(prepared.markdown).not.toContain('[[')
-    expect(prepared.wikiLinks).toEqual([{ token: 'vistynqwikilink0zq', link: '[[id|A]]' }])
+    expect(prepared.markdown).toBe('[[id|A]]\n')
+    expect(prepared.wikiLinks).toEqual([])
+  })
+
+  it('команда setWikiLink вставляет wikilink и сериализует в markdown (R30)', () => {
+    const prepared = prepareMarkdownForEditor('')
+    const editor = new Editor({
+      extensions: [
+        StarterKit.configure({
+          heading: { levels: [1, 2, 3] },
+          link: {
+            openOnClick: false,
+            autolink: true,
+            protocols: ['http', 'https', 'mailto'],
+            HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' },
+          },
+        }),
+        WikiLink,
+        Markdown,
+      ],
+      content: prepared.markdown,
+      contentType: 'markdown',
+    })
+
+    editor.commands.setWikiLink({ noteId: 'note-1', label: 'Заметка 1' })
+    const md = toStoredMarkdown(editor.getMarkdown(), prepared.wikiLinks)
+    editor.destroy()
+
+    expect(md).toContain('[[note-1|Заметка 1]]')
   })
 })

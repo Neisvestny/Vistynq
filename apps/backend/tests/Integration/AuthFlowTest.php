@@ -119,6 +119,61 @@ final class AuthFlowTest extends IntegrationTestCase
         );
     }
 
+    /**
+     * Регистрация/вход не должны наследовать сессию другого аккаунта:
+     * именно так свежая регистрация попадала в старую фикстуру из dev-БД.
+     */
+    public function testRegisterAndLoginTerminatePreviousSession(): void
+    {
+        $old = $this->users->findById($this->createUser(true));
+        $another = $this->users->findById($this->createUser(true));
+        $this->assertNotNull($old);
+        $this->assertNotNull($another);
+
+        $oldLogin = $this->auth->login($this->jsonRequest([
+            'email' => $old->email,
+            'password' => 'test-pass123',
+        ]));
+        $this->assertSame(200, $oldLogin->status());
+        $oldCookie = $this->refreshCookieValue((string) ($oldLogin->headers()['Set-Cookie'] ?? ''));
+        $this->assertNotSame('', $oldCookie);
+
+        // Register при живой куке другого юзера: 201 + очистка куки в ответе.
+        $newEmail = sprintf('r15-inherit-%s@example.local', bin2hex(random_bytes(6)));
+        $register = $this->auth->register($this->jsonRequestWithCookie([
+            'email' => $newEmail,
+            'password' => $this->password,
+            'displayName' => 'Inherit Test',
+        ], $oldCookie));
+        $this->assertSame(201, $register->status());
+        $clearCookie = (string) ($register->headers()['Set-Cookie'] ?? '');
+        $this->assertStringContainsString('vistynq_refresh=;', $clearCookie);
+        $this->assertStringContainsString('Max-Age=0', $clearCookie);
+        $this->assertApiStatus(
+            401,
+            fn (): mixed => $this->auth->refresh($this->cookieRequest($oldCookie)),
+            'refresh старой кукой после register',
+        );
+
+        $newUserId = $this->userIdByEmail($newEmail);
+        $this->assertNotNull($newUserId);
+        $this->trackUserId($newUserId);
+
+        // Login в другой аккаунт тоже отзывает предыдущую семью, но выдаёт новую.
+        $anotherLogin = $this->auth->login($this->jsonRequestWithCookie([
+            'email' => $another->email,
+            'password' => 'test-pass123',
+        ], $oldCookie));
+        $this->assertSame(200, $anotherLogin->status());
+        $newCookie = $this->refreshCookieValue((string) ($anotherLogin->headers()['Set-Cookie'] ?? ''));
+        $this->assertNotSame('', $newCookie);
+        $this->assertNotSame($oldCookie, $newCookie);
+
+        $refreshed = $this->auth->refresh($this->cookieRequest($newCookie));
+        $this->assertSame(200, $refreshed->status());
+        $this->assertSame($another->id, $this->json($refreshed)['user']['id']);
+    }
+
     public function testMeReturnsUserWithValidAccessToken(): void
     {
         $this->registerUser();
@@ -301,6 +356,23 @@ final class AuthFlowTest extends IntegrationTestCase
     private function jsonRequest(array $json): Request
     {
         return $this->request('POST', '/api/v1/auth/register', [], $json);
+    }
+
+    /**
+     * @param array<string, mixed> $json
+     */
+    private function jsonRequestWithCookie(array $json, string $rawCookie): Request
+    {
+        return $this->request(
+            'POST',
+            '/api/v1/auth/register',
+            [],
+            $json,
+            [],
+            [],
+            null,
+            ['vistynq_refresh' => $rawCookie],
+        );
     }
 
     private function cookieRequest(string $rawCookie): Request

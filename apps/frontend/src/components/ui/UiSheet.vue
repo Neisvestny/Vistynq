@@ -76,8 +76,17 @@ function onDismiss(event: { preventDefault: () => void }): void {
             <slot />
           </div>
 
+          <footer v-if="$slots.footer" class="ui-sheet__footer">
+            <slot name="footer" />
+          </footer>
+
           <slot name="close">
-            <button class="ui-sheet__close" aria-label="Закрыть меню" @click="requestClose">
+            <button
+              class="ui-sheet__close"
+              :class="'ui-sheet__close--' + side"
+              aria-label="Закрыть меню"
+              @click="requestClose"
+            >
               <svg
                 width="18"
                 height="18"

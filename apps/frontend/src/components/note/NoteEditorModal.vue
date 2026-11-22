@@ -26,6 +26,7 @@ import {
 } from '@/composables/useNoteDraft'
 import { useAccessGuard } from '@/composables/useAccessGuard'
 import { useCanvasStore } from '@/stores/canvas'
+import { useNotesStore } from '@/stores/notes'
 import { useUiStore, type NoteEditorSide } from '@/stores/ui'
 
 const props = withDefaults(
@@ -44,6 +45,7 @@ const emit = defineEmits<{
 }>()
 
 const canvasStore = useCanvasStore()
+const notesStore = useNotesStore()
 const uiStore = useUiStore()
 
 const detail = ref<NoteDetail | null>(null)
@@ -68,6 +70,9 @@ const canManageAccess = computed(() => guard.canManageNoteAccess(detail.value))
 const readOnly = computed(() => !canEdit.value || Boolean(detail.value?.deletedAt))
 const canCreateTags = computed(() => guard.canEditCanvas.value)
 const graphTags = computed<Tag[]>(() => canvasStore.tags)
+const noteCandidates = computed(() =>
+  notesStore.nodes.map((node) => ({ id: node.id, title: node.title }))
+)
 
 function emptyDraft(): NoteDraft {
   return {
@@ -211,13 +216,16 @@ function onOpenAccess(): void {
   <UiSheet
     :open="open && noteId !== null"
     :side="side"
+    :wide="true"
     :prevent-close="dirty"
     @update:open="onSheetOpenChange"
     @close-request="requestClose"
   >
     <template #title>
       <span class="note-editor__heading">
-        <span>{{ detail?.title || 'Заметка' }}</span>
+        <span class="note-editor__title" :title="detail?.title || 'Заметка'">
+          {{ detail?.title || 'Заметка' }}
+        </span>
         <UiBadge v-if="readOnly && detail">Только чтение</UiBadge>
         <button
           type="button"
@@ -262,10 +270,17 @@ function onOpenAccess(): void {
 
       <section class="note-editor__body">
         <h3 class="note-editor__section-title">Содержимое</h3>
-        <MarkdownEditor v-model="draft.bodyMd" :editable="!readOnly" />
+        <MarkdownEditor
+          v-model="draft.bodyMd"
+          :editable="!readOnly"
+          :note-candidates="noteCandidates"
+          :current-note-id="detail.id"
+        />
       </section>
+    </template>
 
-      <footer v-if="!readOnly" class="note-editor__footer">
+    <template #footer>
+      <div v-if="detail && !readOnly" class="note-editor__footer">
         <UiButton type="button" variant="primary" :disabled="!dirty || saving" @click="save">
           {{ saving ? 'Сохранение…' : 'Сохранить' }}
         </UiButton>
@@ -273,22 +288,36 @@ function onOpenAccess(): void {
           Закрыть
         </UiButton>
         <span v-if="dirty" class="note-editor__dirty">Есть несохранённые изменения</span>
-      </footer>
-      <footer v-else class="note-editor__footer">
+      </div>
+      <div v-else-if="detail" class="note-editor__footer">
         <UiButton type="button" variant="ghost" @click="requestClose">Закрыть</UiButton>
-      </footer>
+      </div>
     </template>
   </UiSheet>
 </template>
 
 <style scoped>
 .note-editor__heading {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.note-editor__title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.note-editor__heading :deep(.ui-badge) {
+  flex: 0 0 auto;
 }
 
 .note-editor__side-toggle {
+  flex: 0 0 auto;
   margin-left: auto;
   padding: 0.1rem 0.4rem;
   border: 1px solid var(--color-border);
@@ -327,8 +356,6 @@ function onOpenAccess(): void {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.85rem 1rem;
-  border-top: 1px solid var(--color-border);
 }
 
 .note-editor__dirty {

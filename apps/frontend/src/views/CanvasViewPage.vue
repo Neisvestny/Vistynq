@@ -10,15 +10,17 @@ import type { NodeChange, XYPosition } from '@vue-flow/core'
 import { accessApi } from '@/api/access'
 import { canvasApi } from '@/api/canvas'
 import { ApiError } from '@/api/http'
+import { linksApi } from '@/api/links'
 import { notesApi } from '@/api/notes'
 import { tagsApi } from '@/api/tags'
 import { notify } from '@/api/notify'
-import type { GraphNode, Note, NoteDetail, Tag } from '@/api/types'
+import type { GraphEdge, GraphNode, Note, NoteDetail, Tag } from '@/api/types'
 import ArchivePanel from '@/components/canvas/ArchivePanel.vue'
 import CanvasBoard from '@/components/canvas/CanvasBoard.vue'
 import CanvasSearch from '@/components/canvas/CanvasSearch.vue'
 import ContextMenu, { type ContextMenuItem } from '@/components/canvas/ContextMenu.vue'
 import ImportanceFilter from '@/components/canvas/ImportanceFilter.vue'
+import LinkLayer from '@/components/canvas/LinkLayer.vue'
 import TagMenu from '@/components/canvas/TagMenu.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -37,7 +39,8 @@ const NoteEditorModal = defineAsyncComponent(() => import('@/components/note/Not
 
 type PaneMenuContext = { kind: 'pane'; flowPosition: XYPosition }
 type NodeMenuContext = { kind: 'node'; nodeId: string }
-type MenuContext = PaneMenuContext | NodeMenuContext
+type EdgeMenuContext = { kind: 'edge'; edgeId: string }
+type MenuContext = PaneMenuContext | NodeMenuContext | EdgeMenuContext
 
 const route = useRoute()
 const router = useRouter()
@@ -57,10 +60,19 @@ const editorNoteId = ref<string | null>(null)
 /** Панель архива (R29). */
 const archiveOpen = ref(false)
 
+/** Режим связывания (R30). */
+const linkingSourceId = ref<string | null>(null)
+const linkingPending = ref(false)
+
+/** Выбранное ребро (R30). */
+const selectedEdgeId = ref<string | null>(null)
+
 const { flowNodes, flowEdges, visibleNodes, brokenEdgesCount } = useGraph({
   editableLayout: true,
   selectable: true,
   highlightedTag,
+  selectedEdgeId,
+  linkingSourceId,
 })
 
 const boardRef = ref<InstanceType<typeof CanvasBoard> | null>(null)
@@ -104,6 +116,8 @@ function clampImportance(v: number): number {
 
 async function loadGraph() {
   const id = route.params.id
+  selectedEdgeId.value = null
+  cancelLinking()
   await store.load(typeof id === 'string' ? id : '')
   positionSync.syncFromNodes()
 }
@@ -310,6 +324,69 @@ async function createNoteAt(position: XYPosition) {
   }
 }
 
+function cancelLinking() {
+  linkingSourceId.value = null
+  linkingPending.value = false
+}
+
+function startLinking(nodeId: string) {
+  if (!canEditCanvas.value) return
+  selectedEdgeId.value = null
+  linkingSourceId.value = nodeId
+  linkingPending.value = false
+}
+
+const linkingSourceTitle = computed(() => {
+  const id = linkingSourceId.value
+  return id ? (notesStore.getNodeById(id)?.title ?? null) : null
+})
+
+async function completeLinking(targetNodeId: string) {
+  const sourceId = linkingSourceId.value
+  if (!sourceId || linkingPending.value) return
+  if (targetNodeId.startsWith('ghost:') || targetNodeId.startsWith('dangling:')) return
+  if (!notesStore.getNodeById(targetNodeId)) return
+  if (sourceId === targetNodeId) {
+    notify({ title: 'Нельзя связать заметку саму с собой', status: 'error' })
+    return
+  }
+
+  const exists = store.edges.some(
+    (e) => e.type === 'direct' && e.state === 'ok' && e.from === sourceId && e.to === targetNodeId
+  )
+  if (exists) {
+    notify({ title: 'Такая ссылка уже существует', status: 'error' })
+    cancelLinking()
+    return
+  }
+
+  linkingPending.value = true
+  try {
+    const link = await linksApi.createDirect({ fromNoteId: sourceId, toNoteId: targetNodeId })
+    store.edges = [
+      ...store.edges,
+      {
+        id: link.id,
+        type: 'direct',
+        from: link.fromNoteId,
+        to: link.toNoteId,
+        state: 'ok',
+        label: null,
+      },
+    ]
+    notify({ title: 'Ссылка создана', status: 'success' })
+    cancelLinking()
+  } catch (e) {
+    notify({
+      title: 'Не удалось создать ссылку',
+      description: e instanceof ApiError ? e.message : undefined,
+      status: 'error',
+    })
+  } finally {
+    linkingPending.value = false
+  }
+}
+
 async function deriveFromNode(nodeId: string) {
   const cid = store.canvas?.id
   const parent = notesStore.getNodeById(nodeId)
@@ -337,6 +414,73 @@ async function deriveFromNode(nodeId: string) {
   } catch (e) {
     notify({
       title: 'Не удалось создать заметку',
+      description: e instanceof ApiError ? e.message : undefined,
+      status: 'error',
+    })
+  }
+}
+
+const selectedEdge = computed<GraphEdge | null>(
+  () => store.edges.find((edge) => edge.id === selectedEdgeId.value) ?? null
+)
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  const tag = target.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select'
+}
+
+async function reverseSelectedEdge(edgeId: string) {
+  if (!canEditCanvas.value) return
+  try {
+    const link = await linksApi.reverseDirect(edgeId)
+    store.edges = store.edges.map((edge) =>
+      edge.id === edgeId ? { ...edge, from: link.fromNoteId, to: link.toNoteId } : edge
+    )
+    selectedEdgeId.value = edgeId
+  } catch (e) {
+    notify({
+      title: 'Не удалось развернуть связь',
+      description: e instanceof ApiError ? e.message : undefined,
+      status: 'error',
+    })
+  }
+}
+
+async function deleteSelectedEdge(edgeId: string) {
+  if (!canEditCanvas.value) return
+  try {
+    await linksApi.removeDirect(edgeId)
+    store.edges = store.edges.filter((edge) => edge.id !== edgeId)
+    if (selectedEdgeId.value === edgeId) selectedEdgeId.value = null
+  } catch (e) {
+    notify({
+      title: 'Не удалось удалить связь',
+      description: e instanceof ApiError ? e.message : undefined,
+      status: 'error',
+    })
+  }
+}
+
+async function restoreGhostNote(noteId: string) {
+  if (!canEditCanvas.value) return
+  try {
+    await notesApi.restore(noteId)
+    await refreshGraphSilently()
+    notify({ title: 'Заметка восстановлена', status: 'success' })
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 410) {
+      notify({
+        title: 'Заметка удалена навсегда',
+        description: 'Восстановить её нельзя',
+        status: 'error',
+      })
+      await refreshGraphSilently()
+      return
+    }
+    notify({
+      title: 'Не удалось восстановить заметку',
       description: e instanceof ApiError ? e.message : undefined,
       status: 'error',
     })
@@ -520,9 +664,7 @@ function buildNodeMenu(node: GraphNode): ContextMenuItem[] {
     {
       id: 'link',
       label: 'Ссылка на другую заметку…',
-      disabled: true,
-      hint: 'R30',
-      onSelect: () => notify({ title: 'Режим связывания появится в R30' }),
+      onSelect: () => startLinking(node.id),
     },
     { id: 'tags', label: 'Теги', children: tagChildren },
     { id: 'importance', label: 'Важность', children: importanceChildren },
@@ -555,6 +697,23 @@ function buildNodeMenu(node: GraphNode): ContextMenuItem[] {
   return items
 }
 
+function buildEdgeMenu(edge: GraphEdge): ContextMenuItem[] {
+  if (!canEditCanvas.value || edge.type !== 'direct' || edge.state !== 'ok') return []
+  return [
+    {
+      id: 'reverse',
+      label: 'Развернуть направление',
+      onSelect: () => reverseSelectedEdge(edge.id),
+    },
+    {
+      id: 'delete-link',
+      label: 'Удалить связь',
+      danger: true,
+      onSelect: () => deleteSelectedEdge(edge.id),
+    },
+  ]
+}
+
 function buildPaneMenu(flowPosition: XYPosition): ContextMenuItem[] {
   const items: ContextMenuItem[] = []
   if (canEditCanvas.value) {
@@ -571,6 +730,10 @@ const menuItems = computed<ContextMenuItem[]>(() => {
   const ctx = contextMenu.context.value
   if (!ctx) return []
   if (ctx.kind === 'pane') return buildPaneMenu(ctx.flowPosition)
+  if (ctx.kind === 'edge') {
+    const edge = store.edges.find((e) => e.id === ctx.edgeId)
+    return edge ? buildEdgeMenu(edge) : []
+  }
   const node = notesStore.getNodeById(ctx.nodeId)
   if (!node) return []
   return buildNodeMenu(node)
@@ -597,17 +760,77 @@ watch(
 )
 
 function onPaneContextMenu(payload: { event: MouseEvent; flowPosition: XYPosition }) {
+  cancelLinking()
+  selectedEdgeId.value = null
   const items = buildPaneMenu(payload.flowPosition)
   if (items.length === 0) return
   contextMenu.open(payload.event, { kind: 'pane', flowPosition: payload.flowPosition })
 }
 
+function onPaneClick() {
+  selectedEdgeId.value = null
+  if (linkingSourceId.value) cancelLinking()
+}
+
 function onNodeContextMenu(payload: { event: MouseEvent; nodeId: string }) {
+  selectedEdgeId.value = null
   contextMenu.open(payload.event, { kind: 'node', nodeId: payload.nodeId })
+}
+
+function onNodeClick(payload: { event: MouseEvent; nodeId: string }) {
+  selectedEdgeId.value = null
+  if (linkingSourceId.value) {
+    void completeLinking(payload.nodeId)
+  }
+}
+
+function onEdgeClick(payload: { event: MouseEvent; edgeId: string }) {
+  if (linkingSourceId.value) return
+  const edge = store.edges.find((e) => e.id === payload.edgeId)
+  if (!edge || edge.type !== 'direct' || edge.state !== 'ok') {
+    selectedEdgeId.value = null
+    return
+  }
+  selectedEdgeId.value = edge.id
+}
+
+function onEdgeContextMenu(payload: { event: MouseEvent; edgeId: string }) {
+  if (linkingSourceId.value) return
+  const edge = store.edges.find((e) => e.id === payload.edgeId)
+  if (!edge) return
+  selectedEdgeId.value = edge.type === 'direct' && edge.state === 'ok' ? edge.id : null
+  if (edge.type !== 'direct' || edge.state !== 'ok' || !canEditCanvas.value) return
+  contextMenu.open(payload.event, { kind: 'edge', edgeId: payload.edgeId })
+}
+
+function onGhostRestore(noteId: string) {
+  void restoreGhostNote(noteId)
+}
+
+function onGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    if (contextMenu.state.open) return
+    if (linkingSourceId.value) {
+      event.preventDefault()
+      cancelLinking()
+    }
+    return
+  }
+
+  if (event.key !== 'Delete') return
+  if (!canEditCanvas.value) return
+  if (contextMenu.state.open) return
+  if (isTypingTarget(event.target) || isTypingTarget(document.activeElement)) return
+
+  const edge = selectedEdge.value
+  if (!edge || edge.type !== 'direct' || edge.state !== 'ok') return
+  event.preventDefault()
+  void deleteSelectedEdge(edge.id)
 }
 
 onMounted(() => {
   void loadGraph()
+  window.addEventListener('keydown', onGlobalKeydown)
 })
 
 // Переход между канвасами на том же маршруте — перезагрузка графа
@@ -629,6 +852,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
   void positionSync.flushAll()
 })
 </script>
@@ -709,15 +933,28 @@ onBeforeUnmount(() => {
         :nodes="flowNodes"
         :edges="flowEdges"
         :layout-editable="canLayoutInteract"
+        :edges-selectable="canEditCanvas"
+        :linking="Boolean(linkingSourceId)"
         @nodes-change="onNodesChange"
         @node-drag-start="onNodeDragStart"
         @node-drag="onNodeDrag"
         @node-drag-stop="onNodeDragStop"
         @node-resize-end="onNodeResizeEnd"
+        @pane-click="onPaneClick"
         @pane-context-menu="onPaneContextMenu"
+        @node-click="onNodeClick"
         @node-context-menu="onNodeContextMenu"
         @node-open="openEditor"
+        @edge-click="onEdgeClick"
+        @edge-context-menu="onEdgeContextMenu"
+        @ghost-restore="onGhostRestore"
       >
+        <LinkLayer
+          :linking="Boolean(linkingSourceId)"
+          :source-title="linkingSourceTitle"
+          @cancel="cancelLinking"
+        />
+
         <!-- Пустой канвас -->
         <div v-if="visibleNodes.length === 0" class="canvas-view__empty">
           <p class="canvas-view__empty-title">Здесь пока нет заметок</p>

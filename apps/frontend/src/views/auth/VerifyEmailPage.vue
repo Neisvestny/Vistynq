@@ -4,16 +4,36 @@
  * в теле POST /auth/verify-email — в URL он только для роутинга (architecture.md §2).
  */
 import { onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import UiButton from '@/components/ui/UiButton.vue'
 import { authApi } from '@/api/auth'
 import { notify } from '@/api/notify'
 import { applyApiError } from '@/api/errors'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
 
 const state = ref<'loading' | 'success' | 'error' | 'no-token'>('loading')
 const errorMessage = ref('')
+const leaving = ref(false)
+
+/**
+ * Кнопка «Перейти ко входу» всегда открывает форму логина, а не чужие
+ * канвасы: в браузере могла остаться refresh-кука от прежнего аккаунта,
+ * и guard /login (requiresGuest) перебросил бы пользователя вdashboard.
+ */
+async function goToLogin(): Promise<void> {
+  if (leaving.value) return
+  leaving.value = true
+  try {
+    await auth.clearSession()
+    await router.push({ name: 'login' })
+  } finally {
+    leaving.value = false
+  }
+}
 
 onMounted(async () => {
   const token = route.query.token
@@ -45,7 +65,9 @@ onMounted(async () => {
 
     <template v-else-if="state === 'success'">
       <p class="auth-form__status">Почта подтверждена. Теперь можно войти в аккаунт.</p>
-      <UiButton to="/login">Перейти ко входу</UiButton>
+      <UiButton :disabled="leaving" @click="goToLogin">
+        {{ leaving ? 'Перенаправляем…' : 'Перейти ко входу' }}
+      </UiButton>
     </template>
 
     <template v-else-if="state === 'no-token'">

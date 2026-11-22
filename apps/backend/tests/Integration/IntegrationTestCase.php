@@ -75,6 +75,13 @@ abstract class IntegrationTestCase extends TestCase
         EnvLoader::load(__DIR__ . '/../../.env');
 
         $this->config = new Config();
+        if (!str_ends_with($this->config->dbName(), '_test')) {
+            throw new RuntimeException(
+                'Интеграционные тесты запрещено запускать против dev-БД ('
+                . $this->config->dbName() . '): фикстуры и refresh-токены засорят сайт. '
+                . 'Используйте test-postgres: DB_NAME=vistynq_test DB_PORT=5433.'
+            );
+        }
         $this->container = new Container();
         // Те же биндинги, что в Kernel::boot() (R17): единая конфигурация
         // контейнера в ContainerFactory.

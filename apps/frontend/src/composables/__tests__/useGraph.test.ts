@@ -47,7 +47,7 @@ describe('useGraph', () => {
     setActivePinia(createPinia())
   })
 
-  it('маппит видимые ноды и фильтрует рёбра (ok, to!=null, оба конца видимы)', () => {
+  it('маппит видимые ноды, ok-рёбра и removed dangling edge (R30)', () => {
     const c = useCanvasStore()
     const n = useNotesStore()
     const tags: Tag[] = [{ id: 't1', name: 'важное', color: '#f00' }]
@@ -57,7 +57,14 @@ describe('useGraph', () => {
     c.edges = [
       edge({ id: 'e-ok', from: 'n1', to: 'n2', state: 'ok', type: 'direct' }),
       edge({ id: 'e-ind', from: 'n1', to: 'n2', state: 'ok', type: 'indirect' }),
-      edge({ id: 'e-removed', from: 'n1', to: null, state: 'removed' }),
+      edge({
+        id: 'e-removed',
+        from: 'n1',
+        to: null,
+        state: 'removed',
+        type: 'indirect',
+        label: '[[deleted]]',
+      }),
       edge({ id: 'e-hidden', from: 'n1', to: 'n3', state: 'ok' }),
     ]
     n.setNodes([
@@ -68,14 +75,56 @@ describe('useGraph', () => {
 
     const g = useGraph()
 
-    expect(g.flowNodes.value.map((x) => x.id)).toEqual(['n1', 'n2'])
+    expect(g.flowNodes.value.map((x) => x.id)).toEqual(['n1', 'n2', 'dangling:e-removed'])
     expect(g.flowNodes.value[0]?.draggable).toBe(false)
-    expect(g.flowNodes.value[0]?.data.tagColors['важное']).toBe('#f00')
-    expect(g.flowEdges.value.map((x) => x.id).sort()).toEqual(['e-ind', 'e-ok'])
+    expect(g.flowNodes.value[0]?.data).toMatchObject({ tagColors: { важное: '#f00' } })
+    expect(g.flowEdges.value.map((x) => x.id).sort()).toEqual(['e-ind', 'e-ok', 'e-removed'])
     const indirect = g.flowEdges.value.find((x) => x.id === 'e-ind')
     expect(indirect?.class).toContain('canvas-edge--indirect')
     expect(indirect?.style).toMatchObject({ strokeDasharray: '6 4' })
+    const removed = g.flowEdges.value.find((x) => x.id === 'e-removed')
+    expect(removed?.class).toContain('canvas-edge--removed')
+    expect(removed?.class).toContain('canvas-edge--dangling')
+    expect(removed?.data).toMatchObject({ dangling: true, state: 'removed', edgeType: 'indirect' })
     expect(g.brokenEdgesCount.value).toBe(1)
+  })
+
+  it('создаёт ghost node для removed edge на soft-deleted target (R30)', () => {
+    const c = useCanvasStore()
+    const n = useNotesStore()
+    c.canvas = canvas()
+    c.tags = []
+    c.edges = [
+      edge({
+        id: 'e-ghost',
+        from: 'n1',
+        to: 'n-deleted',
+        state: 'removed',
+        type: 'direct',
+        label: null,
+      }),
+    ]
+    n.setNodes([node({ id: 'n1', title: 'A', x: 10, y: 20, width: 220 })])
+
+    const g = useGraph()
+
+    expect(g.flowNodes.value.map((x) => x.id)).toEqual(['n1', 'ghost:n-deleted'])
+    const ghost = g.flowNodes.value.find((x) => x.id === 'ghost:n-deleted')
+    expect(ghost?.type).toBe('ghost')
+    expect(ghost?.draggable).toBe(false)
+    expect(ghost?.data).toMatchObject({
+      kind: 'ghost',
+      targetNoteId: 'n-deleted',
+      canRestore: true,
+    })
+
+    expect(g.flowEdges.value).toHaveLength(1)
+    expect(g.flowEdges.value[0]).toMatchObject({
+      id: 'e-ghost',
+      source: 'n1',
+      target: 'ghost:n-deleted',
+    })
+    expect(g.flowEdges.value[0]?.class).toContain('canvas-edge--removed')
   })
 
   it('в режиме editableLayout делает ноды перетаскиваемыми по правам (owner канваса)', () => {

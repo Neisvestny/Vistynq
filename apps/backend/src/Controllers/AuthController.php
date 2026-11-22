@@ -35,7 +35,11 @@ final class AuthController
 
         $this->auth->register((string) $data['email'], (string) $data['password'], (string) $data['displayName']);
 
-        return Response::json(['ok' => true], 201);
+        // Новый аккаунт не должен наследовать чужую сессию: отзываем
+        // refresh-семью из куки и очищаем куку в том же ответе.
+        $clearCookie = $this->auth->logout($this->refreshCookieFrom($request));
+
+        return Response::json(['ok' => true], 201)->withHeaders(['Set-Cookie' => $clearCookie]);
     }
 
     public function verifyEmail(Request $request): Response
@@ -68,6 +72,10 @@ final class AuthController
 
         $result = $this->auth->login((string) $data['email'], (string) $data['password']);
 
+        // Вход в другой аккаунт завершает предыдущую сессию — иначе старая
+        // кука останется валидной и restoreSession вернёт прежнего юзера.
+        $this->auth->logout($this->refreshCookieFrom($request));
+
         $response = Response::json([
             'user' => $this->presenter->present($result['user']),
             'accessToken' => $result['accessToken'],
@@ -79,8 +87,8 @@ final class AuthController
 
     public function refresh(Request $request): Response
     {
-        $raw = $request->cookie('vistynq_refresh');
-        if (!is_string($raw) || $raw === '') {
+        $raw = $this->refreshCookieFrom($request);
+        if ($raw === '') {
             throw ApiException::unauthorized();
         }
 
@@ -97,8 +105,7 @@ final class AuthController
 
     public function logout(Request $request): Response
     {
-        $raw = $request->cookie('vistynq_refresh');
-        $clear = $this->auth->logout(is_string($raw) ? $raw : '');
+        $clear = $this->auth->logout($this->refreshCookieFrom($request));
 
         $response = Response::json(['ok' => true]);
         return $response->withHeaders(['Set-Cookie' => $clear]);
@@ -135,5 +142,12 @@ final class AuthController
         }
 
         return Response::json($this->presenter->present($user));
+    }
+
+    private function refreshCookieFrom(Request $request): string
+    {
+        $raw = $request->cookie('vistynq_refresh');
+
+        return is_string($raw) ? $raw : '';
     }
 }

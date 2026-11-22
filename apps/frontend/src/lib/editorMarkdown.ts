@@ -1,13 +1,12 @@
 /**
- * Мост между markdown-телом заметки (API) и Tiptap (R28).
+ * Мост между markdown-телом заметки (API) и Tiptap (R28, R30).
  *
- * `[[uuid|Заголовок]]` — не обычный markdown: сериализатор @tiptap/markdown
- * экранирует квадратные скобки (`\[\[...\]\]`), что сломало бы косвенные
- * ссылки (R15/R30). Перед загрузкой в редактор такие вставки заменяются
- * непрозрачным токеном, а после `getMarkdown()` — восстанавливаются.
+ * `[[uuid|Заголовок]]` обрабатывается Tiptap-расширением WikiLink (R30).
+ * Этот модуль оставляет API prepare/restore для совместимости и выполняет
+ * нормализацию markdown и снятие экранирования `\[\[...\]\]`, если markdown
+ * сериализатор всё же экранирует квадратные скобки.
  */
 
-const WIKI_LINK_RE = /\[\[[^[\]\n]+\]\]/g
 const ESCAPED_WIKI_LINK_RE = /\\\[\\\[([^[\]\n]+)\\\]\\\]/g
 
 export interface WikiLinkToken {
@@ -28,31 +27,16 @@ export function normalizeMarkdown(value: string): string {
 }
 
 /**
- * Заменить `[[...]]` на токены, которые markdown-сериализатор не тронет.
- * Возврат пар token→link нужен для обратной подстановки после getMarkdown().
+ * Подготовка markdown к загрузке в редактор.
+ * WikiLink теперь парсится Tiptap-расширением, поэтому токенизация не нужна,
+ * но API сохранён для совместимости и тестов.
  */
 export function prepareMarkdownForEditor(value: string): PreparedMarkdown {
-  const normalized = normalizeMarkdown(value)
-  const wikiLinks: WikiLinkToken[] = []
-  const used = new Set<string>()
-
-  const markdown = normalized.replace(WIKI_LINK_RE, (link) => {
-    let token = `vistynqwikilink${wikiLinks.length}zq`
-    while (normalized.includes(token) || used.has(token)) {
-      token += 'x'
-    }
-    used.add(token)
-    wikiLinks.push({ token, link })
-
-    return token
-  })
-
-  return { markdown, wikiLinks }
+  return { markdown: normalizeMarkdown(value), wikiLinks: [] }
 }
 
 /**
- * Обратная подстановка токенов + поддержка ссылок, набранных вручную уже
- * в редакторе (Tiptap вернёт их экранированными).
+ * Снимает экранирование `\[\[...\]\]` и подставляет legacy-токены, если они есть.
  */
 export function restoreWikiLinks(value: string, wikiLinks: WikiLinkToken[] = []): string {
   let result = value

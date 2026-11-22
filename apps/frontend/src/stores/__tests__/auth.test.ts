@@ -35,6 +35,7 @@ describe('auth store (smoke, R16 → детали в R21)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.mocked(authApi.login).mockReset()
+    vi.mocked(authApi.register).mockReset()
     vi.mocked(authApi.logout).mockReset()
     vi.mocked(authApi.refresh).mockReset()
   })
@@ -86,5 +87,38 @@ describe('auth store (smoke, R16 → детали в R21)', () => {
     expect(auth.isAuthenticated).toBe(true)
     expect(auth.accessToken).toBe('access-token-abc')
     expect(authApi.refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('register сбрасывает сессию, восстановленную из старой куки', async () => {
+    vi.mocked(authApi.refresh).mockResolvedValue(tokenResponse)
+    vi.mocked(authApi.register).mockResolvedValue(undefined)
+
+    const auth = useAuthStore()
+    await auth.ensureRestored()
+    expect(auth.user).toEqual(user)
+
+    await auth.register('new@vistynq.test', 'password-123', 'New')
+
+    expect(authApi.register).toHaveBeenCalledWith({
+      email: 'new@vistynq.test',
+      password: 'password-123',
+      displayName: 'New',
+    })
+    expect(auth.isAuthenticated).toBe(false)
+    expect(auth.user).toBeNull()
+    expect(getAccessToken()).toBeNull()
+  })
+
+  it('clearSession сбрасывает сессию даже при ошибке logout', async () => {
+    vi.mocked(authApi.refresh).mockResolvedValue(tokenResponse)
+    vi.mocked(authApi.logout).mockRejectedValue(new Error('network down'))
+
+    const auth = useAuthStore()
+    await auth.ensureRestored()
+    await expect(auth.clearSession()).resolves.toBeUndefined()
+
+    expect(authApi.logout).toHaveBeenCalledTimes(1)
+    expect(auth.isAuthenticated).toBe(false)
+    expect(getAccessToken()).toBeNull()
   })
 })

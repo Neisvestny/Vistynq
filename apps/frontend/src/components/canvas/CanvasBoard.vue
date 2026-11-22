@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
-import type { Edge, Node, NodeChange, NodeDragEvent, XYPosition } from '@vue-flow/core'
+import type {
+  Edge,
+  EdgeMouseEvent,
+  Node,
+  NodeChange,
+  NodeDragEvent,
+  NodeMouseEvent,
+  XYPosition,
+} from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import '@vue-flow/core/dist/style.css'
@@ -10,15 +18,23 @@ import '@vue-flow/controls/dist/style.css'
 import '@vue-flow/node-resizer/dist/style.css'
 import NoteNode from '@/components/canvas/NoteNode.vue'
 import type { NoteNodeData } from '@/components/canvas/NoteNode.vue'
+import GhostNote from '@/components/canvas/GhostNote.vue'
+import DanglingAnchor from '@/components/canvas/DanglingAnchor.vue'
+import LinkEdge from '@/components/canvas/edges/LinkEdge.vue'
+import type { GhostNodeData } from '@/composables/useGraph'
 
 const props = withDefaults(
   defineProps<{
-    nodes: Node<NoteNodeData>[]
+    nodes: Node[]
     edges: Edge[]
     layoutEditable?: boolean
+    edgesSelectable?: boolean
+    linking?: boolean
   }>(),
   {
     layoutEditable: false,
+    edgesSelectable: false,
+    linking: false,
   }
 )
 
@@ -31,11 +47,18 @@ const emit = defineEmits<{
     payload: { id: string; width: number; height?: number; x?: number; y?: number },
   ]
   'pane-context-menu': [payload: { event: MouseEvent; flowPosition: XYPosition }]
+  'pane-click': [payload: { event: MouseEvent; flowPosition: XYPosition }]
   'node-context-menu': [payload: { event: MouseEvent; nodeId: string }]
+  'node-click': [payload: { event: MouseEvent; nodeId: string }]
   'node-open': [nodeId: string]
+  'edge-click': [payload: { event: MouseEvent; edgeId: string }]
+  'edge-context-menu': [payload: { event: MouseEvent; edgeId: string }]
+  'ghost-restore': [noteId: string]
 }>()
 
 const { fitView, project, screenToFlowCoordinate } = useVueFlow()
+
+const edgeTypes = { linkEdge: LinkEdge }
 
 const flowNodes = computed(() => props.nodes)
 
@@ -80,11 +103,34 @@ function onPaneContextMenu(event: MouseEvent) {
   emit('pane-context-menu', { event, flowPosition: resolveFlowPosition(event) })
 }
 
-function onNodeContextMenu(event: { event?: MouseEvent | TouchEvent; node: Node<NoteNodeData> }) {
+function onPaneClick(event: MouseEvent) {
+  emit('pane-click', { event, flowPosition: resolveFlowPosition(event) })
+}
+
+function onNodeContextMenu(event: NodeMouseEvent) {
   const mouse = event.event as MouseEvent | undefined
   if (mouse && typeof mouse.preventDefault === 'function') mouse.preventDefault()
   if (!mouse || !('clientX' in mouse)) return
   emit('node-context-menu', { event: mouse, nodeId: event.node.id })
+}
+
+function onNodeClick(event: NodeMouseEvent) {
+  const mouse = event.event as MouseEvent | undefined
+  if (!mouse || !('clientX' in mouse)) return
+  emit('node-click', { event: mouse, nodeId: event.node.id })
+}
+
+function onEdgeClick(event: EdgeMouseEvent) {
+  const mouse = event.event as MouseEvent | undefined
+  if (!mouse || !('clientX' in mouse)) return
+  emit('edge-click', { event: mouse, edgeId: event.edge.id })
+}
+
+function onEdgeContextMenu(event: EdgeMouseEvent) {
+  const mouse = event.event as MouseEvent | undefined
+  if (mouse && typeof mouse.preventDefault === 'function') mouse.preventDefault()
+  if (!mouse || !('clientX' in mouse)) return
+  emit('edge-context-menu', { event: mouse, edgeId: event.edge.id })
 }
 
 function focusNode(
@@ -112,18 +158,20 @@ defineExpose({
 </script>
 
 <template>
-  <div class="canvas-board">
+  <div class="canvas-board" :class="{ 'canvas-board--linking': linking }">
     <VueFlow
       :nodes="flowNodes"
       :edges="edges"
+      :edge-types="edgeTypes"
       fit-view-on-init
       :min-zoom="0.2"
       :max-zoom="2"
       :nodes-draggable="layoutEditable"
       :nodes-connectable="false"
-      :elements-selectable="layoutEditable"
-      :edges-focusable="false"
+      :elements-selectable="layoutEditable || edgesSelectable"
+      :edges-focusable="edgesSelectable"
       :nodes-focusable="layoutEditable"
+      :edges-updatable="false"
       :zoom-on-double-click="false"
       :zoom-on-pinch="true"
       :pan-on-scroll="true"
@@ -136,18 +184,34 @@ defineExpose({
       @node-drag-start="onNodeDragStart"
       @node-drag="onNodeDrag"
       @node-drag-stop="onNodeDragStop"
+      @pane-click="onPaneClick"
       @pane-context-menu="onPaneContextMenu"
+      @node-click="onNodeClick"
       @node-context-menu="onNodeContextMenu"
+      @edge-click="onEdgeClick"
+      @edge-context-menu="onEdgeContextMenu"
     >
       <template #node-note="nodeProps">
         <NoteNode
           :id="nodeProps.id"
-          :data="nodeProps.data"
+          :data="nodeProps.data as NoteNodeData"
           :selected="nodeProps.selected"
           :draggable="Boolean((nodeProps as { draggable?: boolean }).draggable)"
           @resize-end="onNodeResizeEnd"
           @open="emit('node-open', $event)"
         />
+      </template>
+
+      <template #node-ghost="nodeProps">
+        <GhostNote
+          :id="nodeProps.id"
+          :data="nodeProps.data as GhostNodeData"
+          @restore="emit('ghost-restore', $event)"
+        />
+      </template>
+
+      <template #node-dangling-anchor="nodeProps">
+        <DanglingAnchor :id="nodeProps.id" />
       </template>
 
       <Background pattern-color="#cdd4e3" :gap="24" />
@@ -166,6 +230,10 @@ defineExpose({
   width: 100%;
 }
 
+.canvas-board--linking :deep(.vue-flow__pane) {
+  cursor: crosshair;
+}
+
 .canvas-board :deep(.vue-flow) {
   background: var(--color-surface-subtle);
 }
@@ -177,6 +245,15 @@ defineExpose({
 
 .canvas-board :deep(.canvas-edge--indirect .vue-flow__edge-path) {
   stroke: var(--color-text-faint);
+}
+
+.canvas-board :deep(.canvas-edge--removed .vue-flow__edge-path) {
+  stroke: var(--color-text-faint, #94a3b8);
+}
+
+.canvas-board :deep(.canvas-edge--selected .vue-flow__edge-path) {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
 }
 
 .canvas-board :deep(.canvas-edge--dimmed .vue-flow__edge-path) {
@@ -209,6 +286,22 @@ defineExpose({
 .canvas-board :deep(.note-flow-node--dimmed) {
   opacity: 0.28;
   transition: opacity var(--transition-fast, 0.15s ease);
+}
+
+.canvas-board :deep(.note-flow-node--link-source .note-node) {
+  box-shadow:
+    0 0 0 2px var(--color-accent),
+    var(--shadow-md);
+}
+
+.canvas-board :deep(.note-flow-node--link-target .note-node) {
+  cursor: crosshair;
+}
+
+.canvas-board :deep(.note-flow-node--link-target .note-node:hover) {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--color-accent) 55%, transparent),
+    var(--shadow-md);
 }
 
 .canvas-board :deep(.vue-flow__node-note.selected .note-node),

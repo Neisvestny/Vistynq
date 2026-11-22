@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * Tiptap-редактор поверх markdown-тела заметки (R28).
+ * Tiptap-редактор поверх markdown-тела заметки (R28, R30).
  * Наружу отдаёт markdown (не HTML): сервер хранит именно его и сам парсит
- * [[wikilinks]]. Хелперы prepare/restore защищают wikilinks от экранирования.
+ * [[wikilinks]]. WikiLink — инлайн-атом (R30), автодополнение [[.
  */
 import { ref, watch } from 'vue'
 import { EditorContent, useEditor, type Editor } from '@tiptap/vue-3'
@@ -10,18 +10,28 @@ import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 
 import EditorToolbar from '@/components/editor/EditorToolbar.vue'
+import { WikiLink } from '@/components/editor/extensions/WikiLink'
+import { WikiLinkSuggestion } from '@/components/editor/extensions/wikiLinkSuggestion'
+import type { WikiLinkItem } from '@/components/editor/WikiLinkList.vue'
 import {
   prepareMarkdownForEditor,
   toStoredMarkdown,
   type WikiLinkToken,
 } from '@/lib/editorMarkdown'
 
+export interface NoteCandidate {
+  id: string
+  title: string
+}
+
 const props = withDefaults(
   defineProps<{
     modelValue: string
     editable?: boolean
+    noteCandidates?: NoteCandidate[]
+    currentNoteId?: string | null
   }>(),
-  { editable: true }
+  { editable: true, noteCandidates: () => [], currentNoteId: null }
 )
 
 const emit = defineEmits<{
@@ -33,6 +43,20 @@ const prepared = prepareMarkdownForEditor(props.modelValue)
 const wikiLinks = ref<WikiLinkToken[]>(prepared.wikiLinks)
 let lastValue = props.modelValue
 
+function getWikiLinkItems(query: string): WikiLinkItem[] {
+  if (!props.editable) return []
+  const currentId = props.currentNoteId
+  const q = query.trim().toLowerCase()
+  return props.noteCandidates
+    .filter((note) => note.id !== currentId)
+    .filter((note) => {
+      if (!q) return true
+      return note.title.toLowerCase().includes(q) || note.id.toLowerCase().includes(q)
+    })
+    .slice(0, 20)
+    .map((note) => ({ id: note.id, title: note.title || 'Без названия' }))
+}
+
 const editor = useEditor({
   extensions: [
     StarterKit.configure({
@@ -43,6 +67,10 @@ const editor = useEditor({
         protocols: ['http', 'https', 'mailto'],
         HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' },
       },
+    }),
+    WikiLink,
+    WikiLinkSuggestion.configure({
+      getItems: getWikiLinkItems,
     }),
     Markdown,
   ],
