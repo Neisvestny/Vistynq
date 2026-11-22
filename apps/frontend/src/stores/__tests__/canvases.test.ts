@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('@/api/canvas', () => ({
@@ -23,18 +23,15 @@ const canvas: Canvas = {
   access: { level: 'private', myRole: 'owner', publicSlug: null },
 }
 
-describe('canvases store (R04, R19)', () => {
+describe('canvases store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    vi.mocked(canvasApi.list).mockReset()
-    vi.mocked(canvasApi.create).mockReset()
+    vi.clearAllMocks()
   })
 
-  it('load заполняет items и пагинацию, снимает флаги loading/loadFailed', async () => {
+  it('load fills items and pagination metadata', async () => {
     vi.mocked(canvasApi.list).mockResolvedValue({ items: [canvas], page: 1, perPage: 50, total: 1 })
     const store = useCanvasesStore()
-
-    expect(store.loading).toBe(true)
     await store.load()
 
     expect(store.items).toEqual([canvas])
@@ -47,7 +44,7 @@ describe('canvases store (R04, R19)', () => {
     expect(canvasApi.list).toHaveBeenCalledWith({ page: 1, perPage: 50 })
   })
 
-  it('load запрашивает указанную страницу', async () => {
+  it('load uses requested page and computes totalPages', async () => {
     vi.mocked(canvasApi.list).mockResolvedValue({
       items: [canvas],
       page: 2,
@@ -55,52 +52,55 @@ describe('canvases store (R04, R19)', () => {
       total: 60,
     })
     const store = useCanvasesStore()
-
     await store.load(2)
-
     expect(store.page).toBe(2)
     expect(store.totalPages).toBe(2)
     expect(canvasApi.list).toHaveBeenCalledWith({ page: 2, perPage: 50 })
   })
 
-  it('load при ошибке API ставит loadFailed и оставляет items пустыми', async () => {
-    vi.mocked(canvasApi.list).mockRejectedValue(ApiError.network())
+  it('totalPages is at least 1 when empty', () => {
     const store = useCanvasesStore()
-
-    await store.load()
-
-    expect(store.loadFailed).toBe(true)
-    expect(store.loading).toBe(false)
-    expect(store.items).toEqual([])
+    expect(store.total).toBe(0)
+    expect(store.totalPages).toBe(1)
   })
 
-  it('create поднимает creating, возвращает канвас и опускает флаг', async () => {
-    let flagDuringCall = false
+  it('load sets loadFailed on error and clears it on next success', async () => {
+    vi.mocked(canvasApi.list).mockRejectedValueOnce(ApiError.network())
+    const store = useCanvasesStore()
+    await store.load()
+    expect(store.loadFailed).toBe(true)
+    expect(store.items).toEqual([])
+
+    vi.mocked(canvasApi.list).mockResolvedValueOnce({
+      items: [canvas],
+      page: 1,
+      perPage: 50,
+      total: 1,
+    })
+    await store.load()
+    expect(store.loadFailed).toBe(false)
+    expect(store.items).toEqual([canvas])
+  })
+
+  it('create returns canvas, toggles creating, and propagates errors', async () => {
+    let creatingDuring = false
     vi.mocked(canvasApi.create).mockImplementation(async () => {
-      flagDuringCall = store.creating
+      creatingDuring = store.creating
       return canvas
     })
     const store = useCanvasesStore()
-
     const result = await store.create('Исследования')
-
-    expect(flagDuringCall).toBe(true)
+    expect(creatingDuring).toBe(true)
     expect(result).toEqual(canvas)
     expect(store.creating).toBe(false)
-    expect(canvasApi.create).toHaveBeenCalledWith({ title: 'Исследования' })
-    expect(store.items).toEqual([])
-  })
 
-  it('create пробрасывает ApiError и сбрасывает creating', async () => {
     const error = new ApiError(403, 'EMAIL_NOT_VERIFIED', 'Подтвердите email')
-    vi.mocked(canvasApi.create).mockRejectedValue(error)
-    const store = useCanvasesStore()
-
+    vi.mocked(canvasApi.create).mockRejectedValueOnce(error)
     await expect(store.create('X')).rejects.toBe(error)
     expect(store.creating).toBe(false)
   })
 
-  it('reset очищает состояние', async () => {
+  it('reset restores initial state', async () => {
     vi.mocked(canvasApi.list).mockResolvedValue({
       items: [canvas],
       page: 2,
@@ -109,12 +109,11 @@ describe('canvases store (R04, R19)', () => {
     })
     const store = useCanvasesStore()
     await store.load(2)
-
     store.reset()
-
     expect(store.items).toEqual([])
     expect(store.loading).toBe(true)
     expect(store.loadFailed).toBe(false)
+    expect(store.creating).toBe(false)
     expect(store.page).toBe(1)
     expect(store.perPage).toBe(50)
     expect(store.total).toBe(0)

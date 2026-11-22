@@ -42,6 +42,7 @@
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.13.3",
     "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/test-utils": "^2.6.0",
     "@vue/tsconfig": "^0.9.1",
     "eslint": "^9.39.0",
     "eslint-plugin-vue": "^10.3.0",

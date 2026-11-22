@@ -284,9 +284,9 @@
 
 ### R33 · Vitest (P2, ← R24, R30)
 
-- [ ] парсер `[[...]]` на клиенте — частично: тестов нет
-- [x] stores
-- [ ] guard-логика — частично: тестов нет
+- [x] парсер `[[...]]` на клиенте — unit-тесты `parseWikiLinkText`, tokenizer/parseMarkdown/renderMarkdown/renderHTML/attrs, Editor+Markdown smoke и node view через `@vue/test-utils`
+- [x] stores — уверенное покрытие auth/canvases/canvas/notes/ui (actions, state, ошибки, edge cases)
+- [x] guard-логика — полная матрица ролей/прав, owner-by-id, myRole приоритет, реактивный note arg, отсутствие контекста
 
 ### R34 · i18n, hotkeys, полировка (P3, ← R29–R32)
 

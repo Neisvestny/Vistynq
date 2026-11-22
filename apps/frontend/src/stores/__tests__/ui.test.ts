@@ -1,20 +1,20 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { NOTE_EDITOR_SIDE_KEY, useUiStore } from '@/stores/ui'
 
-function stubStorage(initial: Record<string, string> = {}): Map<string, string> {
+function stubStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial))
-  vi.stubGlobal('localStorage', {
-    getItem: (key: string) => data.get(key) ?? null,
-    setItem: (key: string, value: string) => void data.set(key, value),
-    removeItem: (key: string) => void data.delete(key),
-  })
-
-  return data
+  const storage = {
+    getItem: vi.fn((key: string) => data.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => void data.set(key, value)),
+    removeItem: vi.fn((key: string) => void data.delete(key)),
+  }
+  vi.stubGlobal('localStorage', storage)
+  return { data, storage }
 }
 
-describe('ui store (R04)', () => {
+describe('ui store', () => {
   beforeEach(() => {
     stubStorage()
     setActivePinia(createPinia())
@@ -24,38 +24,39 @@ describe('ui store (R04)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('мобильное меню закрыто по умолчанию', () => {
-    expect(useUiStore().mobileMenuOpen).toBe(false)
-  })
-
-  it('openMenu/closeMenu выставляют флаг', () => {
+  it('mobile menu is closed by default and can be toggled', () => {
     const store = useUiStore()
-
+    expect(store.mobileMenuOpen).toBe(false)
     store.openMenu()
     expect(store.mobileMenuOpen).toBe(true)
-
     store.closeMenu()
     expect(store.mobileMenuOpen).toBe(false)
-  })
-
-  it('toggleMenu инвертирует состояние', () => {
-    const store = useUiStore()
-
     store.toggleMenu()
     expect(store.mobileMenuOpen).toBe(true)
-
     store.toggleMenu()
     expect(store.mobileMenuOpen).toBe(false)
   })
 
-  it('панель редактора по умолчанию справа', () => {
+  it('note editor side defaults to right and reads stored value', () => {
+    expect(useUiStore().noteEditorSide).toBe('right')
+    stubStorage({ [NOTE_EDITOR_SIDE_KEY]: 'left' })
+    setActivePinia(createPinia())
+    expect(useUiStore().noteEditorSide).toBe('left')
+  })
+
+  it('invalid stored side falls back to right', () => {
+    stubStorage({ [NOTE_EDITOR_SIDE_KEY]: 'center' })
+    setActivePinia(createPinia())
     expect(useUiStore().noteEditorSide).toBe('right')
   })
 
-  it('переключатель стороны панели сохраняет выбор в localStorage', () => {
-    const data = stubStorage()
+  it('set/toggle note editor side persists and no-ops on same value', () => {
+    const { data, storage } = stubStorage()
     setActivePinia(createPinia())
     const store = useUiStore()
+
+    store.setNoteEditorSide('right')
+    expect(storage.setItem).not.toHaveBeenCalled()
 
     store.toggleNoteEditorSide()
     expect(store.noteEditorSide).toBe('left')
@@ -66,10 +67,21 @@ describe('ui store (R04)', () => {
     expect(data.get(NOTE_EDITOR_SIDE_KEY)).toBe('right')
   })
 
-  it('битое значение localStorage не ломает сторону панели', () => {
-    stubStorage({ [NOTE_EDITOR_SIDE_KEY]: 'center' })
+  it('handles storage errors gracefully', () => {
+    const storage = {
+      getItem: vi.fn(() => {
+        throw new Error('blocked')
+      }),
+      setItem: vi.fn(() => {
+        throw new Error('blocked')
+      }),
+      removeItem: vi.fn(),
+    }
+    vi.stubGlobal('localStorage', storage)
     setActivePinia(createPinia())
-
-    expect(useUiStore().noteEditorSide).toBe('right')
+    const store = useUiStore()
+    expect(store.noteEditorSide).toBe('right')
+    expect(() => store.setNoteEditorSide('left')).not.toThrow()
+    expect(store.noteEditorSide).toBe('left')
   })
 })

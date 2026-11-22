@@ -106,3 +106,25 @@ describe('editorMarkdown (R28)', () => {
     expect(md).toContain('[[note-1|Заметка 1]]')
   })
 })
+
+describe('editorMarkdown additional coverage', () => {
+  it('normalizeMarkdown handles empty/CR/CRLF', () => {
+    expect(normalizeMarkdown('')).toBe('')
+    expect(normalizeMarkdown('a\r\nb\r')).toBe('a\nb\n')
+    expect(normalizeMarkdown('a\n')).toBe('a\n')
+  })
+
+  it('prepareMarkdownForEditor normalizes and returns empty wikiLinks', () => {
+    expect(prepareMarkdownForEditor('a\r\n')).toEqual({ markdown: 'a\n', wikiLinks: [] })
+  })
+
+  it('restoreWikiLinks replaces tokens and unescapes multiple wikilinks', () => {
+    const value = 'A token1 B \\[\\[id2|Two\\]\\]'
+    const out = restoreWikiLinks(value, [{ token: 'token1', link: '[[id1|One]]' }])
+    expect(out).toBe('A [[id1|One]] B [[id2|Two]]')
+  })
+
+  it('toStoredMarkdown normalizes and restores', () => {
+    expect(toStoredMarkdown('\\[\\[id|L\\]\\]\r\n', [])).toBe('[[id|L]]\n')
+  })
+})
