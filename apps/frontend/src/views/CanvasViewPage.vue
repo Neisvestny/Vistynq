@@ -16,6 +16,8 @@ import { tagsApi } from '@/api/tags'
 import { notify } from '@/api/notify'
 import type { GraphEdge, GraphNode, Note, NoteDetail, Tag } from '@/api/types'
 import ArchivePanel from '@/components/canvas/ArchivePanel.vue'
+import CanvasAccessDialog from '@/components/access/CanvasAccessDialog.vue'
+import NoteAccessDialog from '@/components/access/NoteAccessDialog.vue'
 import CanvasBoard from '@/components/canvas/CanvasBoard.vue'
 import CanvasSearch from '@/components/canvas/CanvasSearch.vue'
 import ContextMenu, { type ContextMenuItem } from '@/components/canvas/ContextMenu.vue'
@@ -47,7 +49,7 @@ const router = useRouter()
 
 const store = useCanvasStore()
 const notesStore = useNotesStore()
-const { canEditCanvas, userId } = useAccessGuard()
+const { canEditCanvas, canManageCanvasAccess, userId } = useAccessGuard()
 
 const highlightedTag = ref<string | null>(null)
 const tagMenuOpen = ref(false)
@@ -59,6 +61,10 @@ const editorNoteId = ref<string | null>(null)
 
 /** Панель архива (R29). */
 const archiveOpen = ref(false)
+const canvasAccessOpen = ref(false)
+const noteAccessOpen = ref(false)
+const noteAccessId = ref<string | null>(null)
+const noteAccessVisibility = ref<'public' | 'private'>('public')
 
 /** Режим связывания (R30). */
 const linkingSourceId = ref<string | null>(null)
@@ -208,14 +214,40 @@ function openArchive() {
   archiveOpen.value = true
 }
 
-function onOpenAccess(noteId: string) {
-  // Заглушка до R32: диалог доступа будет реализован отдельной задачей.
-  notify({
-    title: 'Доступ к заметке',
-    description: 'Диалог управления доступом появится в R32',
-    status: 'default',
-  })
-  void noteId
+function openNoteAccess(noteId: string): void {
+  const node = notesStore.getNodeById(noteId)
+  noteAccessId.value = noteId
+  noteAccessVisibility.value = node?.visibility ?? 'public'
+  noteAccessOpen.value = true
+}
+
+function onCanvasAccessLevelChanged(payload: {
+  level: 'private' | 'public'
+  publicSlug: string | null
+}): void {
+  if (store.canvas) {
+    store.canvas = {
+      ...store.canvas,
+      access: { ...store.canvas.access, level: payload.level, publicSlug: payload.publicSlug },
+    }
+  }
+}
+
+function onNoteVisibilityChanged(visibility: 'public' | 'private'): void {
+  noteAccessVisibility.value = visibility
+  const noteId = noteAccessId.value
+  if (noteId) {
+    const node = notesStore.getNodeById(noteId)
+    if (node) notesStore.upsertNode({ ...node, visibility })
+  }
+  void refreshGraphSilently(false)
+}
+
+function onEditorVisibilityChanged(noteId: string, visibility: 'public' | 'private'): void {
+  const node = notesStore.getNodeById(noteId)
+  if (node) notesStore.upsertNode({ ...node, visibility })
+  if (noteAccessId.value === noteId) noteAccessVisibility.value = visibility
+  void refreshGraphSilently(false)
 }
 
 /**
@@ -760,9 +792,7 @@ function buildNodeMenu(node: GraphNode): ContextMenuItem[] {
       {
         id: 'access',
         label: 'Доступ…',
-        disabled: true,
-        hint: 'R32',
-        onSelect: () => notify({ title: 'Диалог доступа появится в R32' }),
+        onSelect: () => openNoteAccess(node.id),
       }
     )
   }
@@ -962,6 +992,15 @@ onBeforeUnmount(() => {
         >
           Архив
         </UiButton>
+        <UiButton
+          v-if="canManageCanvasAccess"
+          variant="ghost"
+          size="sm"
+          :disabled="loading"
+          @click="canvasAccessOpen = true"
+        >
+          Доступ
+        </UiButton>
       </div>
 
       <div class="canvas-view__meta">
@@ -1073,7 +1112,7 @@ onBeforeUnmount(() => {
         v-model:open="editorOpen"
         :note-id="editorNoteId"
         @saved="onNoteSaved"
-        @open-access="onOpenAccess"
+        @visibility-changed="onEditorVisibilityChanged"
       />
 
       <!-- R29: архив неактуальных/удалённых заметок (≥editor) -->
@@ -1082,6 +1121,23 @@ onBeforeUnmount(() => {
         v-model:open="archiveOpen"
         :canvas-id="canvasId"
         @changed="onArchiveChange"
+      />
+
+      <CanvasAccessDialog
+        v-if="store.canvas && canManageCanvasAccess"
+        v-model:open="canvasAccessOpen"
+        :canvas-id="store.canvas.id"
+        :access-level="store.canvas.access.level"
+        :public-slug="store.canvas.access.publicSlug"
+        @access-level-changed="onCanvasAccessLevelChanged"
+      />
+
+      <NoteAccessDialog
+        v-if="noteAccessId"
+        v-model:open="noteAccessOpen"
+        :note-id="noteAccessId"
+        :visibility="noteAccessVisibility"
+        @visibility-changed="onNoteVisibilityChanged"
       />
     </div>
   </div>

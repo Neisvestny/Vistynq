@@ -177,7 +177,7 @@
 
 - [x] `MarkdownRenderer` с санитизацией (`bodyHtml` на `/shared`) — escape-first + adversarial-тесты (R18)
 - [x] недоступные `[[wikilinks]]` → plain text
-- [ ] DOMPurify на `/shared` (R32) — helper `frontend/src/lib/sanitize.ts` и тесты готовы; в Tiptap (R28) не требуется: редактор грузит markdown через парсер `@tiptap/markdown`, а не через `v-html`/сырой HTML
+- [x] DOMPurify на `/shared` (R32) — helper `frontend/src/lib/sanitize.ts` и тесты готовы; в Tiptap (R28) не требуется: редактор грузит markdown через парсер `@tiptap/markdown`, а не через `v-html`/сырой HTML
 
 ### R19 · Пагинация (P2, ← R12, R13)
 
@@ -277,10 +277,10 @@
 
 ### R32 · Доступ UI (P2, ← R16, R18, R25)
 
-- [ ] диалог «Доступ» канваса: «Только я» / «Публичная ссылка», копирование URL
-- [ ] выдача по email с ролью, список участников и ожидающих, смена роли, отзыв
-- [ ] диалог «Доступ» заметки + переключатель public/private
-- [ ] `SharedCanvas` и `SharedNote` (read-only, баннер) — частично: страницы-заглушки с баннером, данные не подключены
+- [x] диалог «Доступ» канваса: «Только я» / «Публичная ссылка», копирование URL
+- [x] выдача по email с ролью, список участников и ожидающих, смена роли, отзыв
+- [x] диалог «Доступ» заметки + переключатель public/private
+- [x] `SharedCanvas` и `SharedNote` (read-only, баннер) — публичные read-only страницы с загрузкой данных, баннером и fallback-состояниями
 
 ### R33 · Vitest (P2, ← R24, R30)
 

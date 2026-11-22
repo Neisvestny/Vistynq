@@ -16,6 +16,7 @@ import type { Attachment, NoteDetail, Tag } from '@/api/types'
 import MarkdownEditor from '@/components/editor/MarkdownEditor.vue'
 import ManifestForm from '@/components/note/ManifestForm.vue'
 import NoteFilesSection, { type PendingUpload } from '@/components/note/NoteFilesSection.vue'
+import NoteAccessDialog from '@/components/access/NoteAccessDialog.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiSheet from '@/components/ui/UiSheet.vue'
@@ -44,7 +45,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:open': [value: boolean]
   saved: [detail: NoteDetail, plan: SavePlan]
-  'open-access': [noteId: string]
+  'visibility-changed': [noteId: string, visibility: NoteDetail['visibility']]
 }>()
 
 const canvasStore = useCanvasStore()
@@ -61,6 +62,7 @@ const attachments = ref<Attachment[]>([])
 const pendingUploads = ref<PendingUpload[]>([])
 const editorRef = ref<Editor | null>(null)
 const imageInputRef = ref<HTMLInputElement | null>(null)
+const accessOpen = ref(false)
 let requestSeq = 0
 let confirmingClose = false
 
@@ -226,7 +228,23 @@ function onSheetOpenChange(value: boolean): void {
 }
 
 function onOpenAccess(): void {
-  if (detail.value) emit('open-access', detail.value.id)
+  if (detail.value) accessOpen.value = true
+}
+
+function onNoteVisibilityChanged(visibility: NoteDetail['visibility']): void {
+  if (!detail.value) return
+  detail.value = { ...detail.value, visibility }
+  draft.value = {
+    ...draft.value,
+    manifest: { ...draft.value.manifest, visibility },
+  }
+  baseline.value = {
+    ...baseline.value,
+    manifest: { ...baseline.value.manifest, visibility },
+  }
+  const node = notesStore.getNodeById(detail.value.id)
+  if (node) notesStore.upsertNode({ ...node, visibility })
+  emit('visibility-changed', detail.value.id, visibility)
 }
 
 function onEditorReady(editor: Editor): void {
@@ -525,6 +543,14 @@ async function onMediaError(attachment: Attachment): Promise<void> {
         <UiButton type="button" variant="ghost" @click="requestClose">Закрыть</UiButton>
       </div>
     </template>
+
+    <NoteAccessDialog
+      v-if="detail"
+      v-model:open="accessOpen"
+      :note-id="detail.id"
+      :visibility="detail.visibility"
+      @visibility-changed="onNoteVisibilityChanged"
+    />
   </UiSheet>
 </template>
 

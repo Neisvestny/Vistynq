@@ -16,11 +16,19 @@ describe('sanitizeHtml', () => {
     expect(html).not.toContain('onclick')
   })
 
-  it('removes images with onerror', () => {
-    const html = sanitizeHtml('<img src=x onerror="alert(1)">')
+  it('removes dangerous img attributes and unsafe src', () => {
+    const html = sanitizeHtml('<img src=x onerror="alert(1)" alt="x">')
 
-    expect(html).not.toContain('<img')
     expect(html).not.toContain('onerror')
+    expect(html).not.toContain('src="x"')
+  })
+
+  it('keeps safe images', () => {
+    const html = sanitizeHtml('<img src="https://example.com/a.png" alt="A" loading="lazy">')
+
+    expect(html).toContain('<img')
+    expect(html).toContain('src="https://example.com/a.png"')
+    expect(html).toContain('alt="A"')
   })
 
   it('drops javascript and data URLs', () => {
