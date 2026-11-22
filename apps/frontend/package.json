@@ -18,6 +18,10 @@
     "typecheck": "vue-tsc --build"
   },
   "dependencies": {
+    "@tiptap/markdown": "^3.35.0",
+    "@tiptap/pm": "^3.35.0",
+    "@tiptap/starter-kit": "^3.35.0",
+    "@tiptap/vue-3": "^3.35.0",
     "@vue-flow/background": "^1.3.2",
     "@vue-flow/controls": "^1.1.3",
     "@vue-flow/core": "^1.48.2",

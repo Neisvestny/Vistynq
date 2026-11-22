@@ -32,6 +32,7 @@ const emit = defineEmits<{
   ]
   'pane-context-menu': [payload: { event: MouseEvent; flowPosition: XYPosition }]
   'node-context-menu': [payload: { event: MouseEvent; nodeId: string }]
+  'node-open': [nodeId: string]
 }>()
 
 const { fitView, project, screenToFlowCoordinate } = useVueFlow()
@@ -145,6 +146,7 @@ defineExpose({
           :selected="nodeProps.selected"
           :draggable="Boolean((nodeProps as { draggable?: boolean }).draggable)"
           @resize-end="onNodeResizeEnd"
+          @open="emit('node-open', $event)"
         />
       </template>
 

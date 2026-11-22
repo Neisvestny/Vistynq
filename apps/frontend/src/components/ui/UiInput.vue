@@ -6,6 +6,7 @@ defineProps<{
   id?: string
   disabled?: boolean
   autocomplete?: string
+  maxlength?: number
 }>()
 
 defineEmits<{
@@ -25,6 +26,7 @@ defineEmits<{
       :placeholder="placeholder"
       :disabled="disabled"
       :autocomplete="autocomplete"
+      :maxlength="maxlength"
       :value="modelValue"
       @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />

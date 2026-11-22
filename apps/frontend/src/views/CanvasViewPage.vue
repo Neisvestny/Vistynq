@@ -4,15 +4,16 @@
  * интерактивный рендер графа (R25), drag/resize + persist (R26),
  * меню/фильтры/поиск/теги (R27).
  */
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { NodeChange, XYPosition } from '@vue-flow/core'
 import { accessApi } from '@/api/access'
+import { canvasApi } from '@/api/canvas'
 import { ApiError } from '@/api/http'
 import { notesApi } from '@/api/notes'
 import { tagsApi } from '@/api/tags'
 import { notify } from '@/api/notify'
-import type { GraphNode, Tag } from '@/api/types'
+import type { GraphNode, NoteDetail, Tag } from '@/api/types'
 import CanvasBoard from '@/components/canvas/CanvasBoard.vue'
 import CanvasSearch from '@/components/canvas/CanvasSearch.vue'
 import ContextMenu, { type ContextMenuItem } from '@/components/canvas/ContextMenu.vue'
@@ -24,8 +25,15 @@ import { useAccessGuard } from '@/composables/useAccessGuard'
 import { useContextMenu } from '@/composables/useContextMenu'
 import { useGraph } from '@/composables/useGraph'
 import { useNodePositionSync } from '@/composables/useNodePositionSync'
+import type { SavePlan } from '@/composables/useNoteDraft'
+import { noteDetailToGraphNode } from '@/lib/noteMapping'
 import { useCanvasStore } from '@/stores/canvas'
 import { useNotesStore } from '@/stores/notes'
+
+/** Tiptap тяжёлый — грузим панель редактора только при первом открытии (R28). */
+const NoteEditorModal = defineAsyncComponent(
+  () => import('@/components/note/NoteEditorModal.vue')
+)
 
 type PaneMenuContext = { kind: 'pane'; flowPosition: XYPosition }
 type NodeMenuContext = { kind: 'node'; nodeId: string }
@@ -41,6 +49,10 @@ const { canEditCanvas, userId } = useAccessGuard()
 const highlightedTag = ref<string | null>(null)
 const tagMenuOpen = ref(false)
 const importanceMenuOpen = ref(false)
+
+/** Панель редактора заметки (R28). */
+const editorOpen = ref(false)
+const editorNoteId = ref<string | null>(null)
 
 const { flowNodes, flowEdges, visibleNodes, brokenEdgesCount } = useGraph({
   editableLayout: true,
@@ -163,6 +175,53 @@ function onSearchSelect(nodeId: string) {
   requestAnimationFrame(() => {
     boardRef.value?.focusNode(nodeId)
   })
+}
+
+function openEditor(nodeId: string) {
+  notesStore.select(nodeId)
+  editorNoteId.value = nodeId
+  editorOpen.value = true
+}
+
+function onOpenAccess(noteId: string) {
+  // Заглушка до R32: диалог доступа будет реализован отдельной задачей.
+  notify({
+    title: 'Доступ к заметке',
+    description: 'Диалог управления доступом появится в R32',
+    status: 'default',
+  })
+  void noteId
+}
+
+/**
+ * После сохранения редактора (R28): сначала сбрасываем отложенную геометрию,
+ * затем обновляем граф. Тело/теги/актуальность влияют на рёбра, поэтому для
+ * них делаем тихий рефреш графа; остальные поля — локальный upsert ноды.
+ */
+async function onNoteSaved(detail: NoteDetail, plan: SavePlan): Promise<void> {
+  await positionSync.flushAll()
+
+  const needsGraphRefresh =
+    plan.bodyMd !== undefined ||
+    plan.manifestPatch?.tagIds !== undefined ||
+    plan.manifestPatch?.isRelevant !== undefined
+  const cid = canvasId.value
+
+  if (needsGraphRefresh && cid) {
+    try {
+      const graph = await canvasApi.graph(cid)
+      store.edges = graph.edges
+      store.tags = graph.tags
+      notesStore.setNodes(graph.nodes)
+      positionSync.syncFromNodes()
+      return
+    } catch {
+      // Тихий рефреш не должен ломать уже сохранённую заметку — падаем ниже
+      // к локальному обновлению ноды.
+    }
+  }
+
+  notesStore.upsertNode(noteDetailToGraphNode(detail, notesStore.getNodeById(detail.id), store.tags))
 }
 
 function isAuthorOrCanvasOwner(node: GraphNode): boolean {
@@ -397,14 +456,7 @@ function buildNodeMenu(node: GraphNode): ContextMenuItem[] {
       {
         id: 'open',
         label: 'Открыть',
-        onSelect: () => {
-          notesStore.select(node.id)
-          notify({
-            title: 'Редактор заметки',
-            description: 'Полный редактор появится в R28',
-            status: 'default',
-          })
-        },
+        onSelect: () => openEditor(node.id),
       },
     ]
   }
@@ -433,14 +485,7 @@ function buildNodeMenu(node: GraphNode): ContextMenuItem[] {
     {
       id: 'open',
       label: 'Открыть',
-      onSelect: () => {
-        notesStore.select(node.id)
-        notify({
-          title: 'Редактор заметки',
-          description: 'Полный редактор появится в R28',
-          status: 'default',
-        })
-      },
+      onSelect: () => openEditor(node.id),
     },
     { id: 'derive', label: 'Создать от этой заметки', onSelect: () => deriveFromNode(node.id) },
     {
@@ -633,6 +678,7 @@ onBeforeUnmount(() => {
         @node-resize-end="onNodeResizeEnd"
         @pane-context-menu="onPaneContextMenu"
         @node-context-menu="onNodeContextMenu"
+        @node-open="openEditor"
       >
         <!-- Пустой канвас -->
         <div v-if="visibleNodes.length === 0" class="canvas-view__empty">
@@ -650,6 +696,15 @@ onBeforeUnmount(() => {
         :y="contextMenu.state.y"
         :items="menuItems"
         @close="contextMenu.close()"
+      />
+
+      <!-- R28: панель редактора заметки (read-only определяется внутри) -->
+      <NoteEditorModal
+        v-if="editorOpen"
+        v-model:open="editorOpen"
+        :note-id="editorNoteId"
+        @saved="onNoteSaved"
+        @open-access="onOpenAccess"
       />
     </div>
   </div>

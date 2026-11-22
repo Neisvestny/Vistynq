@@ -41,6 +41,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'resize-end': [payload: { id: string; width: number; height?: number; x?: number; y?: number }]
+  open: [id: string]
 }>()
 
 const importance = computed(() => Math.min(5, Math.max(1, props.data.importance)))
@@ -68,6 +69,11 @@ function onResizeEnd(event: { params: { width: number; height: number; x: number
     }"
     :style="{ borderColor: `var(--importance-${importance})` }"
     :title="data.title"
+    role="button"
+    tabindex="0"
+    :aria-label="`Открыть заметку: ${data.title}`"
+    @dblclick.stop="emit('open', id)"
+    @keydown.enter.stop="emit('open', id)"
   >
     <NodeResizeControl
       v-if="canResize"
