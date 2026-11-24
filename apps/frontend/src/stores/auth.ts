@@ -10,6 +10,7 @@ import { router } from '@/router'
 import { authApi } from '@/api/auth'
 import { tGlobal } from '@/i18n'
 import { notify } from '@/api/notify'
+import { safeRedirectPath } from '@/lib/redirect'
 import { setAccessToken, setOnTokenRefreshed, setOnUnauthorized } from '@/api/http'
 import type { AccessTokenResponse, User } from '@/api/types'
 
@@ -93,7 +94,11 @@ export const useAuthStore = defineStore('auth', () => {
       description: tGlobal('auth.sessionExpiredDescription'),
       status: 'error',
     })
-    void router.push({ name: 'login' })
+    const current = router.currentRoute?.value
+    const redirect = current && current.name !== 'login' ? safeRedirectPath(current.fullPath) : null
+    const target: { name: 'login'; query?: { redirect: string } } = { name: 'login' }
+    if (redirect) target.query = { redirect }
+    void router.push(target)
   }
 
   /* http.ts does not know about store - keep wiring here. */

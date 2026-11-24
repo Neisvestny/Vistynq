@@ -33,8 +33,9 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
   const pending = new Map<string, SavedGeometry>()
   const lastSaved = new Map<string, SavedGeometry>()
   const snapshotBeforeGesture = new Map<string, SavedGeometry>()
-  const inFlight = new Set<string>()
+  const inFlight = new Map<string, Promise<void>>()
   const dirty = new Set<string>()
+  let epoch = 0
 
   function readCurrent(id: string): SavedGeometry | null {
     const node = notesStore.getNodeById(id)
@@ -44,7 +45,10 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
 
   /** Zafiksirovat servernoe/aktualnoe sostoyanie nod (posle zagruzki grafa). */
   function syncFromNodes(): void {
-    cancelAll()
+    epoch += 1
+    for (const timer of timers.values()) clearTimeout(timer)
+    timers.clear()
+    pending.clear()
     lastSaved.clear()
     snapshotBeforeGesture.clear()
     dirty.clear()
@@ -62,10 +66,13 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
   }
 
   function cancelAll(): void {
+    epoch += 1
     for (const timer of timers.values()) clearTimeout(timer)
     timers.clear()
     pending.clear()
+    dirty.clear()
     inFlight.clear()
+    snapshotBeforeGesture.clear()
   }
 
   /** Nachalo zhesta: zapomnit tochku otkata, esli eshchyo ne v "gryaznom" sostoyanii. */
@@ -116,52 +123,57 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
       return
     }
 
-    if (inFlight.has(id)) {
+    const running = inFlight.get(id)
+    if (running) {
       // Posle zaversheniya tekushchego zaprosa povtorim s aktualnym pending.
       pending.set(id, payload)
+      await running
       return
     }
 
-    inFlight.add(id)
+    const requestEpoch = epoch
+    const task = (async () => {
+      try {
+        await canvasApi.patchNodePosition(cid, id, {
+          x: payload.x,
+          y: payload.y,
+          width: payload.width,
+        })
+        if (requestEpoch !== epoch) return
+        lastSaved.set(id, payload)
+        snapshotBeforeGesture.delete(id)
+        dirty.delete(id)
+      } catch (error) {
+        if (requestEpoch !== epoch) return
+        // Rollback only if no newer geometry is queued for this node.
+        if (!pending.has(id)) {
+          const fallback = snapshotBeforeGesture.get(id) ?? lastSaved.get(id)
+          if (fallback) {
+            notesStore.updateNodeGeometry(id, fallback)
+            lastSaved.set(id, fallback)
+          }
+        }
+        snapshotBeforeGesture.delete(id)
+        dirty.delete(id)
+
+        const message =
+          error instanceof ApiError && error.message
+            ? error.message
+            : tGlobal('canvas.saveLayoutErrorDescription')
+        notify({ title: tGlobal('canvas.saveLayoutError'), description: message, status: 'error' })
+      } finally {
+        // A replacement request cannot start while this one is in inFlight,
+        // so the entry is always ours.
+        inFlight.delete(id)
+      }
+    })()
+    inFlight.set(id, task)
     pending.delete(id)
 
-    try {
-      await canvasApi.patchNodePosition(cid, id, {
-        x: payload.x,
-        y: payload.y,
-        width: payload.width,
-      })
-      lastSaved.set(id, payload)
-      snapshotBeforeGesture.delete(id)
-      dirty.delete(id)
-
-      // Esli vo vremya zaprosa prishli novye izmeneniya — otpravim ikh.
-      if (pending.has(id)) {
-        inFlight.delete(id)
-        void flushOne(id)
-        return
-      }
-    } catch (error) {
-      pending.delete(id)
-      const fallback = snapshotBeforeGesture.get(id) ?? lastSaved.get(id)
-      if (fallback) {
-        notesStore.updateNodeGeometry(id, fallback)
-        lastSaved.set(id, fallback)
-      }
-      snapshotBeforeGesture.delete(id)
-      dirty.delete(id)
-
-      const message =
-        error instanceof ApiError && error.message
-          ? error.message
-          : tGlobal('canvas.saveLayoutErrorDescription')
-      notify({ title: tGlobal('canvas.saveLayoutError'), description: message, status: 'error' })
-    } finally {
-      inFlight.delete(id)
-      if (pending.has(id) && !timers.has(id) && !inFlight.has(id)) {
-        void flushOne(id)
-      }
-    }
+    await task
+    if (requestEpoch !== epoch) return
+    // Esli vo vremya zaprosa prishli novye izmeneniya — otpravim ikh.
+    if (pending.has(id) && !timers.has(id)) await flushOne(id)
   }
 
   async function flushAll(): Promise<void> {
@@ -175,6 +187,8 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
       }
       await flushOne(id)
     }
+    // Dozhdemsya zaprosov, kotorye uzhe byli v polete do nachala flush.
+    await Promise.all([...new Set(inFlight.values())])
   }
 
   /** Primenit lokalnoe izmenenie geometrii i zaplanirovat sokhranenie. */
@@ -194,8 +208,9 @@ export function useNodePositionSync(canvasId: Ref<string | null>) {
   }
 
   tryOnScopeDispose(() => {
-    // Best-effort: snimem taymery; nezavershyonnye zaprosy mogut ne uspet.
-    cancelAll()
+    // Ne otmenyaem uzhe ukedshie zaprosy: flushAll() v potrebitеле dzhdet ikh.
+    for (const timer of timers.values()) clearTimeout(timer)
+    timers.clear()
   })
 
   return {

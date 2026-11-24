@@ -52,10 +52,19 @@ export const i18n = createI18n({
   fallbackWarn: import.meta.env.DEV,
 })
 
+export function applyDocumentTitle(): void {
+  if (typeof document !== 'undefined') {
+    document.title = i18n.global.t('app.title') as string
+  }
+}
+
+applyDocumentTitle()
+
 export function setI18nLocale(locale: AppLocale): void {
   i18n.global.locale.value = locale
   persistLocale(locale)
   applyDocumentLocale(locale)
+  applyDocumentTitle()
 }
 
 export function tGlobal(key: string, params?: Record<string, unknown>): string {

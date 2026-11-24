@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useNotesStore } from '@/stores/notes'
@@ -19,6 +19,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const notesStore = useNotesStore()
 const rootEl = ref<HTMLElement | null>(null)
+const triggerEl = ref<HTMLElement | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
 
 const levels = computed(
   () =>
@@ -62,8 +64,22 @@ function onDocumentPointerDown(event: PointerEvent) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') setOpen(false)
+  if (event.key !== 'Escape' || !isOpen.value) return
+  const target = event.target
+  if (target instanceof Node && panelEl.value?.contains(target)) {
+    event.stopPropagation()
+    setOpen(false)
+    triggerEl.value?.focus()
+  }
 }
+
+watch(isOpen, (open, wasOpen) => {
+  if (open) {
+    void nextTick(() => panelEl.value?.querySelector<HTMLElement>('button, input')?.focus())
+  } else if (wasOpen && panelEl.value?.contains(document.activeElement)) {
+    triggerEl.value?.focus()
+  }
+})
 
 onMounted(() => {
   document.addEventListener('pointerdown', onDocumentPointerDown)
@@ -78,18 +94,21 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="rootEl" class="canvas-popover">
-    <UiButton
-      variant="ghost"
-      size="sm"
-      :aria-expanded="isOpen"
-      aria-haspopup="dialog"
-      @click="toggleOpen"
-    >
-      {{ t('importance.title') }}
-    </UiButton>
+    <span ref="triggerEl" class="canvas-popover__trigger">
+      <UiButton
+        variant="ghost"
+        size="sm"
+        :aria-expanded="isOpen"
+        aria-haspopup="dialog"
+        @click="toggleOpen"
+      >
+        {{ t('importance.title') }}
+      </UiButton>
+    </span>
 
     <div
       v-if="isOpen"
+      ref="panelEl"
       class="canvas-popover__panel importance-filter"
       role="dialog"
       :aria-label="t('importance.aria')"
@@ -133,6 +152,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .canvas-popover {
   position: relative;
+}
+
+.canvas-popover__trigger {
+  display: inline-flex;
 }
 
 .canvas-popover__panel {

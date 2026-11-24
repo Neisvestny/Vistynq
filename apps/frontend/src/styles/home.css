@@ -2,7 +2,7 @@
 .site-header {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: var(--z-sticky);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
 }
@@ -117,27 +117,40 @@
 
 /* Hero */
 .hero {
-  padding: 5rem 0 3rem;
+  padding: clamp(3.5rem, 7vw, 6rem) 0 clamp(3rem, 6vw, 5rem);
+  overflow: hidden;
 }
 
 .hero__inner {
-  max-width: 44rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: clamp(var(--space-5), 5vw, var(--space-6));
+}
+
+.hero__copy {
+  animation: hero-in 0.6s var(--ease-out) both;
 }
 
 .kicker {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   font-weight: 700;
-  text-align: center;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-accent);
 }
 
+.section__head .kicker {
+  display: block;
+  text-align: center;
+}
+
 .hero h1 {
   margin-top: var(--space-4);
-  font-size: 3rem;
-  line-height: 1.1;
-  text-align: center;
+  font-size: clamp(2.5rem, 5vw, 3.75rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.04em;
+  text-wrap: balance;
 }
 
 .accent {
@@ -145,50 +158,76 @@
 }
 
 .lead {
-  margin-top: var(--space-4);
-  font-size: 1.1rem;
+  max-width: 36rem;
+  margin-top: var(--space-5);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-relaxed);
   color: var(--color-text-muted);
+  text-wrap: pretty;
 }
 
 .hero__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
   margin-top: var(--space-6);
 }
 
+.hero__art svg {
+  width: 100%;
+  height: auto;
+}
+
+@keyframes hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Секции */
 .section {
-  padding: 2rem 0;
+  padding: clamp(3rem, 6vw, 5rem) 0;
 }
 
 .section__head {
-  margin-bottom: var(--space-6);
+  max-width: 42rem;
+  margin: 0 auto var(--space-6);
 }
 
 .section h2 {
   margin-top: var(--space-3);
-  font-size: 2rem;
-  line-height: 1.2;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
   text-align: center;
+  text-wrap: balance;
 }
 
 .section__lead {
   margin-top: var(--space-3);
   color: var(--color-text-muted);
+  line-height: var(--line-height-base);
+  text-align: center;
+  text-wrap: pretty;
 }
 
 /* Фичи */
 .features {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--space-5);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
 }
 
 .feature h3 {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 1.02rem;
+  gap: var(--space-2);
+  font-size: var(--font-size-base);
 }
 
 .feature h3 svg {
@@ -198,7 +237,8 @@
 
 .feature p {
   margin-top: var(--space-2);
-  font-size: 0.94rem;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
   color: var(--color-text-muted);
 }
 
@@ -243,14 +283,18 @@
   grid-template-columns: 1.3fr auto;
   align-items: center;
   gap: var(--space-6);
-  padding: var(--space-6);
-  border: 1px solid var(--color-border-strong);
+  padding: clamp(var(--space-5), 4vw, var(--space-6));
+  border: 1px solid var(--color-accent-soft);
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  background: linear-gradient(120deg, var(--color-accent-soft), var(--color-surface) 70%);
+  box-shadow: 0 12px 28px -18px rgba(27, 36, 64, 0.45);
 }
 
 .cta h2 {
-  font-size: 1.7rem;
+  font-size: var(--font-size-2xl);
+  line-height: var(--line-height-tight);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 .cta p {
@@ -302,6 +346,15 @@
 
 /* Планшет (768–1023px) */
 @media (max-width: 1023px) {
+  .hero__inner {
+    grid-template-columns: 1fr;
+  }
+
+  .hero__art {
+    max-width: 32rem;
+    margin-inline: auto;
+  }
+
   .features,
   .steps {
     grid-template-columns: 1fr 1fr;
@@ -359,7 +412,11 @@
   }
 
   .hero h1 {
-    font-size: 2.1rem;
+    font-size: clamp(2rem, 9vw, 2.5rem);
+  }
+
+  .hero__copy {
+    animation: none;
   }
 
   .hero__actions {
@@ -400,4 +457,10 @@
   .site-footer__meta:last-child {
     justify-self: start;
   }
+}
+
+/* Ровные края абзацев: без одиночных слов на последней строке. */
+.lead,
+.section__lead {
+  text-wrap: pretty;
 }

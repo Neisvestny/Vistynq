@@ -16,7 +16,8 @@ type NotifyHandler = (options: NotifyOptions) => void
 
 let handler: NotifyHandler | null = null
 
-export function setNotifyHandler(fn: NotifyHandler): void {
+/** Pass null on unmount so a stale bridge never receives notifications. */
+export function setNotifyHandler(fn: NotifyHandler | null): void {
   handler = fn
 }
 

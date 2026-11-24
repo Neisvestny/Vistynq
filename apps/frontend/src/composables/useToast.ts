@@ -1,6 +1,7 @@
 import { useToastManager } from 'reka-ui'
+import type { ToastStatus } from '@/api/notify'
 
-export type ToastStatus = 'default' | 'success' | 'error'
+export type { ToastStatus } from '@/api/notify'
 
 interface ToastOptions {
   title: string

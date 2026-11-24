@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
-    variant?: 'primary' | 'ghost'
+    variant?: 'primary' | 'ghost' | 'danger'
     size?: 'sm' | 'md' | 'lg'
     type?: 'button' | 'submit' | 'reset'
     disabled?: boolean
@@ -20,6 +20,19 @@ withDefaults(
     to: undefined,
   }
 )
+
+const classes = () => [
+  'ui-btn',
+  `ui-btn--${props.variant}`,
+  { [`ui-btn--${props.size}`]: props.size !== 'md' },
+]
+
+/** RouterLink/<a> have no disabled attribute — block activation explicitly. */
+function onClick(event: MouseEvent) {
+  if (!props.disabled) return
+  event.preventDefault()
+  event.stopImmediatePropagation()
+}
 </script>
 
 <template>
@@ -27,27 +40,27 @@ withDefaults(
     v-if="to"
     :to="to"
     class="ui-btn"
-    :class="[`ui-btn--${variant}`, { [`ui-btn--${size}`]: size !== 'md' }]"
+    :class="classes()"
+    :aria-disabled="disabled || undefined"
+    :tabindex="disabled ? -1 : undefined"
+    @click="onClick"
   >
     <slot />
   </RouterLink>
 
   <a
     v-else-if="href"
-    :href="href"
+    :href="disabled ? undefined : href"
     class="ui-btn"
-    :class="[`ui-btn--${variant}`, { [`ui-btn--${size}`]: size !== 'md' }]"
+    :class="classes()"
+    :aria-disabled="disabled || undefined"
+    :tabindex="disabled ? -1 : undefined"
+    @click="onClick"
   >
     <slot />
   </a>
 
-  <button
-    v-else
-    :type="type"
-    :disabled="disabled"
-    class="ui-btn"
-    :class="[`ui-btn--${variant}`, { [`ui-btn--${size}`]: size !== 'md' }]"
-  >
+  <button v-else :type="type" :disabled="disabled" class="ui-btn" :class="classes()">
     <slot />
   </button>
 </template>

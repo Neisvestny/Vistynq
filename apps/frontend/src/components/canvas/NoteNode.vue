@@ -10,6 +10,7 @@ export interface NoteNodeData {
   visibility?: NoteVisibility
   authorId?: string
   isRelevant?: boolean
+  archived?: boolean
   dimmed?: boolean
   canMove?: boolean
 }
@@ -19,6 +20,7 @@ export interface NoteNodeData {
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NodeResizeControl } from '@vue-flow/node-resizer'
+import { Lock } from 'lucide-vue-next'
 
 /**
  * Canvas note node (docs/ui-ux.md §2 "Nodes"):
@@ -43,6 +45,10 @@ const props = withDefaults(
 const emit = defineEmits<{
   'resize-end': [payload: { id: string; width: number; height?: number; x?: number; y?: number }]
   open: [id: string]
+  focus: [id: string]
+  blur: [id: string]
+  hover: [id: string | null]
+  delete: [id: string]
 }>()
 
 const { t } = useI18n()
@@ -68,6 +74,7 @@ function onResizeEnd(event: { params: { width: number; height: number; x: number
       'note-node--selected': selected,
       'note-node--dimmed': data.dimmed,
       'note-node--movable': canResize,
+      'note-node--archived': data.archived === true,
     }"
     :style="{ borderColor: `var(--importance-${importance})` }"
     :title="data.title"
@@ -76,6 +83,11 @@ function onResizeEnd(event: { params: { width: number; height: number; x: number
     :aria-label="t('note.openAria', { title: data.title || t('note.untitled') })"
     @dblclick.stop="emit('open', id)"
     @keydown.enter.stop="emit('open', id)"
+    @keydown.delete.stop="emit('delete', id)"
+    @focus="emit('focus', id)"
+    @blur="emit('blur', id)"
+    @mouseenter="emit('hover', id)"
+    @mouseleave="emit('hover', null)"
   >
     <NodeResizeControl
       v-if="canResize"
@@ -97,6 +109,20 @@ function onResizeEnd(event: { params: { width: number; height: number; x: number
     />
 
     <p class="note-node__title">{{ data.title || t('note.untitled') }}</p>
+
+    <span class="note-node__badges">
+      <span
+        v-if="data.visibility === 'private'"
+        class="note-node__lock"
+        :aria-label="t('note.private')"
+        :title="t('note.private')"
+      >
+        <Lock :size="13" aria-hidden="true" />
+      </span>
+      <span v-if="data.archived" class="note-node__archive-badge">
+        {{ t('note.archivedBadge') }}
+      </span>
+    </span>
 
     <div v-if="data.tags.length" class="note-node__tags">
       <span

@@ -13,12 +13,13 @@ const { t } = useI18n()
       <AppBrand />
     </header>
 
-    <main class="auth-layout__main">
+    <main id="main" class="auth-layout__main" tabindex="-1">
       <UiCard class="auth-layout__card">
         <div class="auth-form">
           <h1 class="auth-form__title">{{ t('notFound.title') }}</h1>
           <p class="auth-form__status">{{ t('notFound.description') }}</p>
           <UiButton to="/">{{ t('notFound.home') }}</UiButton>
+          <UiButton to="/dashboard" variant="ghost">{{ t('nav.toDashboard') }}</UiButton>
         </div>
       </UiCard>
     </main>

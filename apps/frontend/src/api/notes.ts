@@ -1,4 +1,4 @@
-import { request } from './http'
+import { request, type UploadProgress } from './http'
 import type { DirectLink, Note, NoteDetail } from './types'
 
 export interface CreateNotePayload {
@@ -12,6 +12,7 @@ export interface CreateNoteFromTextPayload {
   title?: string
   x?: number
   y?: number
+  onUploadProgress?: (progress: UploadProgress) => void
 }
 
 export interface UpdateNoteManifestPayload {
@@ -49,7 +50,11 @@ export const notesApi = {
     if (payload.title !== undefined) form.append('title', payload.title)
     if (payload.x !== undefined) form.append('x', String(payload.x))
     if (payload.y !== undefined) form.append('y', String(payload.y))
-    return request<Note>(`/canvases/${canvasId}/notes/from-text`, { method: 'POST', body: form })
+    return request<Note>(`/canvases/${canvasId}/notes/from-text`, {
+      method: 'POST',
+      body: form,
+      onUploadProgress: payload.onUploadProgress,
+    })
   },
 
   /** Sozdat zametku ot roditelskoy s pryamoy ssylkoy. */

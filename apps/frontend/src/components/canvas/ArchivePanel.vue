@@ -37,6 +37,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:open': [value: boolean]
   changed: [change: ArchiveChange]
+  /** Parent must flush pending node geometry before an archive API call. */
+  'before-action': [done: () => void]
 }>()
 
 type ActionKind = ArchiveChange['kind']
@@ -162,6 +164,7 @@ const ACTION_ERRORS = computed<Record<ActionKind, string>>(() => ({
 async function runAction(note: Note, kind: ActionKind): Promise<void> {
   if (isBusy.value || loading.value) return
   busyId.value = note.id
+  await new Promise<void>((resolve) => emit('before-action', resolve))
   try {
     switch (kind) {
       case 'make-relevant': {

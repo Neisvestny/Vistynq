@@ -9,7 +9,7 @@ import AppBrand from '@/components/AppBrand.vue'
       <AppBrand />
     </header>
 
-    <main class="auth-layout__main">
+    <main id="main" class="auth-layout__main" tabindex="-1">
       <div class="ui-card auth-layout__card">
         <RouterView />
       </div>

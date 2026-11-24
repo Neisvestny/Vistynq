@@ -37,8 +37,20 @@ const ALLOWED_TAGS = [
 
 const ALLOWED_ATTR = ['href', 'title', 'target', 'rel', 'src', 'alt', 'loading', 'width', 'height']
 
-/** http(s), lokalnye puti (`/shared/...`, `/storage/...`) i yakorya. */
-const ALLOWED_URI = /^(?:https?:\/\/|\/(?!\/)|#)/i
+/** http(s), mailto, lokalnye puti (`/shared/...`, `/storage/...`) i yakorya. */
+const ALLOWED_URI = /^(?:https?:\/\/|mailto:|\/(?!\/)|#)/i
+
+/**
+ * Vneshniye ssylki vsega otkryvayutsya cherez `target="_blank"` — obyazatelno
+ * vystavlyaem bezopasnyy rel, dazhe esli avtor zapisi ukazal svoy.
+ */
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (typeof HTMLAnchorElement === 'undefined' || !(node instanceof HTMLAnchorElement)) return
+  const href = node.getAttribute('href') ?? ''
+  if (!/^https?:\/\//i.test(href)) return
+  node.setAttribute('target', '_blank')
+  node.setAttribute('rel', 'noopener noreferrer nofollow')
+})
 
 export function sanitizeHtml(dirty: string): string {
   return DOMPurify.sanitize(dirty, {

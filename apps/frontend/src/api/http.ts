@@ -105,6 +105,9 @@ function refreshSession(): Promise<boolean> {
           return false
         }
         const data = (await res.json()) as AccessTokenResponse
+        if (!data || typeof data.accessToken !== 'string' || !data.accessToken) {
+          return false
+        }
         setAccessToken(data.accessToken)
         tokenRefreshedHandler?.(data)
 

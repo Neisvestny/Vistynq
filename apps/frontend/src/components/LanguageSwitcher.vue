@@ -1,21 +1,26 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUiStore } from '@/stores/ui'
 import type { AppLocale } from '@/i18n'
 
 const { t } = useI18n()
 const ui = useUiStore()
+const announcement = ref('')
 
-const options: Array<{ value: AppLocale; label: string }> = [
-  { value: 'ru', label: 'RU' },
-  { value: 'en', label: 'English' },
+const options: Array<{ value: AppLocale; labelKey: string }> = [
+  { value: 'ru', labelKey: 'common.langRu' },
+  { value: 'en', labelKey: 'common.langEn' },
 ]
 
 const current = computed(() => ui.locale)
 
 function setLocale(locale: AppLocale) {
+  if (locale === ui.locale) return
   ui.setLocale(locale)
+  announcement.value = t('common.languageChanged', {
+    language: t(options.find((o) => o.value === locale)!.labelKey),
+  })
 }
 </script>
 
@@ -30,7 +35,8 @@ function setLocale(locale: AppLocale) {
       :aria-pressed="current === option.value"
       @click="setLocale(option.value)"
     >
-      {{ option.label }}
+      {{ t(option.labelKey) }}
     </button>
+    <span class="sr-only" aria-live="polite" aria-atomic="true">{{ announcement }}</span>
   </div>
 </template>

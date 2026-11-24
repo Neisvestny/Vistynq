@@ -1,27 +1,28 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import { authApi } from '@/api/auth'
-import { notify } from '@/api/notify'
 import { applyApiError, isValidEmail } from '@/api/errors'
+import { focusFirstInvalidField } from '@/lib/formFeedback'
 
 const { t } = useI18n()
-const router = useRouter()
 
 const email = ref('')
 const loading = ref(false)
 const error = ref('')
+const formError = ref('')
+const sent = ref(false)
 
 async function onSubmit() {
   if (loading.value) return
 
   error.value = ''
+  formError.value = ''
   if (!isValidEmail(email.value)) {
     error.value = t('auth.emailInvalid')
-
+    void focusFirstInvalidField()
     return
   }
 
@@ -29,14 +30,9 @@ async function onSubmit() {
   try {
     // Server vsegda otvechaet 202 — bez utechki sushchestvovaniya email (api.md).
     await authApi.forgotPassword(email.value.trim())
-    notify({
-      title: t('auth.forgotNotifyTitle'),
-      description: t('auth.forgotNotifyDescription'),
-      status: 'success',
-    })
-    await router.push({ name: 'login' })
+    sent.value = true
   } catch (apiError) {
-    applyApiError(apiError, {})
+    formError.value = applyApiError(apiError, {})
   } finally {
     loading.value = false
   }
@@ -48,7 +44,21 @@ async function onSubmit() {
     <h1 class="auth-form__title">{{ t('auth.forgotTitle') }}</h1>
     <p class="auth-form__subtitle">{{ t('auth.forgotSubtitle') }}</p>
 
-    <div>
+    <div v-if="formError" class="auth-form__error-banner" role="alert">
+      <span>{{ formError }}</span>
+      <button type="button" class="auth-form__link-button" @click="onSubmit">
+        {{ t('common.retry') }}
+      </button>
+    </div>
+
+    <template v-if="sent">
+      <p class="auth-form__success" role="status">{{ t('auth.forgotSent') }}</p>
+      <UiButton type="button" variant="ghost" :disabled="loading" @click="onSubmit">
+        {{ loading ? t('common.sending') : t('auth.forgotSendAgain') }}
+      </UiButton>
+    </template>
+
+    <template v-else>
       <UiInput
         id="forgot-email"
         v-model="email"
@@ -56,15 +66,15 @@ async function onSubmit() {
         :placeholder="t('auth.emailPlaceholder')"
         autocomplete="email"
         :disabled="loading"
+        :error="error"
       >
         {{ t('auth.email') }}
       </UiInput>
-      <p v-if="error" class="auth-form__error">{{ error }}</p>
-    </div>
 
-    <UiButton type="submit" :disabled="loading">
-      {{ loading ? t('auth.forgotSending') : t('auth.forgotSubmit') }}
-    </UiButton>
+      <UiButton type="submit" :disabled="loading">
+        {{ loading ? t('auth.forgotSending') : t('auth.forgotSubmit') }}
+      </UiButton>
+    </template>
 
     <div class="auth-form__footer">
       <span>

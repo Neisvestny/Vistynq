@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { tagsApi } from '@/api/tags'
 import { notify } from '@/api/notify'
@@ -29,6 +29,8 @@ const notesStore = useNotesStore()
 const { canEditCanvas } = useAccessGuard()
 
 const rootEl = ref<HTMLElement | null>(null)
+const triggerEl = ref<HTMLElement | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
 const busyTagId = ref<string | null>(null)
 const newTagName = ref('')
 const creating = ref(false)
@@ -56,11 +58,8 @@ function countNotesWithTag(name: string): number {
   return notesStore.nodes.reduce((acc, node) => acc + (node.tags.includes(name) ? 1 : 0), 0)
 }
 
-async function refreshGraph() {
-  const canvasId = canvasStore.canvas?.id
-  if (canvasId) {
-    await canvasStore.load(canvasId)
-  }
+/** Let the page flush pending geometry and refresh the graph as one operation. */
+function refreshGraph(): void {
   emit('changed')
 }
 
@@ -169,8 +168,22 @@ function onDocumentPointerDown(event: PointerEvent) {
 }
 
 function onKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') setOpen(false)
+  if (event.key !== 'Escape' || !isOpen.value) return
+  const target = event.target
+  if (target instanceof Node && panelEl.value?.contains(target)) {
+    event.stopPropagation()
+    setOpen(false)
+    triggerEl.value?.focus()
+  }
 }
+
+watch(isOpen, (open, wasOpen) => {
+  if (open) {
+    void nextTick(() => panelEl.value?.querySelector<HTMLElement>('input, button')?.focus())
+  } else if (wasOpen && panelEl.value?.contains(document.activeElement)) {
+    triggerEl.value?.focus()
+  }
+})
 
 onMounted(() => {
   document.addEventListener('pointerdown', onDocumentPointerDown)
@@ -185,18 +198,21 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="rootEl" class="canvas-popover">
-    <UiButton
-      variant="ghost"
-      size="sm"
-      :aria-expanded="isOpen"
-      aria-haspopup="dialog"
-      @click="toggleOpen"
-    >
-      {{ t('tags.title') }}
-    </UiButton>
+    <span ref="triggerEl" class="canvas-popover__trigger">
+      <UiButton
+        variant="ghost"
+        size="sm"
+        :aria-expanded="isOpen"
+        aria-haspopup="dialog"
+        @click="toggleOpen"
+      >
+        {{ t('tags.title') }}
+      </UiButton>
+    </span>
 
     <div
       v-if="isOpen"
+      ref="panelEl"
       class="canvas-popover__panel tag-menu"
       role="dialog"
       :aria-label="t('tags.aria')"
@@ -275,6 +291,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .canvas-popover {
   position: relative;
+}
+
+.canvas-popover__trigger {
+  display: inline-flex;
 }
 
 .canvas-popover__panel {
