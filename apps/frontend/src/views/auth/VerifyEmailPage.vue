@@ -7,19 +7,27 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiInput from '@/components/ui/UiInput.vue'
 import { authApi } from '@/api/auth'
-import { notify } from '@/api/notify'
-import { applyApiError } from '@/api/errors'
+import { applyApiError, isValidEmail } from '@/api/errors'
 import { useAuthStore } from '@/stores/auth'
+import { focusFirstInvalidField } from '@/lib/formFeedback'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
-const state = ref<'loading' | 'success' | 'error' | 'no-token'>('loading')
-const errorMessage = ref('')
+type State = 'loading' | 'success' | 'error' | 'no-token' | 'sent'
+const state = ref<State>('loading')
+const formError = ref('')
+const tokenParam = typeof route.query.token === 'string' ? route.query.token : ''
 const leaving = ref(false)
+
+const email = ref(typeof route.query.email === 'string' ? route.query.email : '')
+const resendEmailError = ref('')
+const resendLoading = ref(false)
+const resent = ref(false)
 
 /**
  * Knopka «Pereyti ko vkhodu» vsegda otkryvaet formu logina, a ne chuzhie
@@ -37,29 +45,49 @@ async function goToLogin(): Promise<void> {
   }
 }
 
-onMounted(async () => {
-  const token = route.query.token
-  if (typeof token !== 'string' || token === '') {
-    state.value = 'no-token'
+async function verify(token: string): Promise<void> {
+  state.value = 'loading'
+  formError.value = ''
+  try {
+    await authApi.verifyEmail(token)
+    await auth.markEmailVerified()
+    state.value = 'success'
+  } catch (error) {
+    state.value = 'error'
+    formError.value = applyApiError(error, {})
+  }
+}
 
+async function resend(): Promise<void> {
+  if (resendLoading.value) return
+  resendEmailError.value = ''
+  resent.value = false
+  formError.value = ''
+  const target = email.value.trim()
+  if (!isValidEmail(target)) {
+    resendEmailError.value = t('auth.emailInvalid')
+    void focusFirstInvalidField()
     return
   }
 
+  resendLoading.value = true
   try {
-    await authApi.verifyEmail(token)
-    state.value = 'success'
-    notify({
-      title: t('auth.verifySuccessNotifyTitle'),
-      description: t('auth.verifySuccessNotifyDescription'),
-      status: 'success',
-    })
+    await authApi.resendVerification(target)
+    resent.value = true
   } catch (error) {
-    state.value = 'error'
-    if (error instanceof Error) {
-      errorMessage.value = error.message
-    }
-    applyApiError(error, {})
+    formError.value = applyApiError(error, {})
+  } finally {
+    resendLoading.value = false
   }
+}
+
+onMounted(async () => {
+  const token = route.query.token
+  if (typeof token === 'string' && token !== '') {
+    await verify(token)
+    return
+  }
+  state.value = route.query.sent === '1' ? 'sent' : 'no-token'
 })
 </script>
 
@@ -67,25 +95,56 @@ onMounted(async () => {
   <div class="auth-form">
     <h1 class="auth-form__title">{{ t('auth.verifyEmailTitle') }}</h1>
 
-    <p v-if="state === 'loading'" class="auth-form__status">{{ t('auth.verifyChecking') }}</p>
+    <p v-if="state === 'loading'" class="auth-form__status" role="status">
+      {{ t('auth.verifyChecking') }}
+    </p>
 
     <template v-else-if="state === 'success'">
-      <p class="auth-form__status">{{ t('auth.verifySuccess') }}</p>
+      <p class="auth-form__success" role="status">{{ t('auth.verifySuccess') }}</p>
       <UiButton :disabled="leaving" @click="goToLogin">
         {{ leaving ? t('auth.verifyRedirecting') : t('auth.goToLogin') }}
       </UiButton>
     </template>
 
-    <template v-else-if="state === 'no-token'">
-      <p class="auth-form__status">{{ t('auth.verifyNoToken') }}</p>
-      <UiButton variant="ghost" to="/login">{{ t('auth.goToLogin') }}</UiButton>
-    </template>
-
     <template v-else>
-      <p class="auth-form__status">
-        {{ t('auth.verifyInvalid') }}{{ errorMessage ? `: ${errorMessage}` : '' }}.
+      <p v-if="state === 'sent'" class="auth-form__status" role="status">
+        {{ t('auth.verifySentDescription') }}
       </p>
-      <UiButton variant="ghost" to="/login">{{ t('auth.goToLogin') }}</UiButton>
+      <p v-else class="auth-form__status">{{ t('auth.verifyNoToken') }}</p>
+
+      <div v-if="formError" class="auth-form__error-banner" role="alert">
+        <span>{{ formError }}</span>
+        <button
+          v-if="state === 'error' && tokenParam"
+          type="button"
+          class="auth-form__link-button"
+          @click="verify(tokenParam)"
+        >
+          {{ t('common.retry') }}
+        </button>
+      </div>
+
+      <UiInput
+        id="verify-email"
+        v-model="email"
+        type="email"
+        :placeholder="t('auth.emailPlaceholder')"
+        autocomplete="email"
+        :disabled="resendLoading"
+        :error="resendEmailError"
+      >
+        {{ t('auth.verifyResendLabel') }}
+      </UiInput>
+
+      <p v-if="resent" class="auth-form__success" role="status">{{ t('auth.resendSuccess') }}</p>
+
+      <UiButton type="button" variant="ghost" :disabled="resendLoading" @click="resend">
+        {{ resendLoading ? t('common.sending') : t('auth.resendVerification') }}
+      </UiButton>
+
+      <UiButton variant="ghost" :disabled="leaving" @click="goToLogin">
+        {{ t('auth.goToLogin') }}
+      </UiButton>
     </template>
   </div>
 </template>

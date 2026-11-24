@@ -1,11 +1,11 @@
 <script setup lang="ts">
 defineProps<{
-  tone?: 'neutral' | 'accent'
+  tone?: 'neutral' | 'accent' | 'owner' | 'editor' | 'viewer' | 'public' | 'archive'
 }>()
 </script>
 
 <template>
-  <span class="ui-badge" :class="{ 'ui-badge--accent': tone === 'accent' }">
+  <span class="ui-badge" :class="tone && tone !== 'neutral' ? `ui-badge--${tone}` : undefined">
     <slot />
   </span>
 </template>

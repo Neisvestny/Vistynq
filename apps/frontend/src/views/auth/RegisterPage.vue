@@ -5,8 +5,8 @@ import { useI18n } from 'vue-i18n'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import { useAuthStore } from '@/stores/auth'
-import { notify } from '@/api/notify'
 import { applyApiError, isValidEmail } from '@/api/errors'
+import { focusFirstInvalidField } from '@/lib/formFeedback'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -19,11 +19,13 @@ const displayName = ref('')
 const password = ref('')
 const loading = ref(false)
 const errors = ref<Record<string, string>>({})
+const formError = ref('')
 
 async function onSubmit() {
   if (loading.value) return
 
   errors.value = {}
+  formError.value = ''
   if (!isValidEmail(email.value)) {
     errors.value.email = t('auth.emailInvalid')
   }
@@ -33,19 +35,21 @@ async function onSubmit() {
   if (password.value.length < MIN_PASSWORD_LENGTH) {
     errors.value.password = t('auth.passwordMin', { min: MIN_PASSWORD_LENGTH })
   }
-  if (Object.keys(errors.value).length > 0) return
+  if (Object.keys(errors.value).length > 0) {
+    void focusFirstInvalidField()
+    return
+  }
 
   loading.value = true
   try {
     await auth.register(email.value.trim(), password.value, displayName.value.trim())
-    notify({
-      title: t('auth.registerSuccessTitle'),
-      description: t('auth.registerSuccessDescription'),
-      status: 'success',
+    await router.push({
+      name: 'verify-email',
+      query: { sent: '1', email: email.value.trim() },
     })
-    await router.push({ name: 'login' })
   } catch (error) {
-    applyApiError(error, errors.value)
+    formError.value = applyApiError(error, errors.value)
+    void focusFirstInvalidField()
   } finally {
     loading.value = false
   }
@@ -57,47 +61,48 @@ async function onSubmit() {
     <h1 class="auth-form__title">{{ t('auth.registerTitle') }}</h1>
     <p class="auth-form__subtitle">{{ t('auth.registerSubtitle') }}</p>
 
-    <div>
-      <UiInput
-        id="register-name"
-        v-model="displayName"
-        type="text"
-        :placeholder="t('auth.namePlaceholder')"
-        autocomplete="name"
-        :disabled="loading"
-      >
-        {{ t('auth.displayName') }}
-      </UiInput>
-      <p v-if="errors.displayName" class="auth-form__error">{{ errors.displayName }}</p>
+    <div v-if="formError" class="auth-form__error-banner" role="alert">
+      <span>{{ formError }}</span>
+      <button type="button" class="auth-form__link-button" @click="onSubmit">
+        {{ t('common.retry') }}
+      </button>
     </div>
 
-    <div>
-      <UiInput
-        id="register-email"
-        v-model="email"
-        type="email"
-        :placeholder="t('auth.emailPlaceholder')"
-        autocomplete="email"
-        :disabled="loading"
-      >
-        {{ t('auth.email') }}
-      </UiInput>
-      <p v-if="errors.email" class="auth-form__error">{{ errors.email }}</p>
-    </div>
+    <UiInput
+      id="register-name"
+      v-model="displayName"
+      type="text"
+      :placeholder="t('auth.namePlaceholder')"
+      autocomplete="name"
+      :disabled="loading"
+      :error="errors.displayName"
+    >
+      {{ t('auth.displayName') }}
+    </UiInput>
 
-    <div>
-      <UiInput
-        id="register-password"
-        v-model="password"
-        type="password"
-        :placeholder="t('auth.passwordMinPlaceholder')"
-        autocomplete="new-password"
-        :disabled="loading"
-      >
-        {{ t('auth.password') }}
-      </UiInput>
-      <p v-if="errors.password" class="auth-form__error">{{ errors.password }}</p>
-    </div>
+    <UiInput
+      id="register-email"
+      v-model="email"
+      type="email"
+      :placeholder="t('auth.emailPlaceholder')"
+      autocomplete="email"
+      :disabled="loading"
+      :error="errors.email"
+    >
+      {{ t('auth.email') }}
+    </UiInput>
+
+    <UiInput
+      id="register-password"
+      v-model="password"
+      type="password"
+      :placeholder="t('auth.passwordMinPlaceholder')"
+      autocomplete="new-password"
+      :disabled="loading"
+      :error="errors.password"
+    >
+      {{ t('auth.password') }}
+    </UiInput>
 
     <UiButton type="submit" :disabled="loading">
       {{ loading ? t('auth.registering') : t('auth.signUp') }}

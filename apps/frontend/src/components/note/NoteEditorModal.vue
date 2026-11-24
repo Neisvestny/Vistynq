@@ -33,6 +33,7 @@ import { useAccessGuard } from '@/composables/useAccessGuard'
 import { useCanvasStore } from '@/stores/canvas'
 import { useNotesStore } from '@/stores/notes'
 import { useUiStore, type NoteEditorSide } from '@/stores/ui'
+import { matchesImageMime } from '@/lib/fileType'
 
 const props = withDefaults(
   defineProps<{
@@ -209,17 +210,21 @@ async function save(): Promise<void> {
   }
 }
 
-function requestClose(): void {
-  if (saving.value || confirmingClose) return
+/** Returns true when the editor may be dismissed (no draft or user confirmed). */
+function requestClose(): boolean {
+  if (saving.value || confirmingClose) return false
   if (!dirty.value) {
     emit('update:open', false)
-    return
+    return true
   }
   confirmingClose = true
   const confirmed = window.confirm(t('note.closeUnsaved'))
   confirmingClose = false
   if (confirmed) emit('update:open', false)
+  return confirmed
 }
+
+defineExpose({ requestClose })
 
 function onSheetOpenChange(value: boolean): void {
   if (value) {
@@ -322,6 +327,10 @@ async function uploadAttachmentFile(
   if (!noteId || readOnly.value) return
 
   const validationError = validateUploadFile(file, kind)
+  if (!validationError && kind === 'image' && !(await matchesImageMime(file, file.type))) {
+    notify({ title: t('note.fileNotUploaded'), description: t('note.imageInvalidType'), status: 'error' })
+    return
+  }
   if (validationError) {
     notify({ title: t('note.fileNotUploaded'), description: validationError, status: 'error' })
     return

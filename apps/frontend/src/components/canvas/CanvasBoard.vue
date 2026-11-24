@@ -54,6 +54,11 @@ const emit = defineEmits<{
   'edge-click': [payload: { event: MouseEvent; edgeId: string }]
   'edge-context-menu': [payload: { event: MouseEvent; edgeId: string }]
   'ghost-restore': [noteId: string]
+  'node-focus': [nodeId: string]
+  'node-hover': [nodeId: string | null]
+  'node-delete': [nodeId: string]
+  'edge-select': [edgeId: string]
+  'edge-delete': [edgeId: string]
 }>()
 
 const { fitView, project, screenToFlowCoordinate } = useVueFlow()
@@ -164,13 +169,13 @@ defineExpose({
       :edges="edges"
       :edge-types="edgeTypes"
       fit-view-on-init
-      :min-zoom="0.2"
-      :max-zoom="2"
+      :min-zoom="0.05"
+      :max-zoom="10"
       :nodes-draggable="layoutEditable"
       :nodes-connectable="false"
       :elements-selectable="layoutEditable || edgesSelectable"
-      :edges-focusable="edgesSelectable"
-      :nodes-focusable="layoutEditable"
+      :edges-focusable="true"
+      :nodes-focusable="true"
       :edges-updatable="false"
       :zoom-on-double-click="false"
       :zoom-on-pinch="true"
@@ -199,6 +204,10 @@ defineExpose({
           :draggable="Boolean((nodeProps as { draggable?: boolean }).draggable)"
           @resize-end="onNodeResizeEnd"
           @open="emit('node-open', $event)"
+          @focus="emit('node-focus', $event)"
+          @blur="emit('node-focus', '')"
+          @hover="emit('node-hover', $event)"
+          @delete="emit('node-delete', $event)"
         />
       </template>
 
@@ -212,6 +221,14 @@ defineExpose({
 
       <template #node-dangling-anchor="nodeProps">
         <DanglingAnchor :id="nodeProps.id" />
+      </template>
+
+      <template #edge-linkEdge="edgeProps">
+        <LinkEdge
+          v-bind="edgeProps"
+          @select="emit('edge-select', $event)"
+          @delete="emit('edge-delete', $event)"
+        />
       </template>
 
       <Background pattern-color="#cdd4e3" :gap="24" />
@@ -258,6 +275,19 @@ defineExpose({
 
 .canvas-board :deep(.canvas-edge--dimmed .vue-flow__edge-path) {
   opacity: 0.15;
+}
+
+.canvas-board :deep(.canvas-edge--highlighted .vue-flow__edge-path) {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
+
+.canvas-board :deep(.canvas-edge--hovered .vue-flow__edge-path) {
+  stroke-width: 3;
+}
+
+.canvas-board :deep(.vue-flow__node.dragging .note-node) {
+  box-shadow: var(--shadow-lg);
 }
 
 .canvas-board :deep(.vue-flow__edge-textbg),

@@ -32,6 +32,20 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const email = ref('')
 const role = ref<'viewer' | 'editor'>('viewer')
+const confirmingRevoke = ref<string | null>(null)
+
+function revokeKey(entry: AccessEntry): string {
+  return entry.invitationId ?? entry.userId ?? entry.email
+}
+
+function requestRevoke(entry: AccessEntry): void {
+  confirmingRevoke.value = revokeKey(entry)
+}
+
+function confirmRevoke(entry: AccessEntry): void {
+  emit('revoke', entry)
+  confirmingRevoke.value = null
+}
 
 const sortedEntries = computed(() => {
   return [...props.entries].sort((a, b) => {
@@ -108,7 +122,7 @@ defineExpose({ onInviteSuccess })
       <ul v-else class="access-panel__list">
         <li
           v-for="entry in sortedEntries"
-          :key="entry.invitationId ?? entry.userId ?? entry.email"
+          :key="revokeKey(entry)"
           class="access-panel__item"
         >
           <div class="access-panel__item-main">
@@ -140,19 +154,43 @@ defineExpose({ onInviteSuccess })
               </select>
             </label>
 
-            <UiButton
-              variant="ghost"
-              size="sm"
-              type="button"
-              :aria-label="
-                entry.pending
-                  ? t('access.revokeInvite', { email: entry.email })
-                  : t('access.revokeAccess', { email: entry.email })
-              "
-              @click="emit('revoke', entry)"
-            >
-              {{ t('access.revoke') }}
-            </UiButton>
+            <div class="access-panel__revoke">
+              <template v-if="confirmingRevoke === revokeKey(entry)">
+                <p class="access-panel__confirm" role="alert">
+                  {{ entry.pending ? t('access.revokeInviteConfirm') : t('access.revokeConfirm') }}
+                </p>
+                <UiButton
+                  variant="danger"
+                  size="sm"
+                  type="button"
+                  @click="confirmRevoke(entry)"
+                >
+                  {{ t('access.revoke') }}
+                </UiButton>
+                <UiButton
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  @click="confirmingRevoke = null"
+                >
+                  {{ t('common.cancel') }}
+                </UiButton>
+              </template>
+              <UiButton
+                v-else
+                variant="ghost"
+                size="sm"
+                type="button"
+                :aria-label="
+                  entry.pending
+                    ? t('access.revokeInvite', { email: entry.email })
+                    : t('access.revokeAccess', { email: entry.email })
+                "
+                @click="requestRevoke(entry)"
+              >
+                {{ t('access.revoke') }}
+              </UiButton>
+            </div>
           </div>
         </li>
       </ul>
@@ -261,16 +299,18 @@ defineExpose({ onInviteSuccess })
 .access-panel__inline-role {
   width: 110px;
 }
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+.access-panel__revoke {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.access-panel__confirm {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 @media (max-width: 720px) {
   .access-panel__invite-row {

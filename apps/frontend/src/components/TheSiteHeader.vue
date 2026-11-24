@@ -4,6 +4,7 @@ import { Menu as MenuIcon } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import UiButton from './ui/UiButton.vue'
 import UiSheet from './ui/UiSheet.vue'
+import AppBrand from './AppBrand.vue'
 import LanguageSwitcher from './LanguageSwitcher.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -30,25 +31,7 @@ function closeSheet() {
 <template>
   <header class="site-header">
     <div class="container site-header__inner">
-      <a class="brand" href="/" :aria-label="t('nav.homeAria')">
-        <span class="brand__mark" aria-hidden="true">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M6 7 12 17 18 7" />
-            <circle cx="6" cy="7" r="2" fill="currentColor" stroke="none" />
-            <circle cx="18" cy="7" r="2" fill="currentColor" stroke="none" />
-          </svg>
-        </span>
-        <span class="brand__wordmark">Vistynq</span>
-      </a>
+      <AppBrand />
 
       <nav class="site-header__nav" :aria-label="t('nav.appNav')">
         <a v-for="link in navLinks" :key="link.href" :href="link.href">{{ link.label }}</a>

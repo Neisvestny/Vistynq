@@ -5,6 +5,10 @@ import { useI18n } from 'vue-i18n'
 import type { LinkEdgeData } from '@/composables/useGraph'
 
 const props = defineProps<EdgeProps<LinkEdgeData>>()
+const emit = defineEmits<{
+  select: [id: string]
+  delete: [id: string]
+}>()
 
 const { t } = useI18n()
 
@@ -24,10 +28,31 @@ const labelX = computed(() => path.value[1])
 const labelY = computed(() => path.value[2])
 
 const isDangling = computed(() => props.data?.dangling === true)
-const showLabel = computed(() => isDangling.value)
+const showLabel = computed(() => isDangling.value || props.data?.state === 'removed')
+const focusable = computed(
+  () =>
+    props.data?.canRestore === true &&
+    props.data.edgeType === 'direct' &&
+    props.data.state !== 'removed'
+)
 </script>
 
 <template>
+  <g
+    v-if="focusable"
+    class="link-edge__hit"
+    role="button"
+    tabindex="0"
+    :aria-label="t('canvas.selectEdge')"
+    :aria-pressed="selected === true"
+    @click="emit('select', id)"
+    @keydown.enter.stop.prevent="emit('select', id)"
+    @keydown.space.stop.prevent="emit('select', id)"
+    @keydown.delete.stop.prevent="emit('delete', id)"
+  >
+    <path :d="edgePath" class="link-edge__hit-path" />
+  </g>
+
   <BaseEdge :id="id" :path="edgePath" :marker-end="markerEnd" :label="undefined" :style="style" />
 
   <!-- Break mark at the end of a dangling link (purged target). -->
@@ -63,6 +88,20 @@ const showLabel = computed(() => isDangling.value)
 </template>
 
 <style scoped>
+.link-edge__hit {
+  cursor: pointer;
+}
+
+.link-edge__hit-path {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+}
+
+.link-edge__hit:focus-visible .link-edge__hit-path {
+  stroke: var(--color-focus-ring-soft, rgb(59 91 219 / 0.25));
+}
+
 .link-edge__break {
   stroke: var(--color-text-faint, #94a3b8);
   stroke-width: 1.5;

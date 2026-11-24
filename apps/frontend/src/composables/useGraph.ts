@@ -39,6 +39,10 @@ export interface UseGraphOptions {
   highlightedTag?: MaybeRefOrGetter<string | null>
   /** Selected edge (R30): highlight. */
   selectedEdgeId?: MaybeRefOrGetter<string | null>
+  /** Selected note: highlight its incident edges. */
+  selectedNodeId?: MaybeRefOrGetter<string | null>
+  /** Hovered note: highlight its incident edges. */
+  hoveredNodeId?: MaybeRefOrGetter<string | null>
   /** Linking mode (R30): source node id. */
   linkingSourceId?: MaybeRefOrGetter<string | null>
   /** @deprecated use editableLayout */
@@ -83,14 +87,18 @@ export function useGraph(options: UseGraphOptions = {}) {
   const selectable = computed(() => toValue(options.selectable) === true || editableLayout.value)
   const highlightedTag = computed(() => toValue(options.highlightedTag) ?? null)
   const selectedEdgeId = computed(() => toValue(options.selectedEdgeId) ?? null)
+  const selectedNodeId = computed(() => toValue(options.selectedNodeId) ?? null)
+  const hoveredNodeId = computed(() => toValue(options.hoveredNodeId) ?? null)
   const linkingSourceId = computed(() => toValue(options.linkingSourceId) ?? null)
 
   const visibleNodes = computed(() => notesStore.visibleNodes)
   const visibleNodeIds = computed(() => notesStore.visibleNodeIds)
 
   /** Edges to deleted notes (state=removed) - for header metric. */
-  const brokenEdgesCount = computed(
-    () => canvasStore.edges.filter((edge) => edge.state === 'removed').length
+  const brokenEdgesCount = computed(() =>
+    guard.canEditCanvas.value
+      ? canvasStore.edges.filter((edge) => edge.state === 'removed').length
+      : 0
   )
 
   const flowNodes = computed<Node<CanvasFlowNodeData>[]>(() => {
@@ -118,6 +126,7 @@ export function useGraph(options: UseGraphOptions = {}) {
           visibility: node.visibility,
           authorId: node.authorId,
           isRelevant: node.isRelevant,
+          archived: node.isRelevant === false,
           dimmed,
           canMove,
         },
@@ -125,6 +134,8 @@ export function useGraph(options: UseGraphOptions = {}) {
     })
 
     // Ghost/synthetic nodes for removed edges (R30). Not in notes store.
+    // Viewers must not see traces of links and notes they cannot restore.
+    if (guard.canEditCanvas.value) {
     const ghostByTarget = new Map<string, GhostNodeData>()
     const danglingByEdgeId = new Set<string>()
 
@@ -203,6 +214,7 @@ export function useGraph(options: UseGraphOptions = {}) {
         } satisfies GhostNodeData,
       })
     }
+    }
 
     return nodes
   })
@@ -210,11 +222,14 @@ export function useGraph(options: UseGraphOptions = {}) {
   const flowEdges = computed<Edge<LinkEdgeData>[]>(() => {
     const tag = highlightedTag.value
     const selected = selectedEdgeId.value
+    const selectedNode = selectedNodeId.value
+    const hoveredNode = hoveredNodeId.value
     const canEdit = guard.canEditCanvas.value
     const visibleIds = new Set(flowNodes.value.map((n) => n.id))
 
     return canvasStore.edges.flatMap((edge) => {
       if (!visibleNodeIds.value.has(edge.from)) return []
+      if (edge.state === 'removed' && !canEdit) return []
 
       const fromTags = notesStore.getNodeById(edge.from)?.tags ?? []
       const toTags =
@@ -253,6 +268,12 @@ export function useGraph(options: UseGraphOptions = {}) {
         dangling ? 'canvas-edge--dangling' : '',
         dimmedByTag ? 'canvas-edge--dimmed' : '',
         isSelected ? 'canvas-edge--selected' : '',
+        selectedNode && (edge.from === selectedNode || edge.to === selectedNode)
+          ? 'canvas-edge--highlighted'
+          : '',
+        hoveredNode && (edge.from === hoveredNode || edge.to === hoveredNode)
+          ? 'canvas-edge--hovered'
+          : '',
       ]
         .filter(Boolean)
         .join(' ')

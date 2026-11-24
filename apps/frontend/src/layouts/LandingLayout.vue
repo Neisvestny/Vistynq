@@ -7,7 +7,7 @@ import TheSiteFooter from '@/components/TheSiteFooter.vue'
 <template>
   <div id="top" class="page">
     <TheSiteHeader />
-    <main class="page__main">
+    <main id="main" class="page__main" tabindex="-1">
       <RouterView />
     </main>
     <TheSiteFooter />

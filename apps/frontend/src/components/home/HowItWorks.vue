@@ -17,7 +17,6 @@ const steps = computed(() =>
   <section id="how" class="section">
     <div class="container">
       <header class="section__head">
-        <p class="kicker">{{ t('home.howKicker') }}</p>
         <h2>{{ t('home.howTitle') }}</h2>
       </header>
 

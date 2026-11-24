@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+import { Network } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -8,22 +9,8 @@ const { t } = useI18n()
 <template>
   <RouterLink class="brand" to="/" :aria-label="t('nav.homeAria')">
     <span class="brand__mark" aria-hidden="true">
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M6 7 12 17 18 7" />
-        <circle cx="6" cy="7" r="2" fill="currentColor" stroke="none" />
-        <circle cx="18" cy="7" r="2" fill="currentColor" stroke="none" />
-        <circle cx="12" cy="17" r="2" fill="currentColor" stroke="none" />
-      </svg>
+      <Network :size="18" aria-hidden="true" />
     </span>
-    Vistynq
+    <span class="brand__wordmark">{{ t('common.brand') }}</span>
   </RouterLink>
 </template>

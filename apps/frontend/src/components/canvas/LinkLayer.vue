@@ -34,7 +34,7 @@ const { t } = useI18n()
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 30;
+  z-index: var(--z-sticky);
 }
 
 .link-layer__banner {

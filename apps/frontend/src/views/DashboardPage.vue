@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /**
  * Dashboard (docs/ui-ux.md §1) — spisok kanvasov iz GET /canvases (postranichno),
- * sozdanie kanvasa, sektsiya priglasheniy-zaglushka (invayty — R31).
+ * sozdanie kanvasa, sektsiya priglasheniy (ostavlena po resheniyu polzovatelya).
  */
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { Trash2 } from 'lucide-vue-next'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
@@ -25,6 +26,8 @@ const store = useCanvasesStore()
 /** Lokalnoe sostoyanie formy dialoga (ne globalnoe). */
 const createErrors = ref<Record<string, string>>({})
 const newTitle = ref('')
+const createOpen = ref(false)
+const confirmingDeleteId = ref<string | null>(null)
 
 const greeting = computed(() => {
   const suffix = auth.user ? t('dashboard.greetingSuffix', { name: auth.user.displayName }) : ''
@@ -43,9 +46,22 @@ async function onCreateCanvas() {
 
   try {
     const canvas = await store.create(title)
+    createOpen.value = false
+    newTitle.value = ''
     await router.push({ name: 'canvas', params: { id: canvas.id } })
   } catch (error) {
     applyApiError(error, createErrors.value)
+  }
+}
+
+async function onDeleteCanvas(canvas: Canvas) {
+  if (store.deletingId) return
+  try {
+    await store.remove(canvas.id)
+    confirmingDeleteId.value = null
+    notify({ title: t('dashboard.canvasDeleted', { title: canvas.title }), status: 'success' })
+  } catch (error) {
+    notify({ title: applyApiError(error, {}), status: 'error' })
   }
 }
 
@@ -56,6 +72,13 @@ function formatDate(iso: string): string {
     month: 'short',
     year: 'numeric',
   })
+}
+
+function roleTone(canvas: Canvas): 'owner' | 'editor' | 'viewer' | undefined {
+  if (canvas.access.myRole === 'owner') return 'owner'
+  if (canvas.access.myRole === 'editor') return 'editor'
+  if (canvas.access.myRole === 'viewer') return 'viewer'
+  return undefined
 }
 
 function roleLabel(canvas: Canvas): string {
@@ -78,7 +101,6 @@ async function goToPage(nextPage: number) {
   const target = Math.min(Math.max(1, nextPage), store.totalPages)
   if (target === store.page) return
   await store.load(target)
-  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 onMounted(async () => {
@@ -103,8 +125,10 @@ onMounted(async () => {
       </div>
 
       <UiDialog
+        v-model:open="createOpen"
         :title="t('dashboard.createDialogTitle')"
         :description="t('dashboard.createDialogDescription')"
+        :busy="store.creating"
       >
         <template #trigger>
           <UiButton>+ {{ t('dashboard.createCanvas') }}</UiButton>
@@ -116,10 +140,10 @@ onMounted(async () => {
             v-model="newTitle"
             :placeholder="t('dashboard.titlePlaceholder')"
             :disabled="store.creating"
+            :error="createErrors.title"
           >
             {{ t('dashboard.titleLabel') }}
           </UiInput>
-          <p v-if="createErrors.title" class="dashboard__error">{{ createErrors.title }}</p>
 
           <UiButton type="submit" :disabled="store.creating">
             {{ store.creating ? t('common.creating') : t('common.create') }}
@@ -133,13 +157,14 @@ onMounted(async () => {
       v-if="store.loading"
       class="dashboard__grid"
       aria-busy="true"
+      role="status"
       :aria-label="t('common.loading')"
     >
       <UiCard v-for="n in 3" :key="n" class="dashboard__skeleton" />
     </div>
 
     <!-- Error zagruzki -->
-    <UiCard v-else-if="store.loadFailed">
+    <UiCard v-else-if="store.loadFailed" role="alert">
       <p class="dashboard__hint">{{ t('dashboard.loadErrorHint') }}</p>
       <UiButton variant="ghost" size="sm" @click="store.load(store.page || 1)">
         {{ t('common.retry') }}
@@ -148,34 +173,69 @@ onMounted(async () => {
 
     <!-- Pusto -->
     <UiCard v-else-if="store.items.length === 0">
+      <h2 class="dashboard__empty-title">{{ t('dashboard.emptyTitle') }}</h2>
       <p class="dashboard__hint">{{ t('dashboard.emptyHint') }}</p>
     </UiCard>
 
     <!-- Spisok -->
     <template v-else>
-      <div class="dashboard__grid">
-        <UiCard
-          v-for="canvas in store.items"
-          :key="canvas.id"
-          class="dashboard__card"
-          @click="router.push({ name: 'canvas', params: { id: canvas.id } })"
-        >
-          <div class="dashboard__card-top">
-            <h2 class="dashboard__card-title">{{ canvas.title }}</h2>
-            <UiBadge v-if="canvas.access.publicSlug" tone="accent">{{
-              t('dashboard.public')
-            }}</UiBadge>
-          </div>
+      <ul class="dashboard__grid">
+        <li v-for="canvas in store.items" :key="canvas.id" class="ui-card dashboard__card">
+          <RouterLink class="dashboard__card-link" :to="{ name: 'canvas', params: { id: canvas.id } }">
+            <div class="dashboard__card-top">
+              <h2 class="dashboard__card-title">{{ canvas.title }}</h2>
+              <UiBadge v-if="canvas.access.level === 'public'" tone="public">
+                {{ t('dashboard.public') }}
+              </UiBadge>
+            </div>
 
-          <div class="dashboard__card-meta">
-            <UiBadge v-if="roleLabel(canvas)">{{ roleLabel(canvas) }}</UiBadge>
-            <span class="dashboard__meta-text">
-              {{ t('dashboard.notesShort', { count: canvas.noteCount ?? 0 }) }}
-            </span>
-            <span class="dashboard__meta-text">{{ formatDate(canvas.createdAt) }}</span>
+            <div class="dashboard__card-meta">
+              <UiBadge v-if="roleLabel(canvas)" :tone="roleTone(canvas)">
+                {{ roleLabel(canvas) }}
+              </UiBadge>
+              <span class="dashboard__meta-text">
+                {{ t('dashboard.notesShort', { count: canvas.noteCount ?? 0 }) }}
+              </span>
+              <span class="dashboard__meta-text">
+                {{ formatDate(canvas.updatedAt ?? canvas.createdAt) }}
+              </span>
+            </div>
+          </RouterLink>
+
+          <div v-if="canvas.access.myRole === 'owner'" class="dashboard__card-actions">
+            <template v-if="confirmingDeleteId === canvas.id">
+              <p class="dashboard__delete-hint" role="group">
+                {{ t('dashboard.deleteConfirm', { title: canvas.title }) }}
+              </p>
+              <UiButton
+                variant="danger"
+                size="sm"
+                :disabled="store.deletingId === canvas.id"
+                @click="onDeleteCanvas(canvas)"
+              >
+                {{ store.deletingId === canvas.id ? t('common.deleting') : t('dashboard.deleteCanvas') }}
+              </UiButton>
+              <UiButton
+                variant="ghost"
+                size="sm"
+                :disabled="store.deletingId === canvas.id"
+                @click="confirmingDeleteId = null"
+              >
+                {{ t('common.cancel') }}
+              </UiButton>
+            </template>
+            <UiButton
+              v-else
+              variant="ghost"
+              size="sm"
+              @click="confirmingDeleteId = canvas.id"
+            >
+              <Trash2 :size="16" aria-hidden="true" />
+              <span class="sr-only">{{ t('dashboard.deleteCanvas') }}</span>
+            </UiButton>
           </div>
-        </UiCard>
-      </div>
+        </li>
+      </ul>
 
       <nav
         v-if="store.totalPages > 1"
@@ -191,7 +251,7 @@ onMounted(async () => {
           {{ t('common.back') }}
         </UiButton>
         <span class="dashboard__pagination-info">
-          {{ t('dashboard.pageInfo', { page: store.page, totalPages: store.totalPages }) }}
+          <span aria-current="page">{{ t('dashboard.pageInfo', { page: store.page, totalPages: store.totalPages }) }}</span>
           <span class="dashboard__pagination-total">
             {{ t('dashboard.totalInfo', { total: store.total }) }}
           </span>
@@ -207,8 +267,10 @@ onMounted(async () => {
       </nav>
     </template>
 
-    <section class="dashboard__invites">
-      <h2 class="dashboard__invites-title">{{ t('dashboard.invitesTitle') }}</h2>
+    <section class="dashboard__invites" aria-labelledby="dashboard-invites-title">
+      <h2 id="dashboard-invites-title" class="dashboard__invites-title">
+        {{ t('dashboard.invitesTitle') }}
+      </h2>
       <p class="dashboard__hint">{{ t('dashboard.invitesHint') }}</p>
     </section>
   </div>

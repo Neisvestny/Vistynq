@@ -47,7 +47,13 @@
     "viewer": "Viewer",
     "email": "Email",
     "public": "Public",
-    "closeNotification": "Close notification"
+    "closeNotification": "Close notification",
+    "skipToContent": "Skip to content",
+    "notifications": "Notifications",
+    "languageChanged": "Language changed: {language}",
+    "langRu": "Russian",
+    "langEn": "English",
+    "brand": "Vistynq"
   },
   "nav": {
     "home": "Home",
@@ -156,7 +162,10 @@
     "resetNotifyTitle": "Password updated",
     "resetNotifyDescription": "You can now sign in with your new password",
     "passwordLabel": "Password",
-    "newPasswordLabel": "New password"
+    "newPasswordLabel": "New password",
+    "forgotSendAgain": "Send again",
+    "verifySentDescription": "We sent an email. Check your inbox and follow the link.",
+    "verifyResendLabel": "Email for resending"
   },
   "dashboard": {
     "title": "Canvases",
@@ -194,10 +203,13 @@
     "notesShort": "{count} notes",
     "paginationLabel": "Canvas list pages",
     "pageInfo": "Page {page} of {totalPages}",
-    "totalInfo": "· {total} total",
+    "totalInfo": "{total} total",
     "invitesTitle": "Invitations",
-    "invitesHint": "Incoming invites with \"Accept\"/\"Decline\" buttons will appear here (R31).",
-    "profileLoadError": "Failed to load profile"
+    "invitesHint": "Invitations to collaborate will appear here. There are none right now.",
+    "profileLoadError": "Failed to load profile",
+    "deleteCanvas": "Delete canvas",
+    "deleteConfirm": "Delete “{title}”? Its notes and links will be permanently removed.",
+    "canvasDeleted": "Canvas “{title}” deleted"
   },
   "profile": {
     "title": "Profile",
@@ -224,7 +236,9 @@
     "avatarAlt": "User avatar",
     "avatarFormats": "PNG, JPEG, GIF, WebP · up to 5 MB",
     "avatarUploadErrorStatus": "Failed to upload avatar",
-    "avatarDeleteErrorStatus": "Failed to delete avatar"
+    "avatarDeleteErrorStatus": "Failed to delete avatar",
+    "avatarDeleteConfirm": "Delete your avatar? This cannot be undone.",
+    "details": "Account details"
   },
   "canvas": {
     "loading": "Loading canvas…",
@@ -250,7 +264,7 @@
     "notesCount": "{count} notes",
     "emptyHint": "Double-click the canvas to create a note, or use the button.",
     "importFile": "Import file…",
-    "fileTooLarge": "File is too large (max 50 MB)",
+    "fileTooLarge": "File is too large (max 1 MB)",
     "noteCreated": "Note created",
     "noteCreateError": "Failed to create note",
     "noteDeleted": "Note deleted",
@@ -311,7 +325,12 @@
     "toCanvasList": "To canvas list",
     "dropToCreate": "Drop .md or .txt to create a note",
     "emptyText": "Create the first note from the canvas menu or drop a .md/.txt file.",
-    "notFoundError": "Canvas not found"
+    "notFoundError": "Canvas not found",
+    "renameTitle": "Rename canvas",
+    "renameFailed": "Could not rename the canvas",
+    "filteredEmpty": "No notes match the current filters",
+    "cannotLinkTarget": "Cannot link to a deleted note",
+    "selectEdge": "Select link"
   },
   "note": {
     "untitled": "Note",
@@ -374,7 +393,9 @@
     "deleteFileAria": "Delete file {name}",
     "titleRequired": "Enter a title",
     "titleTooLong": "Title is longer than 200 characters",
-    "importanceRange": "Importance must be between 1 and 5"
+    "importanceRange": "Importance must be between 1 and 5",
+    "archivedBadge": "archived",
+    "imageInvalidType": "File is not a PNG, JPEG, GIF, or WebP image"
   },
   "archive": {
     "title": "Note archive",
@@ -393,7 +414,7 @@
     "purge": "Delete permanently",
     "confirmCancel": "Cancel",
     "deleteWarning": "Delete note \"{title}\"? It will be moved to deleted.",
-    "purgeWarning": "Delete note \"{title}\" permanently? This action cannot be undone.",
+    "purgeWarning": "Delete note \"{title}\" permanently? This action cannot be undone. Linked notes will show “link deleted”.",
     "returned": "Note returned to canvas",
     "deleted": "Note deleted",
     "restored": "Note restored",
@@ -405,7 +426,8 @@
     "restoreGone": "Note was permanently deleted and cannot be restored",
     "notAvailable": "Note is no longer available",
     "paginationAria": "Archive pages",
-    "pageInfo": "Page {page} of {totalPages} · {total} total"
+    "pageInfo": "Page {page} of {totalPages} · {total} total",
+    "purgeWarningLinks": "Linked notes will show the “{label}” badge."
   },
   "access": {
     "title": "Access",
@@ -456,7 +478,9 @@
     "revokeInvite": "Revoke invitation for {email}",
     "revokeAccess": "Revoke access for {email}",
     "revoke": "Revoke",
-    "emailLabel": "Email"
+    "emailLabel": "Email",
+    "revokeConfirm": "Revoke access for {email}?",
+    "revokeInviteConfirm": "Revoke the invitation for {email}?"
   },
   "shared": {
     "canvasTitle": "Public canvas",
@@ -579,12 +603,12 @@
     "invalidLinkDescription": "Allowed URLs: http://, https://, and mailto:",
     "noteTextAria": "Note text",
     "wikiLinkListAria": "Notes to link",
-    "noNotesFound": "No notes found"
+    "noNotesFound": "No notes found",
+    "wikiLinkPosition": "Position: {x}, {y}"
   },
   "home": {
-    "kickerFeatures": "Features",
     "featuresTitle": "Everything you need to work with ideas",
-    "featuresLead": "Six simple actions: create, connect, tag, control access, write, and find.",
+    "featuresLead": "Four things that make the picture clear: canvas, links, tags, and sharing.",
     "features": [
       {
         "title": "Free canvas",
@@ -601,25 +625,15 @@
       {
         "title": "Note access",
         "text": "Keep everything private, invite others to edit together, or open a read-only link."
-      },
-      {
-        "title": "Writing",
-        "text": "Write with headings and lists, insert images and audio, and links to other notes are suggested automatically."
-      },
-      {
-        "title": "Search and archive",
-        "text": "Search by titles and tags, hide inactive items, and restore deleted ones."
       }
     ],
-    "heroKicker": "A space for your ideas",
-    "heroTitleBefore": "Thoughts on one ",
+    "heroTitleBefore": "A space for your ideas. Thoughts on one ",
     "heroTitleAccent": "map",
     "heroLead": "All your notes and connections are visible at once. Create records, connect them, and see the whole picture — instead of scrolling an endless feed.",
     "openDashboard": "Open dashboard",
     "register": "Sign up",
     "login": "Log in",
     "howItWorks": "How it works",
-    "howKicker": "How it works",
     "howTitle": "Three steps from an empty canvas to the full picture",
     "steps": [
       {
@@ -640,5 +654,8 @@
     ],
     "ctaTitle": "Bring your thoughts together in one place",
     "ctaText": "Create canvases, connect notes, and return to them anytime — everything is ready to work."
+  },
+  "app": {
+    "title": "Vistynq — knowledge maps"
   }
 }

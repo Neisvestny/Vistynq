@@ -45,7 +45,7 @@ const menuItems = computed<MenuItem[]>(() => [
       </div>
     </header>
 
-    <main class="page__main">
+    <main id="main" class="page__main" tabindex="-1">
       <RouterView />
     </main>
   </div>

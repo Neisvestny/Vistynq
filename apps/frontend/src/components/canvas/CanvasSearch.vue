@@ -21,9 +21,16 @@ const open = ref(false)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const results = ref<SearchHit[]>([])
+const activeIndex = ref(-1)
 let requestSeq = 0
 
 const hasQuery = computed(() => query.value.trim().length > 0)
+const hasResults = computed(() => open.value && hasQuery.value && !loading.value && !error.value && results.value.length > 0)
+const activeId = computed(() =>
+  activeIndex.value >= 0 && activeIndex.value < results.value.length
+    ? `canvas-search-option-${results.value[activeIndex.value]?.id}`
+    : undefined
+)
 
 async function runSearch(q: string) {
   const trimmed = q.trim()
@@ -79,7 +86,28 @@ function onSelect(id: string) {
 function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     open.value = false
+    activeIndex.value = -1
     ;(event.target as HTMLElement | null)?.blur?.()
+    return
+  }
+  if (!hasResults.value) return
+
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    const step = event.key === 'ArrowDown' ? 1 : -1
+    activeIndex.value =
+      activeIndex.value < 0
+        ? step > 0
+          ? 0
+          : results.value.length - 1
+        : (activeIndex.value + step + results.value.length) % results.value.length
+    document.getElementById(activeId.value ?? '')?.scrollIntoView({ block: 'nearest' })
+    return
+  }
+  if (event.key === 'Enter' && activeIndex.value >= 0) {
+    event.preventDefault()
+    const hit = results.value[activeIndex.value]
+    if (hit) onSelect(hit.id)
   }
 }
 
@@ -88,7 +116,7 @@ function focus() {
   inputEl.value?.select()
 }
 
-defineExpose({ focus })
+defineExpose({ focus, rootEl })
 
 function onDocumentPointerDown(event: PointerEvent) {
   if (!open.value) return
@@ -118,8 +146,13 @@ onBeforeUnmount(() => {
         v-model="query"
         class="canvas-search__input"
         type="search"
+        role="combobox"
         :placeholder="t('search.placeholder')"
         :aria-label="t('search.aria')"
+        aria-autocomplete="list"
+        aria-controls="canvas-search-results"
+        :aria-expanded="hasResults"
+        :aria-activedescendant="activeId"
         @focus="onFocus"
         @keydown="onKeydown"
       />
@@ -133,9 +166,17 @@ onBeforeUnmount(() => {
       <div v-else-if="results.length === 0" class="canvas-search__state">
         {{ t('search.noResults') }}
       </div>
-      <ul v-else class="canvas-search__list">
-        <li v-for="hit in results" :key="hit.id" class="canvas-search__item">
-          <button type="button" class="canvas-search__result" @click="onSelect(hit.id)">
+      <ul v-else id="canvas-search-results" class="canvas-search__list" role="listbox">
+        <li
+          v-for="(hit, index) in results"
+          :id="`canvas-search-option-${hit.id}`"
+          :key="hit.id"
+          class="canvas-search__item"
+          role="option"
+          :aria-selected="index === activeIndex"
+          @mouseenter="activeIndex = index"
+        >
+          <button type="button" class="canvas-search__result" tabindex="-1" @click="onSelect(hit.id)">
             <span class="canvas-search__title">{{ hit.title || t('note.untitled') }}</span>
             <span class="canvas-search__meta">
               <span

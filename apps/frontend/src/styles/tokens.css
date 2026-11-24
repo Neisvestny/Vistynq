@@ -3,28 +3,55 @@
   --color-bg: #f6f7fb;
   --color-surface: #ffffff;
   --color-surface-alt: #eef1f8;
+  --color-surface-raised: #ffffff;
+  --color-surface-subtle: var(--color-bg);
   --color-text: #14161c;
   --color-text-muted: #5a6174;
+  --color-text-soft: var(--color-text-muted);
+  --color-text-faint: #7b8499;
   --color-text-invert: #ffffff;
   --color-border: #e2e6f0;
+  --color-border-subtle: var(--color-border);
   --color-border-strong: #cdd4e3;
+  /* Граница контрола: ≥3:1 наSurface и на page background (WCAG 1.4.11). */
+  --color-control-border: #7b8499;
 
   --color-accent: #3b5bdb;
   --color-accent-strong: #2f49b8;
   --color-accent-soft: #eaeefc;
 
-  /* Важность заметок 1–5 */
+  /* Семантические цвета: текст статусов сохраняет ≥4.5:1 на светлых поверхностях. */
+  --color-danger: #b42318;
+  --color-warning: #a15c00;
+  --color-success: #1a7f4b;
+
+  /* Важность заметок 1–5 (маркеры) и их текстовые варианты (контрастные). */
   --importance-1: #64748b;
   --importance-2: #2563eb;
   --importance-3: #94a3b8;
   --importance-4: #ea840b;
   --importance-5: #e5484d;
+  --color-importance-4-text: #9a4c00;
+  --color-importance-5-text: #c8232c;
 
   /* Шрифты */
   --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
 
-  /* Отступы */
+  /* Типографическая шкала: один ряд размеров, обратная зависимость line-height. */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 2rem;
+  --line-height-tight: 1.25;
+  --line-height-base: 1.5;
+  --line-height-relaxed: 1.6;
+
+  /* Отступы: одна база и её кратные. */
+  --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
@@ -52,8 +79,12 @@
   --shadow-sm: 0 1px 2px rgb(20 22 28 / 0.06);
   --shadow-md: 0 4px 12px rgb(20 22 28 / 0.08);
   --shadow-lg: 0 12px 32px rgb(20 22 28 / 0.14);
+  --shadow-soft: var(--shadow-sm);
 
   /* Слои (оверлеи, попапы, уведомления) */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 30;
   --z-overlay: 100;
   --z-dialog: 110;
   --z-dropdown: 120;
@@ -63,5 +94,9 @@
   /* Переходы и фокус */
   --transition-fast: 0.15s ease;
   --transition-base: 0.2s ease;
-  --focus-ring: 0 0 0 3px var(--color-accent-soft);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Фокус — outline, а не светлый box-shadow: контраст ≥3:1 на любом фоне. */
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --focus-color: var(--color-accent);
 }

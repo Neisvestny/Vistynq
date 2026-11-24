@@ -26,6 +26,7 @@ import LinkLayer from '@/components/canvas/LinkLayer.vue'
 import TagMenu from '@/components/canvas/TagMenu.vue'
 import UiBadge from '@/components/ui/UiBadge.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiInput from '@/components/ui/UiInput.vue'
 import { useAccessGuard } from '@/composables/useAccessGuard'
 import { useContextMenu } from '@/composables/useContextMenu'
 import { useGraph } from '@/composables/useGraph'
@@ -59,6 +60,7 @@ const importanceMenuOpen = ref(false)
 
 /** Note editor panel (R28). */
 const editorOpen = ref(false)
+const editorRef = ref<{ requestClose: () => boolean } | null>(null)
 const editorNoteId = ref<string | null>(null)
 
 /** Archive panel (R29). */
@@ -76,12 +78,21 @@ const linkingPending = ref(false)
 const selectedEdgeId = ref<string | null>(null)
 /** Selected node (R34 hotkeys). */
 const selectedNodeId = ref<string | null>(null)
+const hoveredNodeId = ref<string | null>(null)
+
+/** Owner-only inline canvas rename. */
+const renamingTitle = ref(false)
+const titleDraft = ref('')
+const titleSaving = ref(false)
+const titleError = ref('')
 
 const { flowNodes, flowEdges, visibleNodes, brokenEdgesCount } = useGraph({
   editableLayout: true,
   selectable: true,
   highlightedTag,
   selectedEdgeId,
+  selectedNodeId,
+  hoveredNodeId,
   linkingSourceId,
 })
 
@@ -123,15 +134,69 @@ const roleLabel = computed(() => {
   }
 })
 
+const canRenameCanvas = computed(() => {
+  const canvas = store.canvas
+  return Boolean(canvas && canvas.ownerId === userId.value)
+})
+
+function startRename() {
+  if (!canRenameCanvas.value) return
+  titleDraft.value = graph.value?.title ?? ''
+  titleError.value = ''
+  renamingTitle.value = true
+}
+
+async function commitRename() {
+  if (titleSaving.value) return
+  const canvas = store.canvas
+  const title = titleDraft.value.trim()
+  if (!canvas || !title) {
+    renamingTitle.value = false
+    return
+  }
+  if (title === canvas.title) {
+    renamingTitle.value = false
+    return
+  }
+
+  titleSaving.value = true
+  try {
+    await canvasApi.update(canvas.id, { title })
+    await refreshGraphSilently(false)
+    renamingTitle.value = false
+  } catch (apiError) {
+    titleError.value = apiError instanceof ApiError ? apiError.message : t('canvas.renameFailed')
+    notify({ title: t('canvas.renameFailed'), description: titleError.value, status: 'error' })
+  } finally {
+    titleSaving.value = false
+  }
+}
+
+function cancelRename() {
+  renamingTitle.value = false
+  titleError.value = ''
+}
+
 function clampImportance(v: number): number {
   return Math.min(5, Math.max(1, Math.round(v || 3)))
 }
 
+let graphLoadSeq = 0
+
+/** Reject commits from requests started before a canvas switch/reload. */
+function isCurrentGraph(canvasIdAtStart: string | null | undefined, seq: number): boolean {
+  return seq === graphLoadSeq && Boolean(canvasIdAtStart) && canvasIdAtStart === canvasId.value
+}
+
 async function loadGraph() {
   const id = route.params.id
+  const sequence = ++graphLoadSeq
   selectedEdgeId.value = null
+  selectedNodeId.value = null
+  hoveredNodeId.value = null
   cancelLinking()
   await store.load(typeof id === 'string' ? id : '')
+  if (sequence !== graphLoadSeq || (typeof id === 'string' && canvasId.value !== id)) return
   positionSync.syncFromNodes()
 }
 
@@ -208,6 +273,8 @@ function onSearchSelect(nodeId: string) {
 }
 
 function openEditor(nodeId: string) {
+  if (editorOpen.value && editorRef.value && !editorRef.value.requestClose()) return
+  if (editorOpen.value && !editorRef.value) return
   archiveOpen.value = false
   notesStore.select(nodeId)
   editorNoteId.value = nodeId
@@ -215,6 +282,8 @@ function openEditor(nodeId: string) {
 }
 
 function openArchive() {
+  if (editorOpen.value && editorRef.value && !editorRef.value.requestClose()) return
+  if (editorOpen.value && !editorRef.value) return
   editorOpen.value = false
   archiveOpen.value = true
 }
@@ -266,6 +335,7 @@ async function refreshGraphSilently(notifyOnError = true): Promise<boolean> {
   await positionSync.flushAll()
   try {
     const graph = await canvasApi.graph(cid)
+    if (canvasId.value !== cid) return false
     store.edges = graph.edges
     store.tags = graph.tags
     notesStore.setNodes(graph.nodes)
@@ -306,12 +376,19 @@ async function onNoteSaved(detail: NoteDetail, plan: SavePlan): Promise<void> {
   )
 }
 
+/** Tag list changed on the server: flush pending geometry, then refresh once. */
+async function onTagsChanged(): Promise<void> {
+  await positionSync.flushAll()
+  await refreshGraphSilently(false)
+}
+
 /** Sync archive action result with the graph (R29). */
 async function onArchiveChange(change: ArchiveChange): Promise<void> {
   switch (change.kind) {
     case 'make-relevant':
       notesStore.patchNode(change.noteId, { isRelevant: true })
       ensureNodeVisible(change.noteId)
+      await refreshGraphSilently(false)
       break
 
     case 'soft-delete':
@@ -345,12 +422,14 @@ function graphNodeFromNote(note: Note): GraphNode {
 
 async function createNoteAt(position: XYPosition) {
   const cid = store.canvas?.id
+  const seq = graphLoadSeq
   if (!cid) return
   try {
     const note = await notesApi.create(cid, {
       x: Math.round(position.x),
       y: Math.round(position.y),
     })
+    if (!isCurrentGraph(cid, seq)) return
     notesStore.upsertNode(graphNodeFromNote(note))
     notesStore.select(note.id)
     notify({ title: t('canvas.noteCreatedSimple'), status: 'success' })
@@ -383,7 +462,11 @@ const linkingSourceTitle = computed(() => {
 async function completeLinking(targetNodeId: string) {
   const sourceId = linkingSourceId.value
   if (!sourceId || linkingPending.value) return
-  if (targetNodeId.startsWith('ghost:') || targetNodeId.startsWith('dangling:')) return
+  if (targetNodeId.startsWith('ghost:') || targetNodeId.startsWith('dangling:')) {
+    notify({ title: t('canvas.cannotLinkTarget'), status: 'error' })
+    cancelLinking()
+    return
+  }
   if (!notesStore.getNodeById(targetNodeId)) return
   if (sourceId === targetNodeId) {
     notify({ title: t('canvas.cannotLinkSelf'), status: 'error' })
@@ -399,9 +482,12 @@ async function completeLinking(targetNodeId: string) {
     return
   }
 
+  const cid = store.canvas?.id
+  const seq = graphLoadSeq
   linkingPending.value = true
   try {
     const link = await linksApi.createDirect({ fromNoteId: sourceId, toNoteId: targetNodeId })
+    if (!isCurrentGraph(cid, seq)) return
     store.edges = [
       ...store.edges,
       {
@@ -428,6 +514,7 @@ async function completeLinking(targetNodeId: string) {
 
 async function deriveFromNode(nodeId: string) {
   const cid = store.canvas?.id
+  const seq = graphLoadSeq
   const parent = notesStore.getNodeById(nodeId)
   if (!cid || !parent) return
   try {
@@ -436,6 +523,7 @@ async function deriveFromNode(nodeId: string) {
       x: Math.round(parent.x + 40),
       y: Math.round(parent.y + 40),
     })
+    if (!isCurrentGraph(cid, seq)) return
     notesStore.upsertNode(graphNodeFromNote(res.note))
     store.edges = [
       ...store.edges,
@@ -472,8 +560,11 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 async function reverseSelectedEdge(edgeId: string) {
   if (!canEditCanvas.value) return
+  const cid = store.canvas?.id
+  const seq = graphLoadSeq
   try {
     const link = await linksApi.reverseDirect(edgeId)
+    if (!isCurrentGraph(cid, seq)) return
     store.edges = store.edges.map((edge) =>
       edge.id === edgeId ? { ...edge, from: link.fromNoteId, to: link.toNoteId } : edge
     )
@@ -489,8 +580,11 @@ async function reverseSelectedEdge(edgeId: string) {
 
 async function deleteSelectedEdge(edgeId: string) {
   if (!canEditCanvas.value) return
+  const cid = store.canvas?.id
+  const seq = graphLoadSeq
   try {
     await linksApi.removeDirect(edgeId)
+    if (!isCurrentGraph(cid, seq)) return
     store.edges = store.edges.filter((edge) => edge.id !== edgeId)
     if (selectedEdgeId.value === edgeId) selectedEdgeId.value = null
   } catch (e) {
@@ -933,27 +1027,56 @@ function onEdgeContextMenu(payload: { event: MouseEvent; edgeId: string }) {
   contextMenu.open(payload.event, { kind: 'edge', edgeId: payload.edgeId })
 }
 
+function onNodeFocus(nodeId: string) {
+  selectedEdgeId.value = null
+  selectedNodeId.value = nodeId || null
+}
+
+function onNodeHover(nodeId: string | null) {
+  hoveredNodeId.value = nodeId
+}
+
+function onNodeDelete(nodeId: string) {
+  if (!canEditCanvas.value) return
+  void deleteNodeSoft(nodeId)
+}
+
+function onEdgeSelected(edgeId: string) {
+  selectedEdgeId.value = edgeId
+  selectedNodeId.value = null
+}
+
+function onEdgeDeleted(edgeId: string) {
+  if (!canEditCanvas.value) return
+  void deleteSelectedEdge(edgeId)
+}
+
 function onGhostRestore(noteId: string) {
   void restoreGhostNote(noteId)
 }
 
 function onGlobalKeydown(event: KeyboardEvent) {
   const typing = isTypingTarget(event.target) || isTypingTarget(document.activeElement)
-
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
-    if (typing) return
-    if (error.value || loading.value || !store.canvas) return
-    event.preventDefault()
-    canvasSearchRef.value?.focus()
-    return
-  }
+  const inCanvasSearch = Boolean(canvasSearchRef.value?.rootEl?.contains(event.target as Node))
+  const overlayOpen =
+    editorOpen.value || archiveOpen.value || canvasAccessOpen.value || noteAccessOpen.value
 
   if (event.key === 'Escape') {
-    if (contextMenu.state.open) return
+    if (contextMenu.state.open) contextMenu.close()
     if (linkingSourceId.value) {
       event.preventDefault()
       cancelLinking()
     }
+    return
+  }
+
+  if (overlayOpen) return
+
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+    if (typing && !inCanvasSearch) return
+    if (error.value || loading.value || !store.canvas) return
+    event.preventDefault()
+    canvasSearchRef.value?.focus()
     return
   }
 
@@ -1009,7 +1132,29 @@ onBeforeUnmount(() => {
     <!-- Canvas header -->
     <header v-if="graph && !error" class="canvas-view__header">
       <div class="canvas-view__heading">
-        <h1 class="canvas-view__title">{{ graph.title }}</h1>
+        <UiInput
+          v-if="renamingTitle"
+          id="canvas-title-rename"
+          v-model="titleDraft"
+          class="canvas-view__rename"
+          :disabled="titleSaving"
+          :aria-label="t('canvas.renameTitle')"
+          @keydown.enter.prevent="commitRename"
+          @keydown.esc.prevent="cancelRename"
+          @focusout="commitRename"
+        />
+        <h1 v-else class="canvas-view__title">
+          {{ graph.title }}
+          <button
+            v-if="canRenameCanvas"
+            type="button"
+            class="canvas-view__rename-trigger"
+            :aria-label="t('canvas.renameTitle')"
+            @click="startRename"
+          >
+            ✎
+          </button>
+        </h1>
         <UiBadge v-if="roleLabel">{{ roleLabel }}</UiBadge>
         <UiBadge v-if="graph.access.publicSlug" tone="accent">{{ t('common.public') }}</UiBadge>
       </div>
@@ -1021,7 +1166,11 @@ onBeforeUnmount(() => {
           :canvas-id="store.canvas.id"
           @select="onSearchSelect"
         />
-        <TagMenu v-model:open="tagMenuOpen" v-model:highlighted-tag="highlightedTag" />
+        <TagMenu
+          v-model:open="tagMenuOpen"
+          v-model:highlighted-tag="highlightedTag"
+          @changed="onTagsChanged"
+        />
         <ImportanceFilter v-model:open="importanceMenuOpen" />
         <UiButton
           v-if="canEditCanvas"
@@ -1122,7 +1271,12 @@ onBeforeUnmount(() => {
         @node-click="onNodeClick"
         @node-context-menu="onNodeContextMenu"
         @node-open="openEditor"
+        @node-focus="onNodeFocus"
+        @node-hover="onNodeHover"
+        @node-delete="onNodeDelete"
         @edge-click="onEdgeClick"
+        @edge-select="onEdgeSelected"
+        @edge-delete="onEdgeDeleted"
         @edge-context-menu="onEdgeContextMenu"
         @ghost-restore="onGhostRestore"
       >
@@ -1153,6 +1307,7 @@ onBeforeUnmount(() => {
       <!-- R28: note editor panel (read-only determined inside) -->
       <NoteEditorModal
         v-if="editorOpen"
+        ref="editorRef"
         v-model:open="editorOpen"
         :note-id="editorNoteId"
         @saved="onNoteSaved"
@@ -1164,6 +1319,7 @@ onBeforeUnmount(() => {
         v-if="canEditCanvas && archiveOpen"
         v-model:open="archiveOpen"
         :canvas-id="canvasId"
+        @before-action="(done) => void positionSync.flushAll().then(done)"
         @changed="onArchiveChange"
       />
 

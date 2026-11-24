@@ -13,7 +13,10 @@ export interface ContextMenuItem {
 </script>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   open: boolean
@@ -28,6 +31,57 @@ const emit = defineEmits<{
 
 const menuRef = ref<HTMLElement | null>(null)
 const openSubmenuId = ref<string | null>(null)
+let returnFocusTo: HTMLElement | null = null
+
+function menuButtons(scope: HTMLElement | null = menuRef.value): HTMLButtonElement[] {
+  return Array.from(scope?.querySelectorAll<HTMLButtonElement>('.canvas-context-menu__button:not(:disabled)') ?? [])
+}
+
+function focusFirstButton(): void {
+  const button = menuButtons()[0]
+  button?.focus()
+}
+
+function onMenuKeydown(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement
+  const buttons = menuButtons(target.closest('.canvas-context-menu__submenu') as HTMLElement | null ?? menuRef.value)
+  const inSubmenu = Boolean(target.closest('.canvas-context-menu__submenu'))
+  const index = buttons.indexOf(target as HTMLButtonElement)
+
+  switch (event.key) {
+    case 'ArrowDown':
+    case 'ArrowUp': {
+      if (!buttons.length) return
+      const delta = event.key === 'ArrowDown' ? 1 : -1
+      buttons[(index + delta + buttons.length) % buttons.length]?.focus()
+      break
+    }
+    case 'Home':
+      buttons[0]?.focus()
+      break
+    case 'End':
+      buttons[buttons.length - 1]?.focus()
+      break
+    case 'ArrowRight': {
+      const item = props.items.find((candidate) => candidate.label === target.textContent?.trim())
+      if (item?.children?.length) onMouseEnter(item)
+      break
+    }
+    case 'ArrowLeft':
+      if (inSubmenu) {
+        openSubmenuId.value = null
+        menuButtons()[0]?.focus()
+      }
+      break
+    case 'Escape':
+      emit('close')
+      break
+    default:
+      return
+  }
+  event.preventDefault()
+  event.stopPropagation()
+}
 
 const style = computed(() => {
   const padding = 8
@@ -43,8 +97,16 @@ const style = computed(() => {
 
 watch(
   () => props.open,
-  (open) => {
-    if (!open) openSubmenuId.value = null
+  async (open) => {
+    if (open) {
+      returnFocusTo = document.activeElement as HTMLElement | null
+      await nextTick()
+      focusFirstButton()
+      return
+    }
+    openSubmenuId.value = null
+    if (returnFocusTo?.isConnected) returnFocusTo.focus()
+    returnFocusTo = null
   }
 )
 
@@ -83,6 +145,9 @@ defineExpose({ menuRef })
       class="canvas-context-menu"
       :style="style"
       role="menu"
+      :aria-label="t('common.menu')"
+      tabindex="-1"
+      @keydown="onMenuKeydown"
       @contextmenu.prevent
     >
       <ul class="canvas-context-menu__list">
@@ -174,7 +239,7 @@ defineExpose({ menuRef })
 <style scoped>
 .canvas-context-menu {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-overlay);
   min-width: 220px;
   max-width: 320px;
   padding: 0.3rem;

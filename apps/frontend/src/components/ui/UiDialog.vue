@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, getCurrentInstance } from 'vue'
+import { computed, getCurrentInstance, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { X } from 'lucide-vue-next'
 import {
   DialogClose,
   DialogContent,
@@ -17,6 +18,8 @@ const props = defineProps<{
   description?: string
   /** Controlled mode. If omitted, dialog manages its own open state (trigger slot). */
   open?: boolean
+  /** Keep the dialog open during an in-flight submit. */
+  busy?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -36,8 +39,32 @@ const rootProps = computed(() =>
   isControlled.value ? { open: props.open } : { defaultOpen: false }
 )
 
+const returnFocusTo = ref<HTMLElement | null>(null)
+
+watch(
+  () => props.open,
+  (open, wasOpen) => {
+    if (open && !wasOpen) returnFocusTo.value = document.activeElement as HTMLElement | null
+  }
+)
+
 function onOpenChange(value: boolean) {
+  if (props.busy && !value) return
   emit('update:open', value)
+}
+
+function onDismiss(event: { preventDefault: () => void }) {
+  if (!props.busy) return
+  event.preventDefault()
+}
+
+function onCloseAutoFocus(event: Event) {
+  const target = returnFocusTo.value
+  if (isControlled.value && target?.isConnected) {
+    event.preventDefault()
+    target.focus()
+  }
+  returnFocusTo.value = null
 }
 </script>
 
@@ -49,7 +76,13 @@ function onOpenChange(value: boolean) {
 
     <DialogPortal>
       <DialogOverlay class="ui-dialog__overlay" />
-      <DialogContent class="ui-dialog__content">
+      <DialogContent
+        class="ui-dialog__content"
+        :aria-busy="busy || undefined"
+        @escape-key-down="onDismiss"
+        @pointer-down-outside="onDismiss"
+        @close-auto-focus="onCloseAutoFocus"
+      >
         <DialogTitle v-if="title || $slots.title" class="ui-dialog__title">
           <slot name="title">{{ title }}</slot>
         </DialogTitle>
@@ -63,7 +96,7 @@ function onOpenChange(value: boolean) {
         <DialogClose as-child>
           <slot name="close">
             <button class="ui-dialog__close" type="button" :aria-label="t('common.close')">
-              ✕
+              <X :size="18" aria-hidden="true" />
             </button>
           </slot>
         </DialogClose>

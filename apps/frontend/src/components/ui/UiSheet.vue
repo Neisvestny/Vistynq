@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
+import { X } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(
@@ -30,6 +32,14 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const returnFocusTo = ref<HTMLElement | null>(null)
+
+watch(
+  () => props.open,
+  (open, wasOpen) => {
+    if (open && !wasOpen) returnFocusTo.value = document.activeElement as HTMLElement | null
+  }
+)
 
 function requestClose(): void {
   if (props.preventClose) {
@@ -52,6 +62,15 @@ function onDismiss(event: { preventDefault: () => void }): void {
   event.preventDefault()
   emit('close-request')
 }
+
+function onCloseAutoFocus(event: Event): void {
+  const target = returnFocusTo.value
+  if (target?.isConnected) {
+    event.preventDefault()
+    target.focus()
+  }
+  returnFocusTo.value = null
+}
 </script>
 
 <template>
@@ -69,6 +88,7 @@ function onDismiss(event: { preventDefault: () => void }): void {
           @escape-key-down="onDismiss"
           @pointer-down-outside="onDismiss"
           @focus-outside="onDismiss"
+          @close-auto-focus="onCloseAutoFocus"
         >
           <DialogTitle v-if="title || $slots.title" class="ui-sheet__title">
             <slot name="title">{{ title }}</slot>
@@ -86,23 +106,10 @@ function onDismiss(event: { preventDefault: () => void }): void {
             <button
               class="ui-sheet__close"
               :class="'ui-sheet__close--' + side"
-              :aria-label="t('common.closeMenu')"
+              :aria-label="t('common.close')"
               @click="requestClose"
             >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
+              <X :size="18" aria-hidden="true" />
             </button>
           </slot>
         </DialogContent>

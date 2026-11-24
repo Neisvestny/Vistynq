@@ -68,7 +68,7 @@ export const router = createRouter({
           path: 'canvas/:id',
           name: 'canvas',
           component: () => import('@/views/CanvasViewPage.vue'),
-          meta: { requiresAuth: true, requiresVerified: true },
+          meta: { requiresAuth: true },
         },
         {
           path: 'profile',

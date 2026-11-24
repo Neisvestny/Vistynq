@@ -9,6 +9,8 @@ import { authApi } from '@/api/auth'
 import { ApiError } from '@/api/http'
 import { notify } from '@/api/notify'
 import { applyApiError, isValidEmail } from '@/api/errors'
+import { safeRedirectPath } from '@/lib/redirect'
+import { focusFirstInvalidField } from '@/lib/formFeedback'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -19,6 +21,7 @@ const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const errors = ref<Record<string, string>>({})
+const formError = ref('')
 
 const showResend = ref(false)
 const resendEmail = ref('')
@@ -42,6 +45,7 @@ async function onResend() {
 
   resendError.value = ''
   resendSuccess.value = ''
+  formError.value = ''
 
   const target = resendEmail.value.trim()
   if (!isValidEmail(target)) {
@@ -66,7 +70,7 @@ async function onResend() {
         return
       }
     }
-    applyApiError(error, {})
+    formError.value = applyApiError(error, {})
   } finally {
     resendLoading.value = false
   }
@@ -76,18 +80,22 @@ async function onSubmit() {
   if (loading.value) return
 
   errors.value = {}
+  formError.value = ''
   if (!isValidEmail(email.value)) {
     errors.value.email = t('auth.emailInvalid')
   }
   if (!password.value) {
     errors.value.password = t('auth.passwordRequired')
   }
-  if (Object.keys(errors.value).length > 0) return
+  if (Object.keys(errors.value).length > 0) {
+    void focusFirstInvalidField()
+    return
+  }
 
   loading.value = true
   try {
     await auth.login(email.value.trim(), password.value)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/dashboard'
+    const redirect = safeRedirectPath(route.query.redirect) ?? '/dashboard'
     await router.replace(redirect)
   } catch (error) {
     if (error instanceof ApiError && error.code === 'EMAIL_NOT_VERIFIED') {
@@ -98,7 +106,8 @@ async function onSubmit() {
       })
       openResend(email.value)
     } else {
-      applyApiError(error, errors.value)
+      formError.value = applyApiError(error, errors.value)
+      void focusFirstInvalidField()
     }
   } finally {
     loading.value = false
@@ -111,6 +120,13 @@ async function onSubmit() {
     <h1 class="auth-form__title">{{ t('auth.loginTitle') }}</h1>
     <p class="auth-form__subtitle">{{ t('auth.loginSubtitle') }}</p>
 
+    <div v-if="formError" class="auth-form__error-banner" role="alert">
+      <span>{{ formError }}</span>
+      <button type="button" class="auth-form__link-button" @click="onSubmit">
+        {{ t('common.retry') }}
+      </button>
+    </div>
+
     <div>
       <UiInput
         id="login-email"
@@ -119,10 +135,10 @@ async function onSubmit() {
         :placeholder="t('auth.emailPlaceholder')"
         autocomplete="email"
         :disabled="loading"
+        :error="errors.email"
       >
         {{ t('auth.email') }}
       </UiInput>
-      <p v-if="errors.email" class="auth-form__error">{{ errors.email }}</p>
     </div>
 
     <div>
@@ -133,10 +149,10 @@ async function onSubmit() {
         :placeholder="t('auth.passwordPlaceholder')"
         autocomplete="current-password"
         :disabled="loading"
+        :error="errors.password"
       >
         {{ t('auth.password') }}
       </UiInput>
-      <p v-if="errors.password" class="auth-form__error">{{ errors.password }}</p>
     </div>
 
     <UiButton type="submit" :disabled="loading">
@@ -157,10 +173,10 @@ async function onSubmit() {
           :placeholder="t('auth.emailPlaceholder')"
           autocomplete="email"
           :disabled="resendLoading"
+          :error="resendError"
         >
           {{ t('auth.resendEmailLabel') }}
         </UiInput>
-        <p v-if="resendError" class="auth-form__error">{{ resendError }}</p>
         <p v-if="resendSuccess" class="auth-form__success">{{ resendSuccess }}</p>
         <div class="auth-form__resend-actions">
           <UiButton
