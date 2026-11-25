@@ -27,12 +27,34 @@
               <stop offset="1" stop-color="#f6f7fb" />
             </linearGradient>
             <filter id="hero-shadow" x="-30%" y="-30%" width="160%" height="180%">
-              <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1b2440" flood-opacity="0.12" />
+              <feDropShadow
+                dx="0"
+                dy="10"
+                stdDeviation="14"
+                flood-color="#1b2440"
+                flood-opacity="0.12"
+              />
             </filter>
-            <marker id="hero-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <marker
+              id="hero-arrow"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto"
+            >
               <path d="M0 0 10 5 0 10Z" fill="#3b5bdb" />
             </marker>
-            <marker id="hero-arrow-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <marker
+              id="hero-arrow-soft"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto"
+            >
               <path d="M0 0 10 5 0 10Z" fill="#8d9ac2" />
             </marker>
           </defs>
@@ -40,16 +62,72 @@
           <circle cx="248" cy="178" r="158" fill="#eaeefc" opacity="0.7" />
           <circle cx="248" cy="178" r="112" stroke="#cdd4e3" stroke-dasharray="4 7" />
 
-          <path d="M196 113 285 82" stroke="#3b5bdb" stroke-width="2" marker-end="url(#hero-arrow)" />
-          <path d="M196 140 118 214" stroke="#3b5bdb" stroke-width="2" marker-end="url(#hero-arrow)" />
-          <path d="M292 108 344 202" stroke="#8d9ac2" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#hero-arrow-soft)" />
-          <path d="M136 238 300 264" stroke="#8d9ac2" stroke-width="2" stroke-dasharray="6 6" marker-end="url(#hero-arrow-soft)" />
+          <path
+            d="M196 113 285 82"
+            stroke="#3b5bdb"
+            stroke-width="2"
+            marker-end="url(#hero-arrow)"
+          />
+          <path
+            d="M196 140 118 214"
+            stroke="#3b5bdb"
+            stroke-width="2"
+            marker-end="url(#hero-arrow)"
+          />
+          <path
+            d="M292 108 344 202"
+            stroke="#8d9ac2"
+            stroke-width="2"
+            stroke-dasharray="6 6"
+            marker-end="url(#hero-arrow-soft)"
+          />
+          <path
+            d="M136 238 300 264"
+            stroke="#8d9ac2"
+            stroke-width="2"
+            stroke-dasharray="6 6"
+            marker-end="url(#hero-arrow-soft)"
+          />
 
           <g filter="url(#hero-shadow)">
-            <rect x="104" y="60" width="104" height="62" rx="10" fill="url(#hero-card-fill)" stroke="#3b5bdb" stroke-width="2" />
-            <rect x="36" y="194" width="104" height="62" rx="10" fill="url(#hero-card-fill)" stroke="#cdd4e3" />
-            <rect x="278" y="60" width="104" height="62" rx="10" fill="url(#hero-card-fill)" stroke="#cdd4e3" />
-            <rect x="282" y="242" width="104" height="62" rx="10" fill="url(#hero-card-fill)" stroke="#ea840b" stroke-width="2" />
+            <rect
+              x="104"
+              y="60"
+              width="104"
+              height="62"
+              rx="10"
+              fill="url(#hero-card-fill)"
+              stroke="#3b5bdb"
+              stroke-width="2"
+            />
+            <rect
+              x="36"
+              y="194"
+              width="104"
+              height="62"
+              rx="10"
+              fill="url(#hero-card-fill)"
+              stroke="#cdd4e3"
+            />
+            <rect
+              x="278"
+              y="60"
+              width="104"
+              height="62"
+              rx="10"
+              fill="url(#hero-card-fill)"
+              stroke="#cdd4e3"
+            />
+            <rect
+              x="282"
+              y="242"
+              width="104"
+              height="62"
+              rx="10"
+              fill="url(#hero-card-fill)"
+              stroke="#ea840b"
+              stroke-width="2"
+            />
           </g>
 
           <rect x="116" y="74" width="56" height="7" rx="3.5" fill="#14161c" />

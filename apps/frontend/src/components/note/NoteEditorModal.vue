@@ -328,7 +328,11 @@ async function uploadAttachmentFile(
 
   const validationError = validateUploadFile(file, kind)
   if (!validationError && kind === 'image' && !(await matchesImageMime(file, file.type))) {
-    notify({ title: t('note.fileNotUploaded'), description: t('note.imageInvalidType'), status: 'error' })
+    notify({
+      title: t('note.fileNotUploaded'),
+      description: t('note.imageInvalidType'),
+      status: 'error',
+    })
     return
   }
   if (validationError) {

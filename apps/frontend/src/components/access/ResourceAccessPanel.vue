@@ -120,11 +120,7 @@ defineExpose({ onInviteSuccess })
       </p>
 
       <ul v-else class="access-panel__list">
-        <li
-          v-for="entry in sortedEntries"
-          :key="revokeKey(entry)"
-          class="access-panel__item"
-        >
+        <li v-for="entry in sortedEntries" :key="revokeKey(entry)" class="access-panel__item">
           <div class="access-panel__item-main">
             <div class="access-panel__item-email">{{ entry.email }}</div>
             <div class="access-panel__item-meta">
@@ -159,20 +155,10 @@ defineExpose({ onInviteSuccess })
                 <p class="access-panel__confirm" role="alert">
                   {{ entry.pending ? t('access.revokeInviteConfirm') : t('access.revokeConfirm') }}
                 </p>
-                <UiButton
-                  variant="danger"
-                  size="sm"
-                  type="button"
-                  @click="confirmRevoke(entry)"
-                >
+                <UiButton variant="danger" size="sm" type="button" @click="confirmRevoke(entry)">
                   {{ t('access.revoke') }}
                 </UiButton>
-                <UiButton
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  @click="confirmingRevoke = null"
-                >
+                <UiButton variant="ghost" size="sm" type="button" @click="confirmingRevoke = null">
                   {{ t('common.cancel') }}
                 </UiButton>
               </template>

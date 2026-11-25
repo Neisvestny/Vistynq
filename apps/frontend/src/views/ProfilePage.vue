@@ -236,10 +236,20 @@ async function onLogout() {
             <div v-if="confirmDeleteAvatar" class="profile-page__confirm" role="group">
               <p>{{ t('profile.avatarDeleteConfirm') }}</p>
               <div class="profile-page__avatar-buttons">
-                <UiButton variant="danger" size="sm" :disabled="avatarDeleting" @click="onDeleteAvatar">
+                <UiButton
+                  variant="danger"
+                  size="sm"
+                  :disabled="avatarDeleting"
+                  @click="onDeleteAvatar"
+                >
                   {{ avatarDeleting ? t('common.deleting') : t('profile.deleteAvatar') }}
                 </UiButton>
-                <UiButton variant="ghost" size="sm" :disabled="avatarDeleting" @click="confirmDeleteAvatar = false">
+                <UiButton
+                  variant="ghost"
+                  size="sm"
+                  :disabled="avatarDeleting"
+                  @click="confirmDeleteAvatar = false"
+                >
                   {{ t('common.cancel') }}
                 </UiButton>
               </div>

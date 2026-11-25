@@ -136,84 +136,84 @@ export function useGraph(options: UseGraphOptions = {}) {
     // Ghost/synthetic nodes for removed edges (R30). Not in notes store.
     // Viewers must not see traces of links and notes they cannot restore.
     if (guard.canEditCanvas.value) {
-    const ghostByTarget = new Map<string, GhostNodeData>()
-    const danglingByEdgeId = new Set<string>()
+      const ghostByTarget = new Map<string, GhostNodeData>()
+      const danglingByEdgeId = new Set<string>()
 
-    for (const edge of canvasStore.edges) {
-      if (edge.state !== 'removed') continue
-      if (!visibleNodeIds.value.has(edge.from)) continue
+      for (const edge of canvasStore.edges) {
+        if (edge.state !== 'removed') continue
+        if (!visibleNodeIds.value.has(edge.from)) continue
 
-      // Purged indirect: to === null, dangling line.
-      if (edge.to === null) {
-        danglingByEdgeId.add(edge.id)
-        continue
-      }
+        // Purged indirect: to === null, dangling line.
+        if (edge.to === null) {
+          danglingByEdgeId.add(edge.id)
+          continue
+        }
 
-      // Soft-deleted target: to is set, but node is not in visible set.
-      if (visibleNodeIds.value.has(edge.to)) continue
+        // Soft-deleted target: to is set, but node is not in visible set.
+        if (visibleNodeIds.value.has(edge.to)) continue
 
-      const existing = ghostByTarget.get(edge.to)
-      if (existing) {
-        if (!existing.sourceNoteIds.includes(edge.from)) existing.sourceNoteIds.push(edge.from)
-        continue
-      }
-      ghostByTarget.set(edge.to, {
-        kind: 'ghost',
-        targetNoteId: edge.to,
-        edgeId: edge.id,
-        label: edge.label ?? tGlobal('links.deletedBadge'),
-        canRestore: guard.canEditCanvas.value,
-        sourceNoteIds: [edge.from],
-      })
-    }
-
-    for (const ghost of ghostByTarget.values()) {
-      const source = notesStore.getNodeById(ghost.sourceNoteIds[0] ?? '')
-      const baseX = (source?.x ?? 0) + (source?.width ?? 220) + 80
-      const baseY = source?.y ?? 0
-      // Small vertical offset for multiple ghost nodes from different sources.
-      const index = nodes.filter(
-        (n) => isGhostNodeData(n.data) && Math.abs(n.position.x - baseX) < 20
-      ).length
-      nodes.push({
-        id: `ghost:${ghost.targetNoteId}`,
-        type: 'ghost',
-        position: { x: baseX, y: baseY + index * 96 },
-        width: 220,
-        draggable: false,
-        selectable: false,
-        focusable: false,
-        class: 'ghost-flow-node',
-        data: ghost,
-      })
-    }
-
-    for (const edgeId of danglingByEdgeId) {
-      const edge = canvasStore.edges.find((e) => e.id === edgeId)
-      if (!edge) continue
-      const source = notesStore.getNodeById(edge.from)
-      const baseX = (source?.x ?? 0) + (source?.width ?? 220) + 90
-      const baseY = (source?.y ?? 0) + 24
-      nodes.push({
-        id: `dangling:${edge.id}`,
-        type: 'dangling-anchor',
-        position: { x: baseX, y: baseY },
-        width: 1,
-        height: 1,
-        draggable: false,
-        selectable: false,
-        focusable: false,
-        class: 'dangling-flow-node',
-        data: {
+        const existing = ghostByTarget.get(edge.to)
+        if (existing) {
+          if (!existing.sourceNoteIds.includes(edge.from)) existing.sourceNoteIds.push(edge.from)
+          continue
+        }
+        ghostByTarget.set(edge.to, {
           kind: 'ghost',
-          targetNoteId: '',
+          targetNoteId: edge.to,
           edgeId: edge.id,
           label: edge.label ?? tGlobal('links.deletedBadge'),
-          canRestore: false,
+          canRestore: guard.canEditCanvas.value,
           sourceNoteIds: [edge.from],
-        } satisfies GhostNodeData,
-      })
-    }
+        })
+      }
+
+      for (const ghost of ghostByTarget.values()) {
+        const source = notesStore.getNodeById(ghost.sourceNoteIds[0] ?? '')
+        const baseX = (source?.x ?? 0) + (source?.width ?? 220) + 80
+        const baseY = source?.y ?? 0
+        // Small vertical offset for multiple ghost nodes from different sources.
+        const index = nodes.filter(
+          (n) => isGhostNodeData(n.data) && Math.abs(n.position.x - baseX) < 20
+        ).length
+        nodes.push({
+          id: `ghost:${ghost.targetNoteId}`,
+          type: 'ghost',
+          position: { x: baseX, y: baseY + index * 96 },
+          width: 220,
+          draggable: false,
+          selectable: false,
+          focusable: false,
+          class: 'ghost-flow-node',
+          data: ghost,
+        })
+      }
+
+      for (const edgeId of danglingByEdgeId) {
+        const edge = canvasStore.edges.find((e) => e.id === edgeId)
+        if (!edge) continue
+        const source = notesStore.getNodeById(edge.from)
+        const baseX = (source?.x ?? 0) + (source?.width ?? 220) + 90
+        const baseY = (source?.y ?? 0) + 24
+        nodes.push({
+          id: `dangling:${edge.id}`,
+          type: 'dangling-anchor',
+          position: { x: baseX, y: baseY },
+          width: 1,
+          height: 1,
+          draggable: false,
+          selectable: false,
+          focusable: false,
+          class: 'dangling-flow-node',
+          data: {
+            kind: 'ghost',
+            targetNoteId: '',
+            edgeId: edge.id,
+            label: edge.label ?? tGlobal('links.deletedBadge'),
+            canRestore: false,
+            sourceNoteIds: [edge.from],
+          } satisfies GhostNodeData,
+        })
+      }
     }
 
     return nodes

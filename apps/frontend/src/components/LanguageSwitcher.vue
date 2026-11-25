@@ -18,7 +18,9 @@ const current = computed(() => ui.locale)
 function setLocale(locale: AppLocale) {
   if (locale === ui.locale) return
   ui.setLocale(locale)
-  announcement.value = t('common.languageChanged', { language: t(options.find((o) => o.value === locale)!.labelKey) })
+  announcement.value = t('common.languageChanged', {
+    language: t(options.find((o) => o.value === locale)!.labelKey),
+  })
 }
 </script>
 

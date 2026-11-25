@@ -181,7 +181,10 @@ onMounted(async () => {
     <template v-else>
       <ul class="dashboard__grid">
         <li v-for="canvas in store.items" :key="canvas.id" class="ui-card dashboard__card">
-          <RouterLink class="dashboard__card-link" :to="{ name: 'canvas', params: { id: canvas.id } }">
+          <RouterLink
+            class="dashboard__card-link"
+            :to="{ name: 'canvas', params: { id: canvas.id } }"
+          >
             <div class="dashboard__card-top">
               <h2 class="dashboard__card-title">{{ canvas.title }}</h2>
               <UiBadge v-if="canvas.access.level === 'public'" tone="public">
@@ -213,7 +216,11 @@ onMounted(async () => {
                 :disabled="store.deletingId === canvas.id"
                 @click="onDeleteCanvas(canvas)"
               >
-                {{ store.deletingId === canvas.id ? t('common.deleting') : t('dashboard.deleteCanvas') }}
+                {{
+                  store.deletingId === canvas.id
+                    ? t('common.deleting')
+                    : t('dashboard.deleteCanvas')
+                }}
               </UiButton>
               <UiButton
                 variant="ghost"
@@ -224,12 +231,7 @@ onMounted(async () => {
                 {{ t('common.cancel') }}
               </UiButton>
             </template>
-            <UiButton
-              v-else
-              variant="ghost"
-              size="sm"
-              @click="confirmingDeleteId = canvas.id"
-            >
+            <UiButton v-else variant="ghost" size="sm" @click="confirmingDeleteId = canvas.id">
               <Trash2 :size="16" aria-hidden="true" />
               <span class="sr-only">{{ t('dashboard.deleteCanvas') }}</span>
             </UiButton>
@@ -251,7 +253,9 @@ onMounted(async () => {
           {{ t('common.back') }}
         </UiButton>
         <span class="dashboard__pagination-info">
-          <span aria-current="page">{{ t('dashboard.pageInfo', { page: store.page, totalPages: store.totalPages }) }}</span>
+          <span aria-current="page">{{
+            t('dashboard.pageInfo', { page: store.page, totalPages: store.totalPages })
+          }}</span>
           <span class="dashboard__pagination-total">
             {{ t('dashboard.totalInfo', { total: store.total }) }}
           </span>

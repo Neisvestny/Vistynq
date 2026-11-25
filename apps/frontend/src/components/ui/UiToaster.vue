@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { CircleAlert, CircleCheck, Info, Info as InfoIcon, TriangleAlert, X } from 'lucide-vue-next'
-import { ToastClose, ToastDescription, ToastRoot, ToastTitle, ToastViewport, useToastManager } from 'reka-ui'
+import {
+  ToastClose,
+  ToastDescription,
+  ToastRoot,
+  ToastTitle,
+  ToastViewport,
+  useToastManager,
+} from 'reka-ui'
 
 const { t } = useI18n()
 const { toasts } = useToastManager()
@@ -14,16 +21,14 @@ const statusIcons = {
 } as const
 
 function statusIcon(status: string | undefined) {
-  return status && status in statusIcons ? statusIcons[status as keyof typeof statusIcons] : InfoIcon
+  return status && status in statusIcons
+    ? statusIcons[status as keyof typeof statusIcons]
+    : InfoIcon
 }
 </script>
 
 <template>
-  <ToastViewport
-    as="div"
-    class="ui-toast__viewport"
-    :label="t('common.notifications')"
-  >
+  <ToastViewport as="div" class="ui-toast__viewport" :label="t('common.notifications')">
     <div v-for="toast in toasts" :key="toast.id">
       <Transition name="toast-slide">
         <ToastRoot as="div" class="ui-toast__root" :toast="toast" :data-status="toast.status">

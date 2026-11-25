@@ -18,8 +18,7 @@ const SIGNATURES: ReadonlyArray<{ mime: string; matches: (head: Uint8Array) => b
   },
   {
     mime: 'image/gif',
-    matches: (head) =>
-      head.length >= 4 && String.fromCharCode(...head.subarray(0, 4)) === 'GIF8',
+    matches: (head) => head.length >= 4 && String.fromCharCode(...head.subarray(0, 4)) === 'GIF8',
   },
   {
     mime: 'image/webp',

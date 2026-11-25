@@ -25,7 +25,9 @@ const activeIndex = ref(-1)
 let requestSeq = 0
 
 const hasQuery = computed(() => query.value.trim().length > 0)
-const hasResults = computed(() => open.value && hasQuery.value && !loading.value && !error.value && results.value.length > 0)
+const hasResults = computed(
+  () => open.value && hasQuery.value && !loading.value && !error.value && results.value.length > 0
+)
 const activeId = computed(() =>
   activeIndex.value >= 0 && activeIndex.value < results.value.length
     ? `canvas-search-option-${results.value[activeIndex.value]?.id}`
@@ -176,7 +178,12 @@ onBeforeUnmount(() => {
           :aria-selected="index === activeIndex"
           @mouseenter="activeIndex = index"
         >
-          <button type="button" class="canvas-search__result" tabindex="-1" @click="onSelect(hit.id)">
+          <button
+            type="button"
+            class="canvas-search__result"
+            tabindex="-1"
+            @click="onSelect(hit.id)"
+          >
             <span class="canvas-search__title">{{ hit.title || t('note.untitled') }}</span>
             <span class="canvas-search__meta">
               <span

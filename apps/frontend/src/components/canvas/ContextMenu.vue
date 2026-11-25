@@ -34,7 +34,9 @@ const openSubmenuId = ref<string | null>(null)
 let returnFocusTo: HTMLElement | null = null
 
 function menuButtons(scope: HTMLElement | null = menuRef.value): HTMLButtonElement[] {
-  return Array.from(scope?.querySelectorAll<HTMLButtonElement>('.canvas-context-menu__button:not(:disabled)') ?? [])
+  return Array.from(
+    scope?.querySelectorAll<HTMLButtonElement>('.canvas-context-menu__button:not(:disabled)') ?? []
+  )
 }
 
 function focusFirstButton(): void {
@@ -44,7 +46,9 @@ function focusFirstButton(): void {
 
 function onMenuKeydown(event: KeyboardEvent): void {
   const target = event.target as HTMLElement
-  const buttons = menuButtons(target.closest('.canvas-context-menu__submenu') as HTMLElement | null ?? menuRef.value)
+  const buttons = menuButtons(
+    (target.closest('.canvas-context-menu__submenu') as HTMLElement | null) ?? menuRef.value
+  )
   const inSubmenu = Boolean(target.closest('.canvas-context-menu__submenu'))
   const index = buttons.indexOf(target as HTMLButtonElement)
 
