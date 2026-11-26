@@ -3,6 +3,6 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "./bin/serve"
+    "dev": "php bin/serve.php"
   }
 }
